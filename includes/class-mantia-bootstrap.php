@@ -27,6 +27,7 @@ final class Mantia_Bootstrap {
 		Mantia_Agent::register();
 		Mantia_Whatsapp_Flow::register();
 		Mantia_Workflows::register();
+		Mantia_Frontend::register();
 	}
 
 	public static function activate(): void {
