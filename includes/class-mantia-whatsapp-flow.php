@@ -473,23 +473,48 @@ final class Mantia_Whatsapp_Flow {
 			return null;
 		}
 
-		// Allow direct slug or sanitize-equivalent forms ("Mundial 2026" →
-		// "mundial-2026"). Mantia_Competitions::get() sanitizes internally,
-		// but we always return the canonical $comp['id'] so downstream
-		// meta_value queries match.
+		// Strip natural-language connectors so "de Esta semana" / "de la
+		// LigaUY" still match the slug. We do this once at the top so
+		// every branch below sees the normalized hint.
+		$h = (string) preg_replace( '/^(?:de\s+la\s+|de\s+los\s+|de\s+las\s+|de\s+los?\s+|del\s+|de\s+)/u', '', $h );
+		$h = trim( $h );
+		if ( '' === $h ) {
+			return null;
+		}
+
+		// 1. Direct slug or sanitize-equivalent ("Esta semana" → "esta-semana").
 		$direct = Mantia_Competitions::get( $h );
 		if ( null !== $direct ) {
 			return (string) $direct['id'];
 		}
 
-		$aliases = array(
-			'mundial-2026'        => array( 'mundial', 'world cup', 'copa del mundo', 'fifa', 'mundial 2026' ),
-			'libertadores-semana' => array( 'libertadores semana', 'libertadores de esta semana', 'libertadores esta semana', 'libertadores semanal' ),
-			'libertadores-2026'   => array( 'libertadores', 'copa libertadores', 'libertadores completa', 'libertadores 2026' ),
-			'sudamericana-2026'   => array( 'sudamericana', 'copa sudamericana', 'sudamericana 2026' ),
-			'liga-uy-2026'        => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'liga-uy', 'campeonato uruguayo', 'liga uy 2026', 'auf' ),
-		);
+		// 2. Match against every registered competition by sanitized name —
+		// covers Mundial / Libertadores / Sudamericana / LigaUY / Esta semana
+		// and anything an admin adds later without code changes.
+		$candidates = array();
+		foreach ( Mantia_Competitions::all() as $c ) {
+			$slug          = (string) $c['id'];
+			$name          = function_exists( 'remove_accents' ) ? remove_accents( (string) $c['name'] ) : (string) $c['name'];
+			$name          = strtolower( trim( $name ) );
+			$candidates[ $slug ] = $name;
+		}
+		// Longer names first so "libertadores 2026" wins over "libertadores".
+		uasort( $candidates, static fn( string $a, string $b ): int => strlen( $b ) - strlen( $a ) );
+		foreach ( $candidates as $slug => $name ) {
+			if ( '' !== $name && false !== strpos( $h, $name ) ) {
+				return $slug;
+			}
+		}
 
+		// 3. Hardcoded aliases for short forms / nicknames not in the
+		// competition title ("mundial" → "mundial-2026", "auf" → "liga-uy-2026").
+		$aliases = array(
+			'mundial-2026'        => array( 'mundial', 'world cup', 'copa del mundo', 'fifa' ),
+			'libertadores-semana' => array( 'libertadores semana', 'libertadores esta semana', 'libertadores semanal' ),
+			'libertadores-2026'   => array( 'libertadores', 'copa libertadores', 'libertadores completa' ),
+			'sudamericana-2026'   => array( 'sudamericana', 'copa sudamericana' ),
+			'liga-uy-2026'        => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'liga-uy', 'campeonato uruguayo', 'auf' ),
+		);
 		foreach ( $aliases as $id => $list ) {
 			foreach ( $list as $alias ) {
 				if ( false !== strpos( $h, $alias ) && null !== Mantia_Competitions::get( $id ) ) {

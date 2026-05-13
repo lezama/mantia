@@ -1,0 +1,70 @@
+{
+  "source": "demo-test-fixture",
+  "note": "Mini-competencia para probar el flow de pronósticos + resolución. Partidos Mié 13 → Vie 15 de mayo 2026.",
+  "competition_id": "esta-semana",
+  "matches": [
+    {
+      "external_id": "test-week-01",
+      "home_team": "Boca Juniors",
+      "away_team": "Racing Club",
+      "kickoff_gmt": "2026-05-14 00:00:00",
+      "phase": "Liga Profesional · Argentina",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-02",
+      "home_team": "Liverpool",
+      "away_team": "Chelsea",
+      "kickoff_gmt": "2026-05-14 20:30:00",
+      "phase": "Premier League · Inglaterra",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-03",
+      "home_team": "Manchester City",
+      "away_team": "Arsenal",
+      "kickoff_gmt": "2026-05-14 22:00:00",
+      "phase": "Premier League · Inglaterra",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-04",
+      "home_team": "Flamengo",
+      "away_team": "Palmeiras",
+      "kickoff_gmt": "2026-05-15 00:00:00",
+      "phase": "Brasileirão · Brasil",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-05",
+      "home_team": "Real Madrid",
+      "away_team": "Atletico Madrid",
+      "kickoff_gmt": "2026-05-15 20:30:00",
+      "phase": "La Liga · España",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-06",
+      "home_team": "Inter",
+      "away_team": "Juventus",
+      "kickoff_gmt": "2026-05-15 22:00:00",
+      "phase": "Serie A · Italia",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    },
+    {
+      "external_id": "test-week-07",
+      "home_team": "PSG",
+      "away_team": "Marseille",
+      "kickoff_gmt": "2026-05-16 00:00:00",
+      "phase": "Ligue 1 · Francia",
+      "status": "scheduled",
+      "competition_id": "esta-semana"
+    }
+  ]
+}
