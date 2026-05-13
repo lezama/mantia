@@ -67,6 +67,9 @@ jobs:
               "user_id"              => 1,
               "bot_phone_e164"       => "59899000000",
             ) );
+            // Tell the E2E HTTP helpers to use the docker-network hostname
+            // — localhost:8889 maps to the host, not the cli container.
+            update_option( "mantia_e2e_base_url", "http://wordpress" );
             echo "✓ Mantia state seeded\n";
           '
 

@@ -221,11 +221,12 @@ final class Mantia_E2E {
 	/**
 	 * Resolve the URL for an HTTP assertion. In a wp-env CLI container,
 	 * `localhost:8889` isn't reachable because WP runs in a sibling
-	 * container; the cross-container hostname is `http://wordpress`.
-	 * The MANTIA_E2E_BASE_URL env var lets the CI workflow override.
+	 * container; the cross-container hostname is `http://wordpress`. The
+	 * CI workflow sets the `mantia_e2e_base_url` option once at boot;
+	 * locally it falls back to home_url().
 	 */
 	private static function http_url( string $path ): string {
-		$base = (string) getenv( 'MANTIA_E2E_BASE_URL' );
+		$base = self::base_url_override();
 		if ( '' === $base ) {
 			return home_url( $path );
 		}
@@ -233,15 +234,13 @@ final class Mantia_E2E {
 	}
 
 	/**
-	 * Pass the canonical Host header when we override the URL host —
-	 * otherwise WP's canonical_redirect filter 301s us off the container
-	 * hostname and back to localhost:8889, which the CLI container can't
-	 * reach.
+	 * When we override the URL host we have to pass the canonical Host
+	 * header so WP's canonical_redirect doesn't 301 us off the docker
+	 * hostname and back to localhost:8889 (unreachable from inside cli).
 	 */
 	private static function http_args(): array {
 		$args = array( 'timeout' => 15, 'redirection' => 3 );
-		$base = (string) getenv( 'MANTIA_E2E_BASE_URL' );
-		if ( '' !== $base ) {
+		if ( '' !== self::base_url_override() ) {
 			$canonical = wp_parse_url( home_url() );
 			if ( ! empty( $canonical['host'] ) ) {
 				$host = $canonical['host'];
@@ -252,6 +251,14 @@ final class Mantia_E2E {
 			}
 		}
 		return $args;
+	}
+
+	private static function base_url_override(): string {
+		$opt = (string) get_option( 'mantia_e2e_base_url', '' );
+		if ( '' !== $opt ) {
+			return $opt;
+		}
+		return (string) getenv( 'MANTIA_E2E_BASE_URL' );
 	}
 
 	/* ------------------------------ Time travel ----------------------------------- */

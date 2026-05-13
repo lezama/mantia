@@ -43,13 +43,7 @@ run_scenario() {
 
   case "$MANTIA_TARGET" in
     local)
-      # Forward MANTIA_E2E_BASE_URL into the CLI container so the lib's
-      # HTTP helpers can reach the WP service over the docker network.
-      local env_flags=()
-      if [[ -n "${MANTIA_E2E_BASE_URL:-}" ]]; then
-        env_flags+=( -e "MANTIA_E2E_BASE_URL=${MANTIA_E2E_BASE_URL}" )
-      fi
-      npx wp-env run "${env_flags[@]}" cli --env-cwd=/var/www/html/wp-content/plugins/mantia \
+      npx wp-env run cli --env-cwd=/var/www/html/wp-content/plugins/mantia \
         wp eval-file "tests/e2e/${scenario}.php"
       ;;
     ssh)
