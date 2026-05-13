@@ -388,11 +388,21 @@ final class Mantia_Abilities {
 	}
 
 	private static function register_create_group_ability(): void {
+		$competition_ids = array_keys( Mantia_Competitions::all() );
+
+		$competition_schema = array(
+			'type'        => 'string',
+			'description' => __( 'Competition slug (e.g. mundial-2026, libertadores-2026, libertadores-semana, sudamericana-2026, liga-uy-2026). Defaults to the configured default competition when omitted.', 'mantia' ),
+		);
+		if ( ! empty( $competition_ids ) ) {
+			$competition_schema['enum'] = $competition_ids;
+		}
+
 		wp_register_ability(
 			'mantia/create-group',
 			array(
 				'label'               => __( 'Create group', 'mantia' ),
-				'description'         => __( 'Create a private penca group and return the WhatsApp invite code/message.', 'mantia' ),
+				'description'         => __( 'Create a private penca group and return the WhatsApp invite code/message. Pass competition_id to scope the group to a specific tournament; omit to use the default competition.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -403,6 +413,7 @@ final class Mantia_Abilities {
 						'whatsapp_recipient' => array( 'type' => 'string' ),
 						'group_name'         => array( 'type' => 'string' ),
 						'invite_code'        => array( 'type' => 'string' ),
+						'competition_id'     => $competition_schema,
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
@@ -428,7 +439,24 @@ final class Mantia_Abilities {
 			return new WP_Error( 'mantia_group_name_required', __( 'Decime como se llama la penca.', 'mantia' ) );
 		}
 
-		$group_id = Mantia_Repository::create_group( $group_name, (string) ( $args['invite_code'] ?? '' ) );
+		$competition_id = sanitize_title( (string) ( $args['competition_id'] ?? '' ) );
+		if ( '' !== $competition_id && ! Mantia_Competitions::get( $competition_id ) ) {
+			return new WP_Error(
+				'mantia_competition_unknown',
+				sprintf(
+					/* translators: %s: competition slug provided by the caller. */
+					__( 'No conozco la competencia "%s". Probá con mundial-2026, libertadores-2026, sudamericana-2026 o liga-uy-2026.', 'mantia' ),
+					$competition_id
+				)
+			);
+		}
+
+		$group_id = Mantia_Repository::create_group(
+			$group_name,
+			(string) ( $args['invite_code'] ?? '' ),
+			'',
+			$competition_id
+		);
 		if ( $group_id <= 0 ) {
 			return new WP_Error( 'mantia_group_create_failed', __( 'No pude crear esa penca.', 'mantia' ) );
 		}
