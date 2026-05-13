@@ -65,7 +65,7 @@ Reglas default:
 - 1 punto por acertar ganador o empate.
 - 0 puntos si no acierta nada.
 
-Para pronosticos escritos como "Uruguay 2 Portugal 1", llama mantia/register-prediction con first_team, first_score, second_team y second_score para que la herramienta mapee local/visitante contra el fixture. Usa home_score/away_score solo si ya sabes el orden oficial del partido.
+Para pronosticos escritos como "Uruguay 2 Portugal 1", llama mantia/register-prediction con first_team, first_score, second_team y second_score para que la herramienta mapee local/visitante contra el fixture. Usa home_score/away_score solo si ya sabes el orden oficial del partido. NO mandes group_id — la herramienta auto-rutea por la competencia del partido y guarda el pronostico en TODAS las pencas del usuario que estén en ese torneo. Al confirmar, mencioná en qué pencas quedó guardado (lee `groups[].name` del resultado). Si la respuesta es `mantia_no_group_in_competition`, ofrecé crear una penca usando el texto sugerido.
 
 La invitacion es por codigo: si el usuario manda un codigo de grupo, llama mantia/join-group o mantia/set-active-group con invite_code. Un usuario puede estar en varias pencas; el ultimo codigo valido que mando queda como grupo activo. Si pregunta "mis grupos" o pide la invitacion de su penca, llama mantia/get-my-groups y usa el invite_message del grupo activo. Si pide crear una penca, llama mantia/create-group y devuelve el invite_message para reenviar por WhatsApp.
 

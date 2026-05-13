@@ -263,6 +263,28 @@ final class Mantia_Repository {
 		return true;
 	}
 
+	/**
+	 * Return the user's group IDs that belong to a given competition. A
+	 * "match" here is at storage_id level: a group in libertadores-semana
+	 * (a view) is considered a match for any match in libertadores-2026
+	 * (its parent), because the window-views never store matches of their
+	 * own — they're just filtered windows over the parent.
+	 *
+	 * @return array<int,int>
+	 */
+	public static function user_groups_in_competition( int $user_id, string $competition_id ): array {
+		$target = Mantia_Competitions::storage_id( $competition_id );
+		$out    = array();
+		foreach ( self::user_groups_to_array( $user_id ) as $g ) {
+			$group_comp = (string) ( $g['competition_id'] ?? '' );
+			$group_root = Mantia_Competitions::storage_id( $group_comp );
+			if ( $group_root === $target ) {
+				$out[] = (int) $g['id'];
+			}
+		}
+		return $out;
+	}
+
 	public static function generate_invite_code( string $name ): string {
 		$base = self::normalize_invite_code( $name );
 		$base = '' !== $base ? substr( $base, 0, 14 ) : 'MANTIA';
