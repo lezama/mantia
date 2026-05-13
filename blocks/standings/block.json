@@ -1,0 +1,19 @@
+{
+  "apiVersion": 3,
+  "name": "mantia/standings",
+  "title": "Mantia Standings",
+  "category": "widgets",
+  "description": "Read-only global Mantia leaderboard.",
+  "textdomain": "mantia",
+  "attributes": {
+    "limit": {
+      "type": "number",
+      "default": 20
+    }
+  },
+  "supports": {
+    "html": false
+  },
+  "style": "file:./style.css",
+  "render": "file:./render.php"
+}

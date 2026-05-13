@@ -1,0 +1,27 @@
+{
+  "apiVersion": 3,
+  "name": "mantia/group-standings",
+  "title": "Mantia Group Standings",
+  "category": "widgets",
+  "description": "Read-only Mantia leaderboard for a private group.",
+  "textdomain": "mantia",
+  "attributes": {
+    "groupId": {
+      "type": "number",
+      "default": 0
+    },
+    "inviteCode": {
+      "type": "string",
+      "default": ""
+    },
+    "limit": {
+      "type": "number",
+      "default": 20
+    }
+  },
+  "supports": {
+    "html": false
+  },
+  "style": "file:./style.css",
+  "render": "file:./render.php"
+}

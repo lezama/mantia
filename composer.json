@@ -1,0 +1,13 @@
+{
+  "name": "automattic/mantia",
+  "description": "WhatsApp-first World Cup prediction game powered by openclaWP and Agents API.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.1",
+    "automattic/agents-api": "dev-main",
+    "lezama/openclawp": "dev-main"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

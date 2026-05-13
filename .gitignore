@@ -1,0 +1,12 @@
+# Composer
+/vendor/
+composer.lock
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Node (in case we add JS tooling for blocks)
+/node_modules/

@@ -1,0 +1,15 @@
+.mantia-standings-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.mantia-standings-table th,
+.mantia-standings-table td {
+	padding: 8px 10px;
+	border-bottom: 1px solid #ddd;
+	text-align: left;
+}
+
+.mantia-standings-table th {
+	font-weight: 600;
+}
