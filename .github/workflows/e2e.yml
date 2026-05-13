@@ -1,0 +1,96 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: WP E2E (substrate from upstream main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout mantia
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install wp-env
+        run: npm install -g @wordpress/env
+
+      - name: Cache wp-env directories
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/wp-env
+            ~/.npm
+          key: wp-env-${{ runner.os }}-${{ hashFiles('.wp-env.json') }}
+
+      - name: Start WordPress (boots agents-api + openclawp from upstream main)
+        run: |
+          wp-env start --update
+          echo "WordPress is up. Showing active plugins:"
+          wp-env run cli wp plugin list --status=active
+
+      - name: Seed Mantia bootstrap state
+        run: |
+          # mantia.php activation hooks aren't called automatically by wp-env
+          # since plugins are mu-activated on first boot — re-run the seeders
+          # explicitly so the install matches a real activate flow.
+          wp-env run cli wp eval '
+            if ( class_exists( "Mantia_Competitions" ) ) {
+              Mantia_Competitions::seed_defaults();
+            }
+            if ( class_exists( "Mantia_Fixture_Seeder" ) ) {
+              Mantia_Fixture_Seeder::seed();
+            }
+            // Stub WhatsApp settings so URL builders (bot_phone_e164) work
+            // without ever reaching out to Meta. These are NOT real creds.
+            update_option( "openclawp_whatsapp_settings", array(
+              "phone_number_id"      => "0",
+              "app_secret"           => "test-app-secret-deadbeef",
+              "access_token"         => "test-token-not-real",
+              "webhook_verify_token" => "test-verify-token",
+              "default_agent"        => "mantia",
+              "api_version"          => "v25.0",
+              "user_id"              => 1,
+              "bot_phone_e164"       => "59899000000",
+            ) );
+            echo "✓ Mantia state seeded\n";
+          '
+
+      - name: Run E2E scenarios
+        env:
+          MANTIA_TARGET: local
+        run: |
+          chmod +x bin/e2e.sh
+          bin/e2e.sh
+
+      - name: Show debug.log on failure
+        if: failure()
+        run: |
+          echo "::group::WordPress debug.log"
+          wp-env run cli cat /var/www/html/wp-content/debug.log || true
+          echo "::endgroup::"
+          echo "::group::Active plugins"
+          wp-env run cli wp plugin list || true
+          echo "::endgroup::"
+          echo "::group::Mantia commits (substrate versions)"
+          wp-env run cli sh -c 'cd /var/www/html/wp-content/plugins/agents-api && git log --oneline -1' || true
+          wp-env run cli sh -c 'cd /var/www/html/wp-content/plugins/openclawp && git log --oneline -1' || true
+          echo "::endgroup::"
+
+      - name: Stop wp-env
+        if: always()
+        run: wp-env stop

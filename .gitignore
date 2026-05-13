@@ -10,3 +10,8 @@ composer.lock
 
 # Node (in case we add JS tooling for blocks)
 /node_modules/
+
+# wp-env / Docker workspaces
+/wordpress/
+/tests/fixtures/uploads/*
+!/tests/fixtures/uploads/.gitkeep
