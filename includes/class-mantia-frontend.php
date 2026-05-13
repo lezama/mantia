@@ -99,7 +99,7 @@ final class Mantia_Frontend {
 		?>
 		<header class="mantia-hero">
 			<h1><?php echo esc_html( $title ); ?></h1>
-			<p class="mantia-sub"><?php echo esc_html( $comp['description'] ?? '' ); ?></p>
+			<p class="mantia-sub"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
 		</header>
 
 		<section class="mantia-section">
@@ -135,16 +135,7 @@ final class Mantia_Frontend {
 		<?php if ( ! empty( $matches ) ) : ?>
 			<section class="mantia-section">
 				<h2><?php esc_html_e( 'Próximos partidos', 'mantia' ); ?></h2>
-				<ul class="mantia-matches">
-					<?php foreach ( array_slice( $matches, 0, 12 ) as $m ) : ?>
-						<li>
-							<span class="mantia-when"><?php echo esc_html( self::format_kickoff( (string) $m['kickoff_gmt'] ) ); ?></span>
-							<strong><?php echo esc_html( $m['home_team'] ); ?></strong>
-							<span class="mantia-vs"> vs </span>
-							<strong><?php echo esc_html( $m['away_team'] ); ?></strong>
-						</li>
-					<?php endforeach; ?>
-				</ul>
+				<?php self::render_matches_grouped_by_day( array_slice( $matches, 0, 20 ) ); ?>
 			</section>
 		<?php endif; ?>
 
@@ -164,14 +155,23 @@ final class Mantia_Frontend {
 		$rows     = Mantia_Leaderboard::rows( $group_id, 50 );
 		$comp_id  = Mantia_Repository::group_competition_id( $group_id );
 		$matches  = Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 30 );
+		$comp_url = Mantia_Repository::competition_view_url( $comp_id );
 
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $group['name'] ) );
 		?>
 		<header class="mantia-hero">
 			<h1><?php echo esc_html( $group['name'] ); ?></h1>
-			<p class="mantia-sub"><?php echo esc_html( $group['competition_name'] ); ?></p>
+			<p class="mantia-sub">
+				<a class="mantia-sub-link" href="<?php echo esc_url( $comp_url ); ?>"><?php echo esc_html( $group['competition_name'] ); ?></a>
+			</p>
 		</header>
+
+		<?php if ( ! empty( $group['share_url'] ) ) : ?>
+			<a class="mantia-cta" href="<?php echo esc_url( $group['share_url'] ); ?>">
+				🤝 Sumate a <?php echo esc_html( $group['name'] ); ?>
+			</a>
+		<?php endif; ?>
 
 		<section class="mantia-section">
 			<h2><?php esc_html_e( 'Tabla del grupo', 'mantia' ); ?></h2>
@@ -217,12 +217,6 @@ final class Mantia_Frontend {
 			</section>
 		<?php endif; ?>
 
-		<footer class="mantia-tip">
-			<?php if ( ! empty( $group['share_url'] ) ) : ?>
-				<p><?php esc_html_e( 'Para sumarte:', 'mantia' ); ?> <a href="<?php echo esc_url( $group['share_url'] ); ?>"><?php echo esc_html( $group['share_url'] ); ?></a></p>
-			<?php endif; ?>
-		</footer>
-
 		<?php self::page_footer();
 		return (string) ob_get_clean();
 	}
@@ -234,15 +228,17 @@ final class Mantia_Frontend {
 			return self::render_not_found( __( 'Usuario no encontrado o token inválido', 'mantia' ) );
 		}
 
-		$user_id  = (int) $user_post->ID;
-		$name     = get_the_title( $user_id );
-		$groups   = Mantia_Repository::user_groups_to_array( $user_id );
+		$user_id      = (int) $user_post->ID;
+		$display_name = self::display_name_for( $user_id );
+		$groups       = Mantia_Repository::user_groups_to_array( $user_id );
 
 		ob_start();
-		self::page_header( sprintf( 'Penca — %s', $name ) );
+		self::page_header( sprintf( 'Penca — %s', $display_name ) );
 		?>
+		<div class="mantia-private-badge">🔒 link privado — no lo compartas</div>
+
 		<header class="mantia-hero">
-			<h1><?php printf( esc_html__( 'Hola %s', 'mantia' ), esc_html( $name ) ); ?></h1>
+			<h1><?php printf( esc_html__( 'Hola %s', 'mantia' ), esc_html( $display_name ) ); ?></h1>
 			<p class="mantia-sub"><?php esc_html_e( 'Tus pencas, ranking y pronósticos.', 'mantia' ); ?></p>
 		</header>
 
@@ -322,37 +318,55 @@ final class Mantia_Frontend {
 					if ( ! empty( $pending ) ) :
 				?>
 					<h3><?php esc_html_e( 'Pendientes de pronosticar', 'mantia' ); ?></h3>
-					<ul class="mantia-matches">
-						<?php foreach ( array_slice( $pending, 0, 10 ) as $m ) : ?>
-							<li>
-								<span class="mantia-when"><?php echo esc_html( self::format_kickoff( (string) $m['kickoff_gmt'] ) ); ?></span>
-								<strong><?php echo esc_html( $m['home_team'] ); ?></strong> vs <strong><?php echo esc_html( $m['away_team'] ); ?></strong>
-							</li>
-						<?php endforeach; ?>
-					</ul>
+					<?php self::render_matches_grouped_by_day( array_slice( array_values( $pending ), 0, 12 ) ); ?>
 				<?php endif; endif; ?>
 			</section>
 		<?php endforeach; endif; ?>
-
-		<footer class="mantia-tip">
-			<p><?php esc_html_e( 'Este link es privado — no lo compartas.', 'mantia' ); ?></p>
-		</footer>
 
 		<?php self::page_footer();
 		return (string) ob_get_clean();
 	}
 
 	private static function render_not_found( string $message ): string {
+		$bot_phone = Mantia_Repository::bot_phone_e164();
+		$bot_url   = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
+		$home_url  = Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() );
+
 		ob_start();
 		self::page_header( __( 'No encontrado', 'mantia' ) );
 		?>
 		<header class="mantia-hero">
-			<h1>404</h1>
+			<h1>🤔</h1>
 			<p class="mantia-sub"><?php echo esc_html( $message ); ?></p>
 		</header>
+		<section class="mantia-section">
+			<p><?php esc_html_e( 'Probá una de estas:', 'mantia' ); ?></p>
+			<div class="mantia-recovery">
+				<a class="mantia-cta" href="<?php echo esc_url( $home_url ); ?>">🏆 Ver Mundial 2026</a>
+				<?php if ( '' !== $bot_url ) : ?>
+					<a class="mantia-cta mantia-cta-secondary" href="<?php echo esc_url( $bot_url ); ?>">💬 Hablar con el bot</a>
+				<?php endif; ?>
+			</div>
+			<p class="mantia-tip"><?php esc_html_e( 'Si te mandaron un link, pediles que te lo reenvíen — algunos vencen.', 'mantia' ); ?></p>
+		</section>
 		<?php
 		self::page_footer();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Resolve a friendly display name for a user. If they never set one we
+	 * fall back to "jugador/a" rather than showing the raw E.164 phone in
+	 * a greeting — the phone is the post_title only because nothing else
+	 * was known at signup.
+	 */
+	private static function display_name_for( int $user_id ): string {
+		$title = (string) get_the_title( $user_id );
+		$phone = (string) get_post_meta( $user_id, Mantia_Repository::META_PHONE, true );
+		if ( '' !== $title && $title !== $phone ) {
+			return $title;
+		}
+		return __( 'jugador', 'mantia' );
 	}
 
 	/* --------------------------- Layout --------------------------- */
@@ -488,6 +502,63 @@ body {
 	color: var(--accent);
 	word-break: break-all;
 }
+.mantia-sub-link {
+	color: var(--fg-dim);
+	text-decoration: none;
+	border-bottom: 1px dotted var(--fg-dim);
+}
+.mantia-sub-link:hover {
+	color: var(--accent);
+	border-bottom-color: var(--accent);
+}
+.mantia-cta {
+	display: inline-block;
+	background: var(--accent);
+	color: #0b0f1a;
+	text-decoration: none;
+	padding: 12px 18px;
+	border-radius: 999px;
+	font-weight: 600;
+	margin: 0 0 18px;
+}
+.mantia-cta-secondary {
+	background: transparent;
+	color: var(--accent);
+	border: 1px solid var(--accent);
+}
+.mantia-recovery {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 12px 0 14px;
+}
+.mantia-private-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--fg-dim);
+	background: rgba(255,255,255,0.04);
+	padding: 4px 10px;
+	border-radius: 999px;
+	margin: 0 0 14px;
+	border: 1px solid var(--border);
+}
+.mantia-day {
+	margin: 14px 0 0;
+}
+.mantia-day h4 {
+	margin: 0 0 6px;
+	font-size: 12px;
+	color: var(--fg-dim);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 600;
+}
+.mantia-vs {
+	color: var(--fg-dim);
+	margin: 0 6px;
+}
 .mantia-foot {
 	color: var(--fg-dim);
 	font-size: 12px;
@@ -503,14 +574,110 @@ body {
 CSS;
 	}
 
-	private static function format_kickoff( string $gmt ): string {
-		if ( '' === $gmt ) {
-			return '';
+	/**
+	 * Build a useful meta line under the competition title: fixture date
+	 * range, total matches, custom hints for known competitions. Falls back
+	 * to the plain description when we don't have anything richer.
+	 */
+	private static function competition_meta( string $slug, string $description, array $matches ): string {
+		$hints = array(
+			'mundial-2026' => '11 jun – 19 jul 2026 · 48 selecciones',
+		);
+		if ( isset( $hints[ $slug ] ) ) {
+			return $hints[ $slug ];
 		}
-		$ts = strtotime( $gmt . ( str_ends_with( $gmt, 'Z' ) ? '' : ' UTC' ) );
-		if ( false === $ts ) {
+		if ( ! empty( $matches ) ) {
+			$first = self::parse_gmt_ts( (string) $matches[0]['kickoff_gmt'] );
+			$last  = self::parse_gmt_ts( (string) end( $matches )['kickoff_gmt'] );
+			if ( null !== $first && null !== $last ) {
+				$range = $first === $last
+					? self::format_es_day( $first )
+					: sprintf( '%s — %s', self::format_es_day( $first ), self::format_es_day( $last ) );
+				return sprintf( '%s · %d partidos', $range, count( $matches ) );
+			}
+		}
+		return $description;
+	}
+
+	private static function format_kickoff( string $gmt ): string {
+		$ts = self::parse_gmt_ts( $gmt );
+		if ( null === $ts ) {
 			return $gmt;
 		}
-		return gmdate( 'D j M • H:i', $ts - 3 * HOUR_IN_SECONDS );
+		return self::format_es_time( $ts );
+	}
+
+	private static function parse_gmt_ts( string $gmt ): ?int {
+		if ( '' === $gmt ) {
+			return null;
+		}
+		$ts = strtotime( $gmt . ( str_ends_with( $gmt, 'Z' ) ? '' : ' UTC' ) );
+		return false === $ts ? null : $ts;
+	}
+
+	private static function format_es_time( int $ts_utc ): string {
+		$local = $ts_utc - 3 * HOUR_IN_SECONDS; // Uruguay
+		return self::es_dow( gmdate( 'w', $local ) ) . ' ' . gmdate( 'H:i', $local );
+	}
+
+	private static function format_es_day( int $ts_utc ): string {
+		$local = $ts_utc - 3 * HOUR_IN_SECONDS;
+		$dow   = self::es_dow_full( gmdate( 'w', $local ) );
+		$day   = gmdate( 'j', $local );
+		$month = self::es_month( gmdate( 'n', $local ) );
+		return sprintf( '%s %s de %s', $dow, $day, $month );
+	}
+
+	private static function es_dow( string $w ): string {
+		return array( 'dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb' )[ (int) $w ];
+	}
+
+	private static function es_dow_full( string $w ): string {
+		return array( 'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado' )[ (int) $w ];
+	}
+
+	private static function es_month( string $n ): string {
+		return array( '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' )[ (int) $n ];
+	}
+
+	/**
+	 * Render a flat list of matches grouped under day headings ("Martes 19
+	 * de mayo") with kickoff times. Fixes the "homogeneous flat list" UX
+	 * issue when many matches happen the same day.
+	 */
+	private static function render_matches_grouped_by_day( array $matches ): void {
+		if ( empty( $matches ) ) {
+			return;
+		}
+
+		// Group by local day key (yyyy-mm-dd in Uruguay).
+		$by_day = array();
+		foreach ( $matches as $m ) {
+			$ts = self::parse_gmt_ts( (string) $m['kickoff_gmt'] );
+			if ( null === $ts ) {
+				continue;
+			}
+			$day_key = gmdate( 'Y-m-d', $ts - 3 * HOUR_IN_SECONDS );
+			$by_day[ $day_key ][] = array( 'm' => $m, 'ts' => $ts );
+		}
+
+		foreach ( $by_day as $day_key => $entries ) {
+			$first_ts = $entries[0]['ts'];
+			?>
+			<div class="mantia-day">
+				<h4><?php echo esc_html( self::format_es_day( $first_ts ) ); ?></h4>
+				<ul class="mantia-matches">
+					<?php foreach ( $entries as $entry ) :
+						$m = $entry['m'];
+						?>
+						<li>
+							<span class="mantia-when"><?php echo esc_html( gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS ) ); ?></span>
+							<strong><?php echo esc_html( $m['home_team'] ); ?></strong><span class="mantia-vs">·</span><strong><?php echo esc_html( $m['away_team'] ); ?></strong>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+			<?php
+		}
 	}
 }

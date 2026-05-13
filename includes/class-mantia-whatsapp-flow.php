@@ -95,6 +95,10 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_create_group( trim( (string) $m[1] ), $identity );
 		}
 
+		if ( preg_match( '/^(?:me\s+llamo|mi\s+nombre\s+es|llamame|llamame|decime)\s+(.+)$/iu', $plain, $m ) ) {
+			return self::handle_set_name( trim( (string) $m[1] ), $identity );
+		}
+
 		if ( preg_match( '/^(?:mis\s+grupos?|mis\s+pencas?|grupos?|pencas?)$/i', $lc ) ) {
 			return self::handle_my_groups( $identity );
 		}
@@ -133,6 +137,38 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		return null;
+	}
+
+	private static function handle_set_name( string $raw_name, array $identity ): array {
+		$name = sanitize_text_field( $raw_name );
+		// Strip trailing punctuation like "Me llamo Miguel."
+		$name = trim( (string) preg_replace( '/[.!?,;:]+$/u', '', $name ) );
+		if ( '' === $name || strlen( $name ) > 80 ) {
+			return array(
+				'reply'     => 'Decime tu nombre así nomás, ej: *me llamo Miguel*.',
+				'completed' => true,
+			);
+		}
+		if ( '' === $identity['phone'] ) {
+			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+		}
+		$user_id = Mantia_Repository::get_or_create_user( $identity['phone'], $name, $identity['recipient'] );
+		if ( 0 === $user_id ) {
+			return array( 'reply' => 'No pude guardar tu nombre. Reintentá.', 'completed' => true );
+		}
+
+		return array(
+			'reply'       => sprintf( '¡Hola, %s! Quedó guardado.', $name ),
+			'interactive' => array(
+				'type'    => 'button',
+				'buttons' => array(
+					array( 'id' => 'mantia:cmd:home',     'title' => '🏠 Resumen' ),
+					array( 'id' => 'mantia:cmd:matches',  'title' => '📅 Partidos' ),
+					array( 'id' => 'mantia:cmd:help',     'title' => '❓ Ayuda' ),
+				),
+			),
+			'completed' => true,
+		);
 	}
 
 	private static function handle_switch_group( int $group_id, array $identity ): array {
