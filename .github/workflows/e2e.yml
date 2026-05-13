@@ -55,8 +55,10 @@ jobs:
             if ( class_exists( "Mantia_Fixture_Seeder" ) ) {
               Mantia_Fixture_Seeder::seed();
             }
-            // Stub WhatsApp settings so URL builders (bot_phone_e164) work
-            // without ever reaching out to Meta. These are NOT real creds.
+            // mantia/bot_phone_e164 is its own option — set a fake but valid
+            // E.164 so URL builders (wa.me links) render in tests.
+            update_option( "mantia_bot_phone_e164", "59899000000" );
+            // Stub WhatsApp settings (used by openclawp). Not real creds.
             update_option( "openclawp_whatsapp_settings", array(
               "phone_number_id"      => "0",
               "app_secret"           => "test-app-secret-deadbeef",
@@ -65,13 +67,15 @@ jobs:
               "default_agent"        => "mantia",
               "api_version"          => "v25.0",
               "user_id"              => 1,
-              "bot_phone_e164"       => "59899000000",
             ) );
             // Tell the E2E HTTP helpers to use the docker-network hostname
             // — localhost:8889 maps to the host, not the cli container.
             update_option( "mantia_e2e_base_url", "http://wordpress" );
             echo "✓ Mantia state seeded\n";
           '
+          # Use pretty permalinks + flush so /penca/* rewrite rules register.
+          wp-env run cli wp rewrite structure "/%postname%/" --hard
+          wp-env run cli wp rewrite flush --hard
 
       - name: Run E2E scenarios
         env:
