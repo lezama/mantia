@@ -488,38 +488,35 @@ final class Mantia_Whatsapp_Flow {
 			return (string) $direct['id'];
 		}
 
-		// 2. Match against every registered competition by sanitized name —
-		// covers Mundial / Libertadores / Sudamericana / LigaUY / Esta semana
-		// and anything an admin adds later without code changes.
+		// 2. Walk every competition in the CPT registry. For each candidate
+		// we score by name + admin-managed aliases — the longest match
+		// wins so "libertadores 2026" beats "libertadores". Aliases live
+		// in post_meta, not in code, so admins can add a new competition
+		// + its short forms entirely via wp-admin.
 		$candidates = array();
 		foreach ( Mantia_Competitions::all() as $c ) {
-			$slug          = (string) $c['id'];
-			$name          = function_exists( 'remove_accents' ) ? remove_accents( (string) $c['name'] ) : (string) $c['name'];
-			$name          = strtolower( trim( $name ) );
-			$candidates[ $slug ] = $name;
-		}
-		// Longer names first so "libertadores 2026" wins over "libertadores".
-		uasort( $candidates, static fn( string $a, string $b ): int => strlen( $b ) - strlen( $a ) );
-		foreach ( $candidates as $slug => $name ) {
-			if ( '' !== $name && false !== strpos( $h, $name ) ) {
-				return $slug;
+			$slug    = (string) $c['id'];
+			$name    = (string) $c['name'];
+			$name    = function_exists( 'remove_accents' ) ? remove_accents( $name ) : $name;
+			$name    = strtolower( trim( $name ) );
+			$aliases = isset( $c['aliases'] ) && is_array( $c['aliases'] ) ? $c['aliases'] : array();
+			$terms   = array_values( array_filter( array_merge( array( $name ), $aliases ) ) );
+			foreach ( $terms as $term ) {
+				$term = (string) $term;
+				if ( '' !== $term ) {
+					$candidates[] = array( 'slug' => $slug, 'term' => $term );
+				}
 			}
 		}
-
-		// 3. Hardcoded aliases for short forms / nicknames not in the
-		// competition title ("mundial" → "mundial-2026", "auf" → "liga-uy-2026").
-		$aliases = array(
-			'mundial-2026'        => array( 'mundial', 'world cup', 'copa del mundo', 'fifa' ),
-			'libertadores-semana' => array( 'libertadores semana', 'libertadores esta semana', 'libertadores semanal' ),
-			'libertadores-2026'   => array( 'libertadores', 'copa libertadores', 'libertadores completa' ),
-			'sudamericana-2026'   => array( 'sudamericana', 'copa sudamericana' ),
-			'liga-uy-2026'        => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'liga-uy', 'campeonato uruguayo', 'auf' ),
+		// Longer term first so specific matches ("liga uy 2026") win over
+		// generic ones ("liga"). Stable sort isn't required.
+		usort(
+			$candidates,
+			static fn( array $a, array $b ): int => strlen( (string) $b['term'] ) - strlen( (string) $a['term'] )
 		);
-		foreach ( $aliases as $id => $list ) {
-			foreach ( $list as $alias ) {
-				if ( false !== strpos( $h, $alias ) && null !== Mantia_Competitions::get( $id ) ) {
-					return $id;
-				}
+		foreach ( $candidates as $cand ) {
+			if ( false !== strpos( $h, (string) $cand['term'] ) ) {
+				return (string) $cand['slug'];
 			}
 		}
 

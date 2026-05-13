@@ -27,6 +27,7 @@ final class Mantia_Competitions {
 	public const META_WINDOW_DAYS = '_mantia_competition_window_days';
 	public const META_IS_DEFAULT  = '_mantia_competition_is_default';
 	public const META_SORT_ORDER  = '_mantia_competition_sort_order';
+	public const META_ALIASES     = '_mantia_competition_aliases';
 
 	/**
 	 * Built-in seed list. Materialized into the CPT on activation. Admins can
@@ -41,6 +42,7 @@ final class Mantia_Competitions {
 				'description' => 'Copa del Mundo FIFA',
 				'is_default'  => true,
 				'sort'        => 10,
+				'aliases'     => array( 'mundial', 'world cup', 'copa del mundo', 'fifa' ),
 			),
 			array(
 				'slug'        => 'libertadores-2026',
@@ -48,6 +50,7 @@ final class Mantia_Competitions {
 				'emoji'       => '🥇',
 				'description' => 'Copa Libertadores — torneo completo',
 				'sort'        => 20,
+				'aliases'     => array( 'libertadores', 'copa libertadores', 'libertadores completa' ),
 			),
 			array(
 				'slug'        => 'libertadores-semana',
@@ -57,6 +60,7 @@ final class Mantia_Competitions {
 				'parent_slug' => 'libertadores-2026',
 				'window_days' => 7,
 				'sort'        => 21,
+				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores semanal' ),
 			),
 			array(
 				'slug'        => 'sudamericana-2026',
@@ -64,6 +68,7 @@ final class Mantia_Competitions {
 				'emoji'       => '🥈',
 				'description' => 'Copa Sudamericana — torneo completo',
 				'sort'        => 30,
+				'aliases'     => array( 'sudamericana', 'copa sudamericana' ),
 			),
 			array(
 				'slug'        => 'liga-uy-2026',
@@ -71,6 +76,7 @@ final class Mantia_Competitions {
 				'emoji'       => '🇺🇾',
 				'description' => 'Campeonato Uruguayo',
 				'sort'        => 40,
+				'aliases'     => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'campeonato uruguayo', 'auf' ),
 			),
 			array(
 				'slug'        => 'custom',
@@ -78,6 +84,7 @@ final class Mantia_Competitions {
 				'emoji'       => '⚽',
 				'description' => 'Sin fixture preestablecido — cargás los partidos a mano',
 				'sort'        => 100,
+				'aliases'     => array(),
 			),
 		);
 	}
@@ -187,6 +194,12 @@ final class Mantia_Competitions {
 	private static function ensure_post( array $row ): int {
 		$existing = self::find_post( (string) $row['slug'] );
 		if ( $existing ) {
+			// Idempotently backfill aliases on existing seeded competitions
+			// — admins can override later via the meta box, but on first
+			// install we want every default to ship with its aliases populated.
+			if ( isset( $row['aliases'] ) && '' === (string) get_post_meta( (int) $existing->ID, self::META_ALIASES, true ) ) {
+				self::save_aliases( (int) $existing->ID, (array) $row['aliases'] );
+			}
 			return (int) $existing->ID;
 		}
 
@@ -224,8 +237,50 @@ final class Mantia_Competitions {
 		if ( isset( $row['sort'] ) ) {
 			update_post_meta( (int) $post_id, self::META_SORT_ORDER, (int) $row['sort'] );
 		}
+		if ( isset( $row['aliases'] ) ) {
+			self::save_aliases( (int) $post_id, (array) $row['aliases'] );
+		}
 
 		return (int) $post_id;
+	}
+
+	/**
+	 * Normalize and persist a list of aliases on a competition. Each alias is
+	 * lowercased and remove_accents-ed at write time so the resolver can
+	 * compare strpos() cleanly without re-doing the work on every turn.
+	 *
+	 * @param array<int,string> $aliases
+	 */
+	public static function save_aliases( int $post_id, array $aliases ): void {
+		$clean = array();
+		foreach ( $aliases as $alias ) {
+			$a = trim( (string) $alias );
+			if ( '' === $a ) {
+				continue;
+			}
+			$a = function_exists( 'remove_accents' ) ? remove_accents( $a ) : $a;
+			$a = strtolower( $a );
+			if ( ! in_array( $a, $clean, true ) ) {
+				$clean[] = $a;
+			}
+		}
+		update_post_meta( $post_id, self::META_ALIASES, $clean );
+	}
+
+	/**
+	 * Read the alias list for a competition (by slug). Returns an empty
+	 * array if none configured. The resolver in Mantia_Whatsapp_Flow
+	 * walks this list instead of a hardcoded constant.
+	 *
+	 * @return array<int,string>
+	 */
+	public static function aliases( string $slug ): array {
+		$post = self::find_post( $slug );
+		if ( ! $post ) {
+			return array();
+		}
+		$stored = get_post_meta( (int) $post->ID, self::META_ALIASES, true );
+		return is_array( $stored ) ? array_values( array_filter( array_map( 'strval', $stored ) ) ) : array();
 	}
 
 	private static function find_post( string $slug ): ?WP_Post {
@@ -270,6 +325,127 @@ final class Mantia_Competitions {
 		if ( (int) get_post_meta( $post->ID, self::META_IS_DEFAULT, true ) === 1 ) {
 			$data['default'] = true;
 		}
+		$stored_aliases = get_post_meta( $post->ID, self::META_ALIASES, true );
+		$data['aliases'] = is_array( $stored_aliases )
+			? array_values( array_filter( array_map( 'strval', $stored_aliases ) ) )
+			: array();
 		return $data;
+	}
+
+	/**
+	 * Wire admin: a meta box on the competition edit screen so site owners
+	 * can manage aliases (free-text matches) without touching code.
+	 * Registered on plugin init via Mantia_Bootstrap.
+	 */
+	public static function register_admin(): void {
+		add_action( 'add_meta_boxes_' . Mantia_CPTs::COMPETITION, array( __CLASS__, 'render_meta_boxes' ) );
+		add_action( 'save_post_' . Mantia_CPTs::COMPETITION, array( __CLASS__, 'save_meta' ), 10, 2 );
+	}
+
+	public static function render_meta_boxes( WP_Post $post ): void {
+		add_meta_box(
+			'mantia-competition-aliases',
+			__( 'Aliases', 'mantia' ),
+			array( __CLASS__, 'render_aliases_meta_box' ),
+			Mantia_CPTs::COMPETITION,
+			'normal',
+			'default'
+		);
+		add_meta_box(
+			'mantia-competition-config',
+			__( 'Config', 'mantia' ),
+			array( __CLASS__, 'render_config_meta_box' ),
+			Mantia_CPTs::COMPETITION,
+			'side',
+			'default'
+		);
+	}
+
+	public static function render_aliases_meta_box( WP_Post $post ): void {
+		wp_nonce_field( 'mantia_competition_meta', 'mantia_competition_meta_nonce' );
+		$aliases = get_post_meta( $post->ID, self::META_ALIASES, true );
+		$value   = is_array( $aliases ) ? implode( ', ', $aliases ) : '';
+		?>
+		<p>
+			<label for="mantia-comp-aliases" style="display:block;margin-bottom:6px;">
+				<?php esc_html_e( 'Free-text matches that route users to this competition. Separadas por coma. Lowercase, sin tildes.', 'mantia' ); ?>
+			</label>
+			<textarea id="mantia-comp-aliases" name="mantia_competition_aliases" rows="3" style="width:100%;font-family:monospace;"><?php echo esc_textarea( $value ); ?></textarea>
+		</p>
+		<p class="description">
+			<?php esc_html_e( 'Ej: mundial, world cup, copa del mundo, fifa. Cualquier mensaje que contenga uno de estos términos routea acá.', 'mantia' ); ?>
+		</p>
+		<?php
+	}
+
+	public static function render_config_meta_box( WP_Post $post ): void {
+		$emoji       = (string) get_post_meta( $post->ID, self::META_EMOJI, true );
+		$window_days = (int) get_post_meta( $post->ID, self::META_WINDOW_DAYS, true );
+		$is_default  = (int) get_post_meta( $post->ID, self::META_IS_DEFAULT, true ) === 1;
+		?>
+		<p>
+			<label for="mantia-comp-emoji" style="display:block;"><?php esc_html_e( 'Emoji', 'mantia' ); ?></label>
+			<input type="text" id="mantia-comp-emoji" name="mantia_competition_emoji" value="<?php echo esc_attr( $emoji ); ?>" class="widefat" maxlength="8">
+		</p>
+		<p>
+			<label for="mantia-comp-window-days" style="display:block;"><?php esc_html_e( 'Window days', 'mantia' ); ?></label>
+			<input type="number" id="mantia-comp-window-days" name="mantia_competition_window_days" value="<?php echo esc_attr( (string) $window_days ); ?>" class="widefat" min="0">
+			<span class="description"><?php esc_html_e( '0 = sin ventana. >0 = vista filtrada por X días del padre.', 'mantia' ); ?></span>
+		</p>
+		<p>
+			<label>
+				<input type="checkbox" name="mantia_competition_is_default" value="1" <?php checked( $is_default ); ?>>
+				<?php esc_html_e( 'Default competition', 'mantia' ); ?>
+			</label>
+		</p>
+		<?php
+	}
+
+	public static function save_meta( int $post_id, WP_Post $post ): void {
+		if ( ! isset( $_POST['mantia_competition_meta_nonce'] ) ||
+			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mantia_competition_meta_nonce'] ) ), 'mantia_competition_meta' )
+		) {
+			return;
+		}
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( isset( $_POST['mantia_competition_aliases'] ) ) {
+			$raw = sanitize_textarea_field( wp_unslash( (string) $_POST['mantia_competition_aliases'] ) );
+			$arr = array_map( 'trim', preg_split( '/[,\n]+/', $raw ) ?: array() );
+			self::save_aliases( $post_id, array_filter( $arr ) );
+		}
+		if ( isset( $_POST['mantia_competition_emoji'] ) ) {
+			update_post_meta( $post_id, self::META_EMOJI, sanitize_text_field( wp_unslash( (string) $_POST['mantia_competition_emoji'] ) ) );
+		}
+		if ( isset( $_POST['mantia_competition_window_days'] ) ) {
+			$w = max( 0, (int) wp_unslash( $_POST['mantia_competition_window_days'] ) );
+			update_post_meta( $post_id, self::META_WINDOW_DAYS, $w );
+		}
+		// is_default is unique — if checked here, clear it on every other competition.
+		if ( isset( $_POST['mantia_competition_is_default'] ) && '1' === (string) $_POST['mantia_competition_is_default'] ) {
+			$others = get_posts(
+				array(
+					'post_type'      => Mantia_CPTs::COMPETITION,
+					'post_status'    => 'any',
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+					'no_found_rows'  => true,
+				)
+			);
+			foreach ( $others as $oid ) {
+				if ( (int) $oid === $post_id ) {
+					continue;
+				}
+				delete_post_meta( (int) $oid, self::META_IS_DEFAULT );
+			}
+			update_post_meta( $post_id, self::META_IS_DEFAULT, 1 );
+		} else {
+			delete_post_meta( $post_id, self::META_IS_DEFAULT );
+		}
 	}
 }
