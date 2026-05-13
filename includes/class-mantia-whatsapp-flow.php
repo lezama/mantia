@@ -395,12 +395,23 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$group = Mantia_Repository::group_to_array( $active );
 		$share = (string) ( $group['share_url'] ?? '' );
+		$view  = (string) ( $group['view_url'] ?? '' );
 
-		$body = '' !== $share
-			? sprintf( "Invita a *%s*:\n%s", $group['name'], $share )
-			: sprintf( "Codigo de *%s*: *%s*. Quien quiera sumarse, que se lo mande al bot.", $group['name'], $group['invite_code'] );
+		$lines = array( sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ) );
+		if ( '' !== $share ) {
+			$lines[] = '';
+			$lines[] = '🤝 Invitar amigos (1 toque):';
+			$lines[] = $share;
+		} else {
+			$lines[] = sprintf( 'Codigo: *%s*', $group['invite_code'] );
+		}
+		if ( '' !== $view ) {
+			$lines[] = '';
+			$lines[] = '🌐 Ver standings en la web:';
+			$lines[] = $view;
+		}
 
-		return array( 'reply' => $body, 'completed' => true );
+		return array( 'reply' => implode( "\n", $lines ), 'completed' => true );
 	}
 
 	private static function handle_home( array $identity ): array {
@@ -461,6 +472,13 @@ final class Mantia_Whatsapp_Flow {
 			array( 'id' => 'mantia:cmd:pending',     'title' => '⏳ Pendientes' ),
 			array( 'id' => 'mantia:cmd:leaderboard', 'title' => '📊 Tabla' ),
 		);
+
+		$me_url = Mantia_Repository::user_view_url( $user_id );
+		if ( '' !== $me_url ) {
+			$lines[] = '';
+			$lines[] = '🌐 Ver tus pencas en la web (link privado):';
+			$lines[] = $me_url;
+		}
 
 		return array(
 			'reply'       => implode( "\n", $lines ),

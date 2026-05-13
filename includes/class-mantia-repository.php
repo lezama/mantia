@@ -152,6 +152,109 @@ final class Mantia_Repository {
 		return '' !== $id ? $id : Mantia_Competitions::default_id();
 	}
 
+	public const META_GROUP_VIEW_TOKEN = '_mantia_group_view_token';
+	public const META_USER_VIEW_TOKEN  = '_mantia_user_view_token';
+
+	public static function group_view_token( int $group_id ): string {
+		$token = (string) get_post_meta( $group_id, self::META_GROUP_VIEW_TOKEN, true );
+		if ( '' === $token ) {
+			$token = bin2hex( random_bytes( 12 ) );
+			update_post_meta( $group_id, self::META_GROUP_VIEW_TOKEN, $token );
+		}
+		return $token;
+	}
+
+	public static function find_group_by_view_token( string $token ): ?WP_Post {
+		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
+		if ( strlen( $token ) < 16 ) {
+			return null;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::GROUP,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'meta_key'       => self::META_GROUP_VIEW_TOKEN,
+				'meta_value'     => $token,
+			)
+		);
+		return $posts[0] ?? null;
+	}
+
+	public static function user_view_token( int $user_id ): string {
+		$token = (string) get_post_meta( $user_id, self::META_USER_VIEW_TOKEN, true );
+		if ( '' === $token ) {
+			$token = bin2hex( random_bytes( 12 ) );
+			update_post_meta( $user_id, self::META_USER_VIEW_TOKEN, $token );
+		}
+		return $token;
+	}
+
+	public static function find_user_by_view_token( string $token ): ?WP_Post {
+		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
+		if ( strlen( $token ) < 16 ) {
+			return null;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::USER,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'meta_key'       => self::META_USER_VIEW_TOKEN,
+				'meta_value'     => $token,
+			)
+		);
+		return $posts[0] ?? null;
+	}
+
+	/**
+	 * Cross-group leaderboard for a competition: aggregates points per (user, group)
+	 * pair, returned sorted desc. Drives the public /penca/<competition> view.
+	 */
+	public static function competition_leaderboard( string $competition_id, int $limit = 50 ): array {
+		$storage_id = Mantia_Competitions::storage_id( $competition_id );
+		$group_ids  = self::groups_in_competition( $storage_id );
+		if ( empty( $group_ids ) ) {
+			return array();
+		}
+		$rows = array();
+		foreach ( $group_ids as $gid ) {
+			foreach ( Mantia_Leaderboard::rows( $gid, 100 ) as $r ) {
+				$rows[] = array_merge( $r, array(
+					'group_id'   => $gid,
+					'group_name' => get_the_title( $gid ),
+				) );
+			}
+		}
+		usort(
+			$rows,
+			static fn ( array $a, array $b ): int => ( $b['points'] <=> $a['points'] )
+				?: ( $b['exacts'] <=> $a['exacts'] )
+				?: strcasecmp( $a['name'], $b['name'] )
+		);
+		$out = array_slice( $rows, 0, max( 1, $limit ) );
+		foreach ( $out as $i => &$row ) {
+			$row['rank'] = $i + 1;
+		}
+		return $out;
+	}
+
+	public static function groups_in_competition( string $competition_id ): array {
+		$posts = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::GROUP,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+				'meta_key'       => Mantia_Competitions::META_KEY,
+				'meta_value'     => $competition_id,
+			)
+		);
+		return array_map( static fn ( WP_Post $p ): int => (int) $p->ID, $posts );
+	}
+
 	public static function set_group_competition( int $group_id, string $competition_id ): bool {
 		if ( ! Mantia_Competitions::get( $competition_id ) ) {
 			return false;
@@ -429,11 +532,26 @@ final class Mantia_Repository {
 			'name'             => $name,
 			'invite_code'      => $code,
 			'share_url'        => $share_url,
+			'view_url'         => self::group_view_url( $group_id ),
 			'invite_message'   => $invite_fallback,
 			'slug'             => (string) get_post_meta( $group_id, self::META_GROUP_SLUG, true ),
 			'competition_id'   => $comp_id,
 			'competition_name' => $comp ? trim( ( $comp['emoji'] ?? '' ) . ' ' . $comp['name'] ) : $comp_id,
 		);
+	}
+
+	public static function group_view_url( int $group_id ): string {
+		$token = self::group_view_token( $group_id );
+		return home_url( '/penca/g/' . $token );
+	}
+
+	public static function user_view_url( int $user_id ): string {
+		$token = self::user_view_token( $user_id );
+		return home_url( '/penca/me/' . $token );
+	}
+
+	public static function competition_view_url( string $competition_id ): string {
+		return home_url( '/penca/' . $competition_id );
 	}
 
 	public static function bot_phone_e164(): string {
