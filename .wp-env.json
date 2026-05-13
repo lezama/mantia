@@ -2,8 +2,8 @@
 	"core": "WordPress/WordPress#master",
 	"plugins": [
 		".",
-		"https://github.com/Automattic/agents-api.git",
-		"https://github.com/lezama/openclawp.git"
+		"Automattic/agents-api#main",
+		"lezama/openclawp#main"
 	],
 	"config": {
 		"WP_DEBUG": true,
