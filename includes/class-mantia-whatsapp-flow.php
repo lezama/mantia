@@ -569,21 +569,31 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// 2+ groups → list selector. Single group → text-only summary with action buttons.
+		// 2+ groups → list selector. We render the group names inline in
+		// the text first so the user reads them immediately instead of
+		// having to tap the list button to see what's inside.
 		if ( count( $groups ) >= 2 ) {
-			$rows = array();
+			$rows  = array();
+			$lines = array( sprintf( 'Estás en %d pencas:', count( $groups ) ), '' );
 			foreach ( $groups as $g ) {
-				$rows[] = array(
+				$marker     = ! empty( $g['is_active'] ) ? '✅' : '▫️';
+				$comp_part  = isset( $g['competition_name'] ) && '' !== $g['competition_name']
+					? ' · ' . $g['competition_name']
+					: '';
+				$lines[]    = sprintf( '%s *%s*%s', $marker, $g['name'], $comp_part );
+				$rows[]     = array(
 					'id'          => 'mantia:switch:' . (int) $g['id'],
-					'title'       => ! empty( $g['is_active'] ) ? '✓ ' . $g['name'] : $g['name'],
-					'description' => sprintf( 'código %s', $g['invite_code'] ),
+					'title'       => self::truncate_title( ( ! empty( $g['is_active'] ) ? '✓ ' : '' ) . $g['name'], 24 ),
+					'description' => self::truncate_title( (string) ( $g['competition_name'] ?? '' ), 72 ),
 				);
 			}
+			$lines[] = '';
+			$lines[] = '_Tocá una para hacerla la activa._';
 			return array(
-				'reply'       => 'Tus pencas — tocá una para que sea la activa:',
+				'reply'       => implode( "\n", $lines ),
 				'interactive' => array(
 					'type'         => 'list',
-					'button_label' => 'Ver pencas',
+					'button_label' => 'Cambiar penca',
 					'sections'     => array(
 						array( 'title' => 'Mis pencas', 'rows' => $rows ),
 					),
