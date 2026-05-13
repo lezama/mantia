@@ -35,6 +35,17 @@ final class Mantia_Whatsapp_Flow {
 			return null;
 		}
 
+		// Throttle inbound per phone so a stuck client / abusive sender can't
+		// burn through the LLM budget or the Cloud API rate limit. Reply
+		// inside the 24h service window so the user gets a clear message
+		// without spending an outbound template.
+		if ( '' !== $identity['phone'] ) {
+			$throttled = self::rate_limit_check( $identity['phone'] );
+			if ( null !== $throttled ) {
+				return $throttled;
+			}
+		}
+
 		// Button / list reply payload from openclaWP — routed by the id we set.
 		if ( str_starts_with( $raw, 'mantia:cmd:' ) ) {
 			$cmd = substr( $raw, strlen( 'mantia:cmd:' ) );
@@ -739,6 +750,39 @@ final class Mantia_Whatsapp_Flow {
 		}
 		// Display in Uruguay time (UTC-3) for now; future: per-user timezone.
 		return gmdate( 'D j M • H:i', $ts - 3 * HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Per-phone fixed-window throttle. Returns a deterministic reply payload
+	 * when the sender is over budget, or null to let processing continue.
+	 *
+	 * Defaults: 20 turns / 60s. Filterable:
+	 *   - `mantia_rate_limit_max` (int)
+	 *   - `mantia_rate_limit_window_seconds` (int)
+	 */
+	private static function rate_limit_check( string $phone ): ?array {
+		$max    = (int) apply_filters( 'mantia_rate_limit_max', 20 );
+		$window = (int) apply_filters( 'mantia_rate_limit_window_seconds', 60 );
+
+		if ( $max <= 0 || $window <= 0 ) {
+			return null;
+		}
+
+		$key   = 'mantia_rl_' . md5( $phone );
+		$count = (int) get_transient( $key );
+
+		if ( $count >= $max ) {
+			return array(
+				'reply'     => sprintf(
+					'Estás mandando muchos mensajes en poco tiempo. Esperá ~%ds y volvé a intentar.',
+					$window
+				),
+				'completed' => true,
+			);
+		}
+
+		set_transient( $key, $count + 1, $window );
+		return null;
 	}
 
 	private static function identity_from_turn( array $turn ): array {
