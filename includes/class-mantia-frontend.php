@@ -27,6 +27,7 @@ final class Mantia_Frontend {
 		add_action( 'init', array( __CLASS__, 'register_rewrites' ), 11 );
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_home' ), 5 );
 	}
 
 	public static function register_rewrites(): void {
@@ -325,6 +326,219 @@ final class Mantia_Frontend {
 
 		<?php self::page_footer();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Hijack the site's front page with a black landing that's just one thing
+	 * to do: scan the QR and open WhatsApp with a primed first message.
+	 *
+	 * Site owners that want their own homepage can opt out:
+	 *   add_filter( 'mantia_render_home', '__return_false' );
+	 */
+	public static function maybe_render_home(): void {
+		if ( ! is_front_page() || is_paged() ) {
+			return;
+		}
+		if ( '' !== (string) get_query_var( self::QUERY_VAR_VIEW ) ) {
+			return;
+		}
+		if ( ! apply_filters( 'mantia_render_home', true ) ) {
+			return;
+		}
+
+		status_header( 200 );
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=utf-8' );
+		echo self::render_home();
+		exit;
+	}
+
+	private static function render_home(): string {
+		$phone = Mantia_Repository::bot_phone_e164();
+		$msg   = (string) apply_filters( 'mantia_home_first_message', 'hola' );
+		$wa    = '' !== $phone ? sprintf( 'https://wa.me/%s?text=%s', $phone, rawurlencode( $msg ) ) : '';
+
+		$site_name = get_bloginfo( 'name' );
+		$title     = sprintf( 'Mantia · %s', $site_name );
+
+		ob_start();
+		?><!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#000000">
+	<meta name="robots" content="index,follow">
+	<title><?php echo esc_html( $title ); ?></title>
+	<style><?php echo self::home_stylesheet(); ?></style>
+</head>
+<body class="mantia-home">
+	<main class="mantia-home-wrap">
+		<header class="mantia-home-head">
+			<h1>Mantia</h1>
+			<p><?php esc_html_e( 'penca por WhatsApp', 'mantia' ); ?></p>
+		</header>
+
+		<?php if ( '' === $wa ) : ?>
+			<section class="mantia-home-card mantia-home-card--alert">
+				<p><?php esc_html_e( 'El bot todavía no tiene número configurado. Pedile al admin que cargue las credenciales de WhatsApp.', 'mantia' ); ?></p>
+			</section>
+		<?php else : ?>
+			<a class="mantia-qr-card" href="<?php echo esc_url( $wa ); ?>" aria-label="<?php esc_attr_e( 'Abrir WhatsApp con Mantia', 'mantia' ); ?>">
+				<img
+					class="mantia-qr-img"
+					src="<?php echo esc_url( self::qr_image_url( $wa, 640 ) ); ?>"
+					alt="<?php esc_attr_e( 'Código QR para chatear con Mantia por WhatsApp', 'mantia' ); ?>"
+					width="320" height="320"
+					loading="eager"
+				>
+			</a>
+
+			<p class="mantia-home-tagline">
+				<?php
+				printf(
+					/* translators: %s: message that will be prefilled in WhatsApp, e.g. "hola". */
+					esc_html__( 'Escaneá y mandá "%s" para empezar', 'mantia' ),
+					esc_html( $msg )
+				);
+				?>
+			</p>
+
+			<a class="mantia-home-cta" href="<?php echo esc_url( $wa ); ?>"><?php esc_html_e( 'Abrir WhatsApp', 'mantia' ); ?> →</a>
+		<?php endif; ?>
+
+		<footer class="mantia-home-foot">
+			<a href="<?php echo esc_url( Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() ) ); ?>"><?php esc_html_e( 'ver el ranking', 'mantia' ); ?></a>
+		</footer>
+	</main>
+</body>
+</html>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Build a QR-image URL. Default backend is api.qrserver.com — a free,
+	 * long-lived service. Sites that prefer self-hosting can swap via the
+	 * `mantia_qr_image_url` filter (e.g. point at a local SVG endpoint).
+	 */
+	private static function qr_image_url( string $payload, int $size = 600 ): string {
+		$url = sprintf(
+			'https://api.qrserver.com/v1/create-qr-code/?size=%1$dx%1$d&qzone=2&data=%2$s',
+			max( 200, min( 1000, $size ) ),
+			rawurlencode( $payload )
+		);
+		return (string) apply_filters( 'mantia_qr_image_url', $url, $payload, $size );
+	}
+
+	private static function home_stylesheet(): string {
+		return <<<'CSS'
+*,
+*::before,
+*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body.mantia-home {
+	min-height: 100vh;
+	background: #000;
+	color: #fff;
+	font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.mantia-home-wrap {
+	width: 100%;
+	max-width: 420px;
+	padding: 48px 24px;
+	text-align: center;
+}
+.mantia-home-head h1 {
+	margin: 0 0 6px;
+	font-size: 36px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+.mantia-home-head p {
+	margin: 0 0 36px;
+	font-size: 14px;
+	color: #8c8c92;
+	text-transform: lowercase;
+	letter-spacing: 0.08em;
+}
+.mantia-qr-card {
+	display: inline-block;
+	background: #fff;
+	padding: 18px;
+	border-radius: 22px;
+	line-height: 0;
+	box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+	transition: transform 0.15s ease;
+}
+.mantia-qr-card:hover,
+.mantia-qr-card:focus-visible {
+	transform: scale(1.02);
+	outline: none;
+}
+.mantia-qr-img {
+	display: block;
+	width: 320px;
+	max-width: 70vmin;
+	height: auto;
+	margin: 0;
+	background: #fff;
+}
+.mantia-home-tagline {
+	margin: 28px 0 22px;
+	font-size: 17px;
+	color: #ededed;
+}
+.mantia-home-cta {
+	display: inline-block;
+	padding: 14px 28px;
+	background: #25d366;
+	color: #000;
+	font-size: 16px;
+	font-weight: 600;
+	text-decoration: none;
+	border-radius: 999px;
+	transition: filter 0.15s ease;
+}
+.mantia-home-cta:hover,
+.mantia-home-cta:focus-visible {
+	filter: brightness(1.05);
+	outline: none;
+}
+.mantia-home-card {
+	background: #111;
+	color: #bbb;
+	border: 1px solid #222;
+	border-radius: 14px;
+	padding: 16px 18px;
+	margin: 0 0 20px;
+	font-size: 14px;
+}
+.mantia-home-card--alert {
+	border-color: #5a2a2a;
+	color: #ddd;
+}
+.mantia-home-foot {
+	margin-top: 44px;
+	font-size: 13px;
+	color: #5a5a5e;
+}
+.mantia-home-foot a {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px dotted #3a3a3e;
+	padding-bottom: 1px;
+}
+.mantia-home-foot a:hover { color: #aaa; }
+@media (max-width: 380px) {
+	.mantia-qr-img { width: 260px; }
+	.mantia-home-head h1 { font-size: 32px; }
+}
+CSS;
 	}
 
 	private static function render_not_found( string $message ): string {
