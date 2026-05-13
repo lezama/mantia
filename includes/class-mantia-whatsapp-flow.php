@@ -473,9 +473,13 @@ final class Mantia_Whatsapp_Flow {
 			return null;
 		}
 
-		// Allow direct slug ("crear penca mundial-2026").
-		if ( null !== Mantia_Competitions::get( $h ) ) {
-			return $h;
+		// Allow direct slug or sanitize-equivalent forms ("Mundial 2026" →
+		// "mundial-2026"). Mantia_Competitions::get() sanitizes internally,
+		// but we always return the canonical $comp['id'] so downstream
+		// meta_value queries match.
+		$direct = Mantia_Competitions::get( $h );
+		if ( null !== $direct ) {
+			return (string) $direct['id'];
 		}
 
 		$aliases = array(
