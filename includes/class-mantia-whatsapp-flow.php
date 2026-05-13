@@ -67,10 +67,7 @@ final class Mantia_Whatsapp_Flow {
 				case 'my-predictions':
 					return self::handle_my_predictions( $identity );
 				case 'new-penca':
-					return array(
-						'reply'     => 'Decime el nombre de la penca. Ejemplo: *nueva penca La Familia*.',
-						'completed' => true,
-					);
+					return self::handle_new_penca_start( $identity );
 				case 'have-code':
 					return array(
 						'reply'     => 'Mandame el codigo de invitacion (5-20 caracteres, sin espacios). Ejemplo: *FAMILIA2026*.',
@@ -90,9 +87,35 @@ final class Mantia_Whatsapp_Flow {
 			$competition_id = substr( $raw, strlen( 'mantia:competition:' ) );
 			return self::handle_competition_chosen( $competition_id, $identity );
 		}
+		if ( str_starts_with( $raw, 'mantia:newcomp:' ) ) {
+			$competition_id = substr( $raw, strlen( 'mantia:newcomp:' ) );
+			return self::handle_competition_picked_for_new( $competition_id, $identity );
+		}
+
+		// Bare "crear / nueva penca" with no name kicks off the
+		// competition-first flow (same destination as the home menu button).
+		if ( preg_match( '/^(?:crear|nueva|new)(?:\s+penca)?\s*$/iu', $lc ) ) {
+			return self::handle_new_penca_start( $identity );
+		}
 
 		if ( preg_match( '/^(?:nueva|crear|create|new)\s+penca\s+(.+)$/iu', $plain, $m ) ) {
-			return self::handle_create_group( trim( (string) $m[1] ), $identity );
+			$arg = trim( (string) $m[1] );
+			// "Crear penca de Mundial 2026" — competition hint short-circuits the
+			// flow and lands us on the name prompt with the competition pre-picked.
+			$competition_id = self::resolve_competition_hint( $arg );
+			if ( null !== $competition_id ) {
+				return self::handle_competition_picked_for_new( $competition_id, $identity );
+			}
+			return self::handle_create_group( $arg, $identity );
+		}
+
+		// User picked a competition and we asked for a name — next message is
+		// the name, unless it's an obvious escape command.
+		if ( '' !== $identity['phone'] ) {
+			$pending_comp = (string) get_transient( self::pending_comp_key( $identity['phone'] ) );
+			if ( '' !== $pending_comp && ! self::is_escape_command( $lc ) ) {
+				return self::handle_name_after_competition( $raw, $identity, $pending_comp );
+			}
 		}
 
 		if ( preg_match( '/^(?:me\s+llamo|mi\s+nombre\s+es|llamame|llamame|decime)\s+(.+)$/iu', $plain, $m ) ) {
@@ -329,6 +352,156 @@ final class Mantia_Whatsapp_Flow {
 
 	private static function pending_create_key( string $phone ): string {
 		return 'mantia_pending_create_' . md5( $phone );
+	}
+
+	private static function pending_comp_key( string $phone ): string {
+		return 'mantia_pending_comp_' . md5( $phone );
+	}
+
+	private static function is_escape_command( string $lc ): bool {
+		return (bool) preg_match( '/^(?:hola|hello|hi|hey|home|inicio|menu|ayuda|help|comandos|cancelar|cancel|salir|olvida|olvidalo|\?|\/[a-z]*)$/iu', trim( $lc ) );
+	}
+
+	/**
+	 * Entry-point for the competition-first new-penca flow: show the
+	 * tournament list immediately, then ask for the name once the user picks.
+	 * More discoverable than asking for free-text name first.
+	 */
+	private static function handle_new_penca_start( array $identity ): array {
+		if ( '' !== $identity['phone'] ) {
+			delete_transient( self::pending_create_key( $identity['phone'] ) );
+		}
+
+		$rows = array();
+		foreach ( Mantia_Competitions::all() as $c ) {
+			$rows[] = array(
+				'id'          => 'mantia:newcomp:' . $c['id'],
+				'title'       => self::truncate_title( trim( ( $c['emoji'] ?? '' ) . ' ' . $c['name'] ), 24 ),
+				'description' => self::truncate_title( (string) ( $c['description'] ?? '' ), 72 ),
+			);
+		}
+
+		if ( empty( $rows ) ) {
+			return array(
+				'reply'     => 'No tengo competencias cargadas todavía. Pedile al admin que active Mantia.',
+				'completed' => true,
+			);
+		}
+
+		return array(
+			'reply'       => 'Genial! Empecemos por el torneo de tu penca:',
+			'interactive' => array(
+				'type'         => 'list',
+				'header'       => 'Nueva penca',
+				'button_label' => 'Elegir torneo',
+				'sections'     => array(
+					array( 'title' => 'Competencias', 'rows' => $rows ),
+				),
+			),
+			'completed' => true,
+		);
+	}
+
+	/**
+	 * Competition picked first; stash it and prompt for the name. The pending-
+	 * name detector in the main router will pick the next message up as the
+	 * group name (unless it's an escape command).
+	 */
+	private static function handle_competition_picked_for_new( string $competition_id, array $identity ): array {
+		if ( '' === $identity['phone'] ) {
+			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+		}
+		$competition = Mantia_Competitions::get( $competition_id );
+		if ( ! $competition ) {
+			return array( 'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.', 'completed' => true );
+		}
+
+		set_transient(
+			self::pending_comp_key( $identity['phone'] ),
+			$competition_id,
+			15 * MINUTE_IN_SECONDS
+		);
+
+		$label = trim( ( $competition['emoji'] ?? '' ) . ' ' . $competition['name'] );
+		return array(
+			'reply'     => sprintf(
+				"*%s* — ¿cómo se va a llamar tu penca?\n\nMandame un nombre cortito (ej: *Amigos del Faso*) y la creo. Mandá *cancelar* si cambiaste de idea.",
+				$label
+			),
+			'completed' => true,
+		);
+	}
+
+	/**
+	 * Counterpart of handle_competition_chosen: competition was picked first
+	 * and the user just sent us the penca name. Creates the group + reuses
+	 * the same final reply.
+	 */
+	private static function handle_name_after_competition( string $raw_name, array $identity, string $competition_id ): array {
+		$name = sanitize_text_field( $raw_name );
+		$name = trim( (string) preg_replace( '/[.!?,;:]+$/u', '', $name ) );
+		if ( '' === $name || strlen( $name ) > 80 ) {
+			return array(
+				'reply'     => 'Decime un nombre cortito (max 80 chars). Ej: *Amigos del Faso*.',
+				'completed' => true,
+			);
+		}
+
+		$competition = Mantia_Competitions::get( $competition_id );
+		if ( ! $competition ) {
+			delete_transient( self::pending_comp_key( $identity['phone'] ) );
+			return array( 'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.', 'completed' => true );
+		}
+
+		delete_transient( self::pending_comp_key( $identity['phone'] ) );
+
+		// Reuse the post-creation reply by routing through the existing path:
+		// stash the name, then call handle_competition_chosen which expects it.
+		set_transient( self::pending_create_key( $identity['phone'] ), $name, 15 * MINUTE_IN_SECONDS );
+		return self::handle_competition_chosen( $competition_id, $identity );
+	}
+
+	/**
+	 * Resolve a free-text competition hint ("Mundial 2026", "Libertadores",
+	 * "liga uruguaya") to a slug. Returns null if the hint clearly looks
+	 * like a custom penca name instead.
+	 */
+	private static function resolve_competition_hint( string $hint ): ?string {
+		$h = function_exists( 'remove_accents' ) ? remove_accents( $hint ) : $hint;
+		$h = strtolower( trim( $h ) );
+		if ( '' === $h ) {
+			return null;
+		}
+
+		// Allow direct slug ("crear penca mundial-2026").
+		if ( null !== Mantia_Competitions::get( $h ) ) {
+			return $h;
+		}
+
+		$aliases = array(
+			'mundial-2026'        => array( 'mundial', 'world cup', 'copa del mundo', 'fifa', 'mundial 2026' ),
+			'libertadores-semana' => array( 'libertadores semana', 'libertadores de esta semana', 'libertadores esta semana', 'libertadores semanal' ),
+			'libertadores-2026'   => array( 'libertadores', 'copa libertadores', 'libertadores completa', 'libertadores 2026' ),
+			'sudamericana-2026'   => array( 'sudamericana', 'copa sudamericana', 'sudamericana 2026' ),
+			'liga-uy-2026'        => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'liga-uy', 'campeonato uruguayo', 'liga uy 2026', 'auf' ),
+		);
+
+		foreach ( $aliases as $id => $list ) {
+			foreach ( $list as $alias ) {
+				if ( false !== strpos( $h, $alias ) && null !== Mantia_Competitions::get( $id ) ) {
+					return $id;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private static function truncate_title( string $s, int $max ): string {
+		$s = trim( $s );
+		return ( function_exists( 'mb_strlen' ) ? mb_strlen( $s ) : strlen( $s ) ) > $max
+			? rtrim( ( function_exists( 'mb_substr' ) ? mb_substr( $s, 0, $max - 1 ) : substr( $s, 0, $max - 1 ) ) ) . '…'
+			: $s;
 	}
 
 	private static function handle_my_groups( array $identity ): array {

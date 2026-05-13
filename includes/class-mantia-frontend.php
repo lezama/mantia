@@ -95,12 +95,25 @@ final class Mantia_Frontend {
 		$rows     = Mantia_Repository::competition_leaderboard( $slug, 50 );
 		$matches  = Mantia_Repository::upcoming_matches_for_competition( $slug, 24 * 30 );
 
+		$create_url = self::create_penca_wa_url( $comp );
+
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $comp['name'] ) );
 		?>
 		<header class="mantia-hero">
 			<h1><?php echo esc_html( $title ); ?></h1>
 			<p class="mantia-sub"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
+			<?php if ( '' !== $create_url ) : ?>
+				<a class="mantia-cta mantia-cta-create" href="<?php echo esc_url( $create_url ); ?>">
+					<?php
+					printf(
+						/* translators: %s: competition name, e.g. "Mundial 2026". */
+						esc_html__( '🆕 Crear penca de %s →', 'mantia' ),
+						esc_html( $comp['name'] )
+					);
+					?>
+				</a>
+			<?php endif; ?>
 		</header>
 
 		<section class="mantia-section">
@@ -405,6 +418,11 @@ final class Mantia_Frontend {
 			</p>
 
 			<a class="mantia-home-cta" href="<?php echo esc_url( $wa ); ?>"><?php esc_html_e( 'Abrir WhatsApp', 'mantia' ); ?> →</a>
+
+			<?php $create_url = self::create_penca_wa_url(); ?>
+			<?php if ( '' !== $create_url ) : ?>
+				<a class="mantia-home-secondary" href="<?php echo esc_url( $create_url ); ?>">🆕 <?php esc_html_e( 'Crear una penca', 'mantia' ); ?> →</a>
+			<?php endif; ?>
 		<?php endif; ?>
 
 		<footer class="mantia-home-foot">
@@ -415,6 +433,24 @@ final class Mantia_Frontend {
 </html>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Build a wa.me deeplink that prefills the WhatsApp draft with a "crear"
+	 * intent. When a competition is provided we hint the bot's preflight
+	 * regex; otherwise the bot will show the competition picker on tap.
+	 *
+	 * @param array<string,mixed>|null $competition Optional competition row.
+	 */
+	private static function create_penca_wa_url( ?array $competition = null ): string {
+		$phone = Mantia_Repository::bot_phone_e164();
+		if ( '' === $phone ) {
+			return '';
+		}
+		$text = null !== $competition && ! empty( $competition['name'] )
+			? sprintf( 'Crear penca de %s', $competition['name'] )
+			: 'Crear penca';
+		return sprintf( 'https://wa.me/%s?text=%s', $phone, rawurlencode( $text ) );
 	}
 
 	/**
@@ -507,6 +543,23 @@ body.mantia-home {
 .mantia-home-cta:hover,
 .mantia-home-cta:focus-visible {
 	filter: brightness(1.05);
+	outline: none;
+}
+.mantia-home-secondary {
+	display: inline-block;
+	margin-top: 14px;
+	padding: 10px 18px;
+	color: #ededed;
+	text-decoration: none;
+	font-size: 14px;
+	border: 1px solid #2a2a2e;
+	border-radius: 999px;
+	transition: border-color 0.15s ease, color 0.15s ease;
+}
+.mantia-home-secondary:hover,
+.mantia-home-secondary:focus-visible {
+	color: #fff;
+	border-color: #5a5a5e;
 	outline: none;
 }
 .mantia-home-card {
@@ -773,6 +826,27 @@ body {
 	color: var(--fg-dim);
 	margin: 0 6px;
 }
+.mantia-cta {
+	display: inline-block;
+	padding: 10px 18px;
+	background: var(--accent);
+	color: var(--bg);
+	font-weight: 600;
+	text-decoration: none;
+	border-radius: 999px;
+	margin: 0 8px 8px 0;
+}
+.mantia-cta-secondary {
+	background: transparent;
+	color: var(--fg);
+	border: 1px solid var(--border);
+}
+.mantia-cta-create {
+	margin-top: 16px;
+	background: var(--accent);
+	color: var(--bg);
+}
+.mantia-cta:hover { filter: brightness(1.07); }
 .mantia-foot {
 	color: var(--fg-dim);
 	font-size: 12px;
