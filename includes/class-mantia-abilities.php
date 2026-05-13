@@ -64,6 +64,31 @@ final class Mantia_Abilities {
 		}
 	}
 
+	/**
+	 * Default permission gate for every mantia ability.
+	 *
+	 * Mantia abilities are designed to be invoked from the agent runner
+	 * during a WhatsApp turn — at that point openclaWP promotes the request
+	 * to the configured WhatsApp service user (admin), so manage_options
+	 * passes. Outside that path (anonymous REST callers, untrusted plugins,
+	 * etc.) the abilities require admin until widened.
+	 *
+	 * Filterable per-ability via `mantia_ability_permission` so a downstream
+	 * site that builds, e.g., a public web form on top of `mantia/get-standings`
+	 * can grant `__return_true` to that specific ability without unlocking
+	 * destructive ones.
+	 *
+	 * @return bool|WP_Error true to allow, false/WP_Error to deny.
+	 */
+	public static function rest_permission( $input = null ) {
+		$ability_name = '';
+		if ( is_array( $input ) && isset( $input['_mantia_ability'] ) ) {
+			$ability_name = (string) $input['_mantia_ability'];
+		}
+		$allowed = current_user_can( 'manage_options' );
+		return (bool) apply_filters( 'mantia_ability_permission', $allowed, $ability_name, $input );
+	}
+
 	private static function register_prediction_ability(): void {
 		wp_register_ability(
 			'mantia/register-prediction',
@@ -98,7 +123,7 @@ final class Mantia_Abilities {
 					),
 				),
 				'execute_callback'    => array( __CLASS__, 'register_prediction' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
 			)
 		);
@@ -207,7 +232,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_standings' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -257,7 +282,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_upcoming_matches' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -290,7 +315,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args ): array => array( 'match' => Mantia_Repository::match_to_array( (int) ( $args['match_id'] ?? 0 ) ) ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -312,7 +337,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_user_history' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -356,7 +381,7 @@ final class Mantia_Abilities {
 					(string) ( $args['user_name'] ?? '' ),
 					(string) ( $args['whatsapp_recipient'] ?? '' )
 				),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
 			)
 		);
@@ -382,7 +407,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'create_group' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
 			)
 		);
@@ -437,7 +462,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_my_groups' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -477,7 +502,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'set_active_group' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
 			)
 		);
@@ -517,7 +542,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_whatsapp_home' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -573,7 +598,7 @@ final class Mantia_Abilities {
 				'input_schema'        => array( 'type' => 'object' ),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args = array() ): array => array( 'matches' => Mantia_Repository::finished_unresolved_matches() ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -593,7 +618,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'resolve_match' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
 			)
 		);
@@ -647,7 +672,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args ) => Mantia_Results_Fetcher::fetch_match_result( (int) ( $args['match_id'] ?? 0 ) ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -677,7 +702,7 @@ final class Mantia_Abilities {
 					(int) $args['real_home'],
 					(int) $args['real_away']
 				),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -696,7 +721,7 @@ final class Mantia_Abilities {
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_match_reminder_targets' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
@@ -740,7 +765,7 @@ final class Mantia_Abilities {
 				'input_schema'        => array( 'type' => 'object' ),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_daily_digest_targets' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
 			)
 		);
