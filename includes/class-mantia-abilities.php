@@ -152,34 +152,79 @@ final class Mantia_Abilities {
 			return new WP_Error( 'mantia_match_ambiguous', __( 'Decime para que partido es el pronostico.', 'mantia' ) );
 		}
 
-		$group_id = isset( $args['group_id'] ) && (int) $args['group_id'] > 0
-			? (int) $args['group_id']
-			: Mantia_Repository::active_group_id_for_user( $user_id );
-		if ( $group_id <= 0 ) {
-			return new WP_Error( 'mantia_group_required', __( 'Primero mandame el codigo de la penca a la que queres entrar.', 'mantia' ) );
-		}
-		$match    = Mantia_Repository::match_to_array( $match_id );
-		$scores   = self::resolve_prediction_scores( $args, $match );
+		$match  = Mantia_Repository::match_to_array( $match_id );
+		$scores = self::resolve_prediction_scores( $args, $match );
 		if ( is_wp_error( $scores ) ) {
 			return $scores;
 		}
 
-		$prediction = Mantia_Repository::register_prediction(
-			$user_id,
-			$match_id,
-			$group_id,
-			(int) $scores['home_score'],
-			(int) $scores['away_score']
-		);
+		// Auto-route: if the caller named a specific group_id we respect
+		// it (LLM may want to target one penca). Otherwise we resolve the
+		// match's competition and save the prediction to every group the
+		// user has in that competition — the natural multi-penca behavior
+		// people expect when they have e.g. a family and an office penca
+		// for the same tournament.
+		$group_ids = array();
+		if ( isset( $args['group_id'] ) && (int) $args['group_id'] > 0 ) {
+			$group_ids = array( (int) $args['group_id'] );
+		} else {
+			$match_comp = (string) ( $match['competition_id'] ?? '' );
+			if ( '' !== $match_comp ) {
+				$group_ids = Mantia_Repository::user_groups_in_competition( $user_id, $match_comp );
+			}
+		}
 
-		if ( is_wp_error( $prediction ) ) {
-			return $prediction;
+		if ( empty( $group_ids ) ) {
+			$match_comp = (string) ( $match['competition_id'] ?? '' );
+			$comp       = '' !== $match_comp ? Mantia_Competitions::get( $match_comp ) : null;
+			$comp_name  = $comp ? trim( ( $comp['emoji'] ?? '' ) . ' ' . $comp['name'] ) : __( 'esa competencia', 'mantia' );
+			$create_arg = $comp ? $comp['name'] : '';
+			return new WP_Error(
+				'mantia_no_group_in_competition',
+				sprintf(
+					/* translators: 1: competition label with emoji, 2: command suggestion to create a penca. */
+					__( 'Ese partido es de %1$s, pero no estás en ninguna penca de ese torneo. Mandame *Crear penca de %2$s* y armamos una.', 'mantia' ),
+					$comp_name,
+					$create_arg
+				)
+			);
+		}
+
+		$predictions = array();
+		$groups      = array();
+		$errors      = array();
+		foreach ( $group_ids as $gid ) {
+			$pred = Mantia_Repository::register_prediction(
+				$user_id,
+				$match_id,
+				(int) $gid,
+				(int) $scores['home_score'],
+				(int) $scores['away_score']
+			);
+			if ( is_wp_error( $pred ) ) {
+				$errors[] = $pred->get_error_message();
+				continue;
+			}
+			$predictions[] = $pred;
+			$groups[]      = Mantia_Repository::group_to_array( (int) $gid );
+		}
+
+		if ( empty( $predictions ) ) {
+			return new WP_Error(
+				'mantia_prediction_failed',
+				! empty( $errors ) ? (string) $errors[0] : __( 'No pude guardar el pronóstico.', 'mantia' )
+			);
 		}
 
 		return array(
-			'prediction' => $prediction,
-			'match'      => $match,
-			'group'      => Mantia_Repository::group_to_array( $group_id ),
+			// Singular keys for backwards compat with existing LLM responses.
+			'prediction'  => $predictions[0],
+			'match'       => $match,
+			'group'       => $groups[0],
+			// Plural keys are the source of truth — every group the
+			// prediction landed in, so the agent can name them all in the reply.
+			'predictions' => $predictions,
+			'groups'      => $groups,
 		);
 	}
 
