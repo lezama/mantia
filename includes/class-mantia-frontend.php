@@ -105,15 +105,10 @@ final class Mantia_Frontend {
 			<p class="mantia-sub"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
 			<?php if ( '' !== $create_url ) : ?>
 				<a class="mantia-cta mantia-cta-create" href="<?php echo esc_url( $create_url ); ?>">
-					<?php
-					printf(
-						/* translators: %s: competition name, e.g. "Mundial 2026". */
-						esc_html__( '🆕 Crear penca de %s →', 'mantia' ),
-						esc_html( $comp['name'] )
-					);
-					?>
+					🆕 <?php esc_html_e( 'Crear penca', 'mantia' ); ?> →
 				</a>
 			<?php endif; ?>
+			<?php self::render_competition_nav( $slug ); ?>
 		</header>
 
 		<section class="mantia-section">
@@ -161,7 +156,7 @@ final class Mantia_Frontend {
 		$group_post = Mantia_Repository::find_group_by_view_token( $token );
 		if ( ! $group_post ) {
 			status_header( 404 );
-			return self::render_not_found( __( 'Grupo no encontrado o token inválido', 'mantia' ) );
+			return self::render_not_found( __( 'Este link no funciona o ya venció.', 'mantia' ) );
 		}
 
 		$group_id = (int) $group_post->ID;
@@ -185,6 +180,13 @@ final class Mantia_Frontend {
 			<a class="mantia-cta" href="<?php echo esc_url( $group['share_url'] ); ?>">
 				🤝 Sumate a <?php echo esc_html( $group['name'] ); ?>
 			</a>
+		<?php endif; ?>
+
+		<?php $create_url = self::create_penca_wa_url(); ?>
+		<?php if ( '' !== $create_url ) : ?>
+			<p class="mantia-aside">
+				<a class="mantia-ghost-link" href="<?php echo esc_url( $create_url ); ?>"><?php esc_html_e( 'o creá tu propia penca →', 'mantia' ); ?></a>
+			</p>
 		<?php endif; ?>
 
 		<section class="mantia-section">
@@ -239,7 +241,7 @@ final class Mantia_Frontend {
 		$user_post = Mantia_Repository::find_user_by_view_token( $token );
 		if ( ! $user_post ) {
 			status_header( 404 );
-			return self::render_not_found( __( 'Usuario no encontrado o token inválido', 'mantia' ) );
+			return self::render_not_found( __( 'Este link privado no funciona o ya venció.', 'mantia' ) );
 		}
 
 		$user_id      = (int) $user_post->ID;
@@ -270,10 +272,15 @@ final class Mantia_Frontend {
 			}
 			$comp_id    = Mantia_Repository::group_competition_id( $group_id );
 			$upcoming   = Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 30 );
-			$active_str = ! empty( $g['is_active'] ) ? ' (activa)' : '';
+			$is_active  = ! empty( $g['is_active'] );
 			?>
 			<section class="mantia-section">
-				<h2><?php echo esc_html( $g['name'] ); ?><?php echo esc_html( $active_str ); ?></h2>
+				<h2>
+					<?php echo esc_html( $g['name'] ); ?>
+					<?php if ( $is_active ) : ?>
+						<span class="mantia-active-badge" aria-label="<?php esc_attr_e( 'Penca activa en WhatsApp', 'mantia' ); ?>"><?php esc_html_e( 'activa', 'mantia' ); ?></span>
+					<?php endif; ?>
+				</h2>
 				<p class="mantia-sub"><?php echo esc_html( $g['competition_name'] ?? '' ); ?></p>
 
 				<?php if ( $my_row ) : ?>
@@ -336,6 +343,13 @@ final class Mantia_Frontend {
 				<?php endif; endif; ?>
 			</section>
 		<?php endforeach; endif; ?>
+
+		<?php $create_url = self::create_penca_wa_url(); ?>
+		<?php if ( '' !== $create_url ) : ?>
+			<p class="mantia-aside">
+				<a class="mantia-ghost-link" href="<?php echo esc_url( $create_url ); ?>"><?php esc_html_e( '🆕 Crear otra penca →', 'mantia' ); ?></a>
+			</p>
+		<?php endif; ?>
 
 		<?php self::page_footer();
 		return (string) ob_get_clean();
@@ -547,11 +561,11 @@ body.mantia-home {
 }
 .mantia-home-secondary {
 	display: inline-block;
-	margin-top: 14px;
+	margin-top: 36px;
 	padding: 10px 18px;
-	color: #ededed;
+	color: #8c8c92;
 	text-decoration: none;
-	font-size: 14px;
+	font-size: 13px;
 	border: 1px solid #2a2a2e;
 	border-radius: 999px;
 	transition: border-color 0.15s ease, color 0.15s ease;
@@ -595,9 +609,10 @@ CSS;
 	}
 
 	private static function render_not_found( string $message ): string {
-		$bot_phone = Mantia_Repository::bot_phone_e164();
-		$bot_url   = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
-		$home_url  = Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() );
+		$bot_phone  = Mantia_Repository::bot_phone_e164();
+		$bot_url    = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
+		$home_url   = Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() );
+		$create_url = self::create_penca_wa_url();
 
 		ob_start();
 		self::page_header( __( 'No encontrado', 'mantia' ) );
@@ -610,6 +625,9 @@ CSS;
 			<p><?php esc_html_e( 'Probá una de estas:', 'mantia' ); ?></p>
 			<div class="mantia-recovery">
 				<a class="mantia-cta" href="<?php echo esc_url( $home_url ); ?>">🏆 Ver Mundial 2026</a>
+				<?php if ( '' !== $create_url ) : ?>
+					<a class="mantia-cta mantia-cta-secondary" href="<?php echo esc_url( $create_url ); ?>">🆕 Crear una penca</a>
+				<?php endif; ?>
 				<?php if ( '' !== $bot_url ) : ?>
 					<a class="mantia-cta mantia-cta-secondary" href="<?php echo esc_url( $bot_url ); ?>">💬 Hablar con el bot</a>
 				<?php endif; ?>
@@ -842,11 +860,67 @@ body {
 	border: 1px solid var(--border);
 }
 .mantia-cta-create {
-	margin-top: 16px;
+	margin-top: 18px;
 	background: var(--accent);
 	color: var(--bg);
 }
 .mantia-cta:hover { filter: brightness(1.07); }
+.mantia-aside {
+	margin: 12px 0 24px;
+}
+.mantia-ghost-link {
+	color: var(--fg-dim);
+	text-decoration: none;
+	font-size: 14px;
+	border-bottom: 1px dotted var(--border);
+	padding-bottom: 1px;
+}
+.mantia-ghost-link:hover {
+	color: var(--fg);
+	border-bottom-color: var(--fg-dim);
+}
+.mantia-comp-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 18px 0 24px;
+}
+.mantia-comp-chip {
+	display: inline-block;
+	padding: 5px 11px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	color: var(--fg-dim);
+	background: transparent;
+	text-decoration: none;
+	font-size: 12px;
+	line-height: 1.4;
+	letter-spacing: 0.01em;
+	transition: border-color 0.15s ease, color 0.15s ease;
+}
+.mantia-comp-chip:hover {
+	border-color: var(--fg-dim);
+	color: var(--fg);
+}
+.mantia-comp-chip.is-active {
+	border-color: var(--accent);
+	color: var(--accent);
+	cursor: default;
+}
+.mantia-active-badge {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 2px 9px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--bg);
+	background: var(--accent);
+	border-radius: 999px;
+	vertical-align: middle;
+	line-height: 1.6;
+}
 .mantia-foot {
 	color: var(--fg-dim);
 	font-size: 12px;
@@ -866,6 +940,9 @@ CSS;
 	 * Build a useful meta line under the competition title: fixture date
 	 * range, total matches, custom hints for known competitions. Falls back
 	 * to the plain description when we don't have anything richer.
+	 *
+	 * Uses a short label format ("19 may – 25 nov · 32 partidos") rather
+	 * than full Spanish sentences — meta lines should read as labels.
 	 */
 	private static function competition_meta( string $slug, string $description, array $matches ): string {
 		$hints = array(
@@ -879,12 +956,58 @@ CSS;
 			$last  = self::parse_gmt_ts( (string) end( $matches )['kickoff_gmt'] );
 			if ( null !== $first && null !== $last ) {
 				$range = $first === $last
-					? self::format_es_day( $first )
-					: sprintf( '%s — %s', self::format_es_day( $first ), self::format_es_day( $last ) );
+					? self::format_es_short_day( $first )
+					: sprintf( '%s – %s', self::format_es_short_day( $first ), self::format_es_short_day( $last ) );
 				return sprintf( '%s · %d partidos', $range, count( $matches ) );
 			}
 		}
 		return $description;
+	}
+
+	/**
+	 * Render a horizontal nav of competitions on a competition page —
+	 * lets visitors jump between Mundial / Libertadores / Sudamericana /
+	 * LigaUY without typing URLs. Active chip is marked.
+	 */
+	private static function render_competition_nav( string $active_slug ): void {
+		$competitions = Mantia_Competitions::all();
+		if ( count( $competitions ) <= 1 ) {
+			return;
+		}
+		?>
+		<nav class="mantia-comp-nav" aria-label="<?php esc_attr_e( 'Otras competencias', 'mantia' ); ?>">
+			<?php foreach ( $competitions as $c ) :
+				$is_active = (string) $c['id'] === $active_slug;
+				$url       = Mantia_Repository::competition_view_url( (string) $c['id'] );
+				$label     = trim( ( $c['emoji'] ?? '' ) . ' ' . $c['name'] );
+				$cls       = 'mantia-comp-chip' . ( $is_active ? ' is-active' : '' );
+				if ( $is_active ) :
+					?>
+					<span class="<?php echo esc_attr( $cls ); ?>" aria-current="page"><?php echo esc_html( $label ); ?></span>
+					<?php
+				else :
+					?>
+					<a class="<?php echo esc_attr( $cls ); ?>" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $label ); ?></a>
+					<?php
+				endif;
+			endforeach; ?>
+		</nav>
+		<?php
+	}
+
+	/**
+	 * Short Spanish day label ("19 may") — used for compact meta lines
+	 * where a full "Martes 19 de mayo" would be too verbose.
+	 */
+	private static function format_es_short_day( int $ts_utc ): string {
+		$local = $ts_utc - 3 * HOUR_IN_SECONDS;
+		$day   = gmdate( 'j', $local );
+		$month = self::es_month_short( gmdate( 'n', $local ) );
+		return sprintf( '%s %s', $day, $month );
+	}
+
+	private static function es_month_short( string $n ): string {
+		return array( '', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic' )[ (int) $n ];
 	}
 
 	private static function format_kickoff( string $gmt ): string {
