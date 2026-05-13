@@ -73,6 +73,9 @@ jobs:
       - name: Run E2E scenarios
         env:
           MANTIA_TARGET: local
+          # wp-env's CLI container can reach the WP service via the docker
+          # network at http://wordpress; localhost:8889 is host-side only.
+          MANTIA_E2E_BASE_URL: http://wordpress
         run: |
           chmod +x bin/e2e.sh
           bin/e2e.sh

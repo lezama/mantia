@@ -153,8 +153,8 @@ final class Mantia_E2E {
 	 */
 	public static function assert_http_ok( string $path, ?array $must_contain = null ): bool {
 		++self::$assertions;
-		$url      = self::bust_cache( home_url( $path ) );
-		$response = wp_remote_get( $url, array( 'timeout' => 15, 'redirection' => 3 ) );
+		$url      = self::bust_cache( self::http_url( $path ) );
+		$response = wp_remote_get( $url, self::http_args() );
 		if ( is_wp_error( $response ) ) {
 			++self::$failures;
 			self::log( "    ✗ FAIL: HTTP {$path} — " . $response->get_error_message() );
@@ -184,8 +184,8 @@ final class Mantia_E2E {
 
 	public static function assert_http_status( string $path, int $expected, ?array $must_contain = null ): bool {
 		++self::$assertions;
-		$url      = self::bust_cache( home_url( $path ) );
-		$response = wp_remote_get( $url, array( 'timeout' => 15, 'redirection' => 3 ) );
+		$url      = self::bust_cache( self::http_url( $path ) );
+		$response = wp_remote_get( $url, self::http_args() );
 		if ( is_wp_error( $response ) ) {
 			++self::$failures;
 			self::log( "    ✗ FAIL: HTTP {$path} — " . $response->get_error_message() );
@@ -216,6 +216,42 @@ final class Mantia_E2E {
 	private static function bust_cache( string $url ): string {
 		$sep = false === strpos( $url, '?' ) ? '?' : '&';
 		return $url . $sep . 'e2e_ts=' . microtime( true );
+	}
+
+	/**
+	 * Resolve the URL for an HTTP assertion. In a wp-env CLI container,
+	 * `localhost:8889` isn't reachable because WP runs in a sibling
+	 * container; the cross-container hostname is `http://wordpress`.
+	 * The MANTIA_E2E_BASE_URL env var lets the CI workflow override.
+	 */
+	private static function http_url( string $path ): string {
+		$base = (string) getenv( 'MANTIA_E2E_BASE_URL' );
+		if ( '' === $base ) {
+			return home_url( $path );
+		}
+		return rtrim( $base, '/' ) . '/' . ltrim( $path, '/' );
+	}
+
+	/**
+	 * Pass the canonical Host header when we override the URL host —
+	 * otherwise WP's canonical_redirect filter 301s us off the container
+	 * hostname and back to localhost:8889, which the CLI container can't
+	 * reach.
+	 */
+	private static function http_args(): array {
+		$args = array( 'timeout' => 15, 'redirection' => 3 );
+		$base = (string) getenv( 'MANTIA_E2E_BASE_URL' );
+		if ( '' !== $base ) {
+			$canonical = wp_parse_url( home_url() );
+			if ( ! empty( $canonical['host'] ) ) {
+				$host = $canonical['host'];
+				if ( ! empty( $canonical['port'] ) ) {
+					$host .= ':' . $canonical['port'];
+				}
+				$args['headers'] = array( 'Host' => $host );
+			}
+		}
+		return $args;
 	}
 
 	/* ------------------------------ Time travel ----------------------------------- */
