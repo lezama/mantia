@@ -11,6 +11,75 @@ final class Mantia_Whatsapp_Flow {
 
 	public static function register(): void {
 		add_filter( 'openclawp_pre_chat_turn', array( __CLASS__, 'maybe_handle_command' ), 10, 2 );
+		add_action( 'openclawp_image_message_received', array( __CLASS__, 'handle_inbound_image' ), 10, 1 );
+	}
+
+	/**
+	 * Inbound WhatsApp image → user's avatar.
+	 *
+	 * Any image a known mantia_user sends to the bot is treated as their
+	 * profile picture (WhatsApp has no other reason to share an image with
+	 * a penca bot). We resolve the Meta media URL, download the bytes
+	 * with the same Bearer token openclawp uses for outbound, and let the
+	 * repository attach it as the post_thumbnail of the user post. The
+	 * web frontend already prefers the thumbnail over the generated
+	 * initials, so the avatar updates everywhere on the next request.
+	 *
+	 * @param array<string,mixed> $payload See openclawp_image_message_received doc.
+	 */
+	public static function handle_inbound_image( array $payload ): void {
+		$phone    = (string) ( $payload['phone'] ?? '' );
+		$media_id = (string) ( $payload['media_id'] ?? '' );
+		$token    = (string) ( $payload['access_token'] ?? '' );
+		$api_ver  = (string) ( $payload['api_version'] ?? 'v25.0' );
+		if ( '' === $phone || '' === $media_id || '' === $token ) {
+			return;
+		}
+
+		$user = Mantia_Repository::find_user_by_phone( $phone );
+		if ( ! $user ) {
+			// Stranger sent us an image before they joined a penca; nothing
+			// to attach to. We silently drop it.
+			return;
+		}
+
+		// Step 1: ask Graph API for the actual media URL (Meta keeps the
+		// bytes behind a short-lived signed CDN URL we have to resolve).
+		$meta_url = sprintf( 'https://graph.facebook.com/%s/%s', $api_ver, rawurlencode( $media_id ) );
+		$response = wp_remote_get(
+			$meta_url,
+			array(
+				'timeout' => 15,
+				'headers' => array( 'Authorization' => 'Bearer ' . $token ),
+			)
+		);
+		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+			return;
+		}
+		$meta = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$url  = is_array( $meta ) ? (string) ( $meta['url'] ?? '' ) : '';
+		if ( '' === $url ) {
+			return;
+		}
+
+		// Step 2: pull the bytes (also requires Bearer) and attach.
+		$attachment_id = Mantia_Repository::set_user_avatar_from_url(
+			(int) $user->ID,
+			$url,
+			array( 'Authorization' => 'Bearer ' . $token )
+		);
+		if ( $attachment_id <= 0 ) {
+			return;
+		}
+
+		// Confirm to the user. Stays inside the 24h service window since
+		// they just messaged us, so no template cost.
+		if ( class_exists( 'OpenclaWP_Whatsapp' ) && method_exists( 'OpenclaWP_Whatsapp', 'send_text_message' ) ) {
+			OpenclaWP_Whatsapp::send_text_message(
+				$phone,
+				'📸 Foto guardada como tu avatar. La van a ver tus compañeros en la web.'
+			);
+		}
 	}
 
 	public static function user_initiated_only(): bool {
