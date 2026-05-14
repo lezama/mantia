@@ -218,8 +218,11 @@ final class Mantia_Whatsapp_Flow {
 			return array( 'reply' => $result->get_error_message(), 'completed' => true );
 		}
 		$active = $result['active_group'];
+		$lines  = array( sprintf( 'Listo, ahora tu penca activa es *%s*.', $active['name'] ), '' );
+		$lines  = array_merge( $lines, self::member_lines( (int) $active['id'], (int) $user->ID ) );
+
 		return array(
-			'reply'       => sprintf( 'Listo, ahora tu penca activa es *%s*.', $active['name'] ),
+			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
@@ -240,17 +243,24 @@ final class Mantia_Whatsapp_Flow {
 			return array( 'reply' => $result->get_error_message(), 'completed' => true );
 		}
 
-		$g     = $result['group'];
-		$intro = ! empty( $result['already_member'] )
+		$g       = $result['group'];
+		$joiner  = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		$me_id   = $joiner ? (int) $joiner->ID : 0;
+		$intro   = ! empty( $result['already_member'] )
 			? sprintf( 'Listo, cambie tu penca activa a *%s*.', $g['name'] )
 			: sprintf( 'Listo, te sume a *%s*. Esa queda como tu penca activa.', $g['name'] );
 
-		$share = '' !== ( $g['share_url'] ?? '' )
-			? "\n\nPara invitar amigos, reenviá este link:\n" . $g['share_url']
-			: '';
+		$lines = array( $intro, '' );
+		$lines = array_merge( $lines, self::member_lines( (int) $g['id'], $me_id ) );
+
+		if ( '' !== ( $g['share_url'] ?? '' ) ) {
+			$lines[] = '';
+			$lines[] = 'Para invitar amigos, reenviá este link:';
+			$lines[] = $g['share_url'];
+		}
 
 		return array(
-			'reply'       => $intro . $share,
+			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
@@ -336,19 +346,26 @@ final class Mantia_Whatsapp_Flow {
 			$identity['recipient']
 		);
 
-		$share = '' !== ( $group['share_url'] ?? '' )
-			? "\n\nReenvía este link a quien quieras sumar:\n" . $group['share_url']
-			: "\n\nQue tus amigos manden este codigo al bot: *" . $group['invite_code'] . '*';
+		$creator = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		$me_id   = $creator ? (int) $creator->ID : 0;
 
-		$reply = sprintf(
-			"Creé *%s* para %s. Ya estás dentro.%s",
-			$group['name'],
-			$group['competition_name'],
-			$share
+		$lines = array(
+			sprintf( 'Creé *%s* para %s. Ya estás dentro.', $group['name'], $group['competition_name'] ),
+			'',
 		);
+		$lines = array_merge( $lines, self::member_lines( $group_id, $me_id ) );
+
+		if ( '' !== ( $group['share_url'] ?? '' ) ) {
+			$lines[] = '';
+			$lines[] = 'Reenvía este link a quien quieras sumar:';
+			$lines[] = $group['share_url'];
+		} else {
+			$lines[] = '';
+			$lines[] = sprintf( 'Que tus amigos manden este codigo al bot: *%s*', $group['invite_code'] );
+		}
 
 		return array(
-			'reply'       => $reply,
+			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
@@ -359,6 +376,27 @@ final class Mantia_Whatsapp_Flow {
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * Render a group's member list as text lines, marking the current
+	 * user. Shared by share-link, post-create, post-switch, and post-join
+	 * replies so the "who's already here?" answer is consistent across
+	 * surfaces.
+	 *
+	 * @return array<int,string>
+	 */
+	private static function member_lines( int $group_id, int $current_user_id ): array {
+		$members = Mantia_Repository::group_members( $group_id );
+		if ( count( $members ) <= 1 ) {
+			return array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
+		}
+		$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
+		foreach ( $members as $m ) {
+			$marker  = (int) $m['id'] === $current_user_id ? ' _(vos)_' : '';
+			$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
+		}
+		return $lines;
 	}
 
 	private static function pending_create_key( string $phone ): string {
@@ -663,25 +701,13 @@ final class Mantia_Whatsapp_Flow {
 				'completed' => true,
 			);
 		}
-		$group   = Mantia_Repository::group_to_array( $active );
-		$share   = (string) ( $group['share_url'] ?? '' );
-		$view    = (string) ( $group['view_url'] ?? '' );
-		$members = Mantia_Repository::group_members( $active );
-		$me_id   = (int) $user->ID;
+		$group = Mantia_Repository::group_to_array( $active );
+		$share = (string) ( $group['share_url'] ?? '' );
+		$view  = (string) ( $group['view_url'] ?? '' );
 
 		$lines = array( sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ) );
-
-		// Surface who's already in so the inviter knows who to nudge.
 		$lines[] = '';
-		if ( 1 === count( $members ) ) {
-			$lines[] = '👥 Solo vos por ahora. Pegale el link a alguien!';
-		} else {
-			$lines[] = sprintf( '👥 Quiénes están (%d):', count( $members ) );
-			foreach ( $members as $m ) {
-				$marker  = (int) $m['id'] === $me_id ? ' _(vos)_' : '';
-				$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
-			}
-		}
+		$lines   = array_merge( $lines, self::member_lines( $active, (int) $user->ID ) );
 
 		if ( '' !== $share ) {
 			$lines[] = '';
