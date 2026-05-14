@@ -35,6 +35,15 @@ in its own codebase:
 If a fix would benefit any other agent on WordPress, it lives in one of those
 two repos, not here.
 
+## Documentation
+
+| Doc | When to read it |
+|---|---|
+| [`docs/deployment.md`](docs/deployment.md) | Setting up Mantia on a new site (Meta config, webhook, token, plugin install order) |
+| [`docs/operations.md`](docs/operations.md) | Day-to-day running: entering match results, rotating tokens, seeding fixtures, monitoring logs |
+| [`docs/configuration.md`](docs/configuration.md) | Every extension point — filters, hooks, options, abilities, CPTs |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Failure modes we've actually hit + recovery steps |
+
 ## Quick start
 
 Requires WordPress 7.0+ (Abilities API + Connectors live in core).
