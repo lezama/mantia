@@ -36,6 +36,16 @@ final class Mantia_Frontend {
 
 	public static function register_rewrites(): void {
 		add_rewrite_rule(
+			'^penca/g/([a-f0-9]+)/compartir/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=share-group&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		add_rewrite_rule(
+			'^penca/me/([a-f0-9]+)/compartir/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=share-user&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		add_rewrite_rule(
 			'^penca/g/([a-f0-9]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
@@ -78,6 +88,12 @@ final class Mantia_Frontend {
 				break;
 			case 'user':
 				echo self::render_user( (string) $id );
+				break;
+			case 'share-group':
+				echo self::render_share_group( (string) $id );
+				break;
+			case 'share-user':
+				echo self::render_share_user( (string) $id );
 				break;
 			default:
 				status_header( 404 );
@@ -243,11 +259,13 @@ final class Mantia_Frontend {
 		$create_url = self::create_penca_wa_url();
 		$members    = Mantia_Repository::group_members( $group_id );
 
+		$share_url = home_url( '/penca/g/' . $token . '/compartir/' );
+
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $group['name'] ) );
 		?>
 		<main class="mantia-page">
-			<?php self::render_topbar( true ); ?>
+			<?php self::render_topbar( $share_url ); ?>
 
 			<section class="mantia-hero">
 				<a class="mantia-crumb" href="<?php echo esc_url( $comp_url ); ?>">
@@ -311,13 +329,16 @@ final class Mantia_Frontend {
 				</div>
 			</section>
 
-			<?php if ( '' !== $create_url ) : ?>
-				<p class="mantia-aside">
+			<section class="mantia-aside-pair">
+				<a class="mantia-ghost-link" href="<?php echo esc_url( $share_url ); ?>">
+					<?php esc_html_e( 'compartí cómo va la penca →', 'mantia' ); ?>
+				</a>
+				<?php if ( '' !== $create_url ) : ?>
 					<a class="mantia-ghost-link" href="<?php echo esc_url( $create_url ); ?>">
 						<?php esc_html_e( 'o creá tu propia penca →', 'mantia' ); ?>
 					</a>
-				</p>
-			<?php endif; ?>
+				<?php endif; ?>
+			</section>
 		</main>
 		<?php
 		self::page_footer();
@@ -351,11 +372,13 @@ final class Mantia_Frontend {
 			}
 		}
 
+		$share_url = home_url( '/penca/me/' . $token . '/compartir/' );
+
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $display_name ) );
 		?>
 		<main class="mantia-page">
-			<?php self::render_topbar(); ?>
+			<?php self::render_topbar( $share_url ); ?>
 
 			<div class="mantia-privacy-badge">
 				<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -457,16 +480,231 @@ final class Mantia_Frontend {
 				<?php endforeach; ?>
 			<?php endif; ?>
 
-			<?php if ( '' !== $create_url ) : ?>
-				<p class="mantia-aside">
+			<section class="mantia-aside-pair">
+				<a class="mantia-ghost-link" href="<?php echo esc_url( $share_url ); ?>">
+					<?php esc_html_e( 'compartí tu posición →', 'mantia' ); ?>
+				</a>
+				<?php if ( '' !== $create_url ) : ?>
 					<a class="mantia-ghost-link" href="<?php echo esc_url( $create_url ); ?>">
-						<?php esc_html_e( '🆕 Crear otra penca →', 'mantia' ); ?>
+						<?php esc_html_e( 'crear otra penca →', 'mantia' ); ?>
 					</a>
-				</p>
-			<?php endif; ?>
+				<?php endif; ?>
+			</section>
 		</main>
 		<?php
 		self::page_footer();
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Share-card view for a group — shows the LEADER's standing as a 4:5
+	 * portrait poster on a deep-ink ground, optimized to be screenshotted
+	 * and pasted into a WhatsApp group chat. "Pull, no push" virality:
+	 * the bot never sends unsolicited messages, the screenshot is the
+	 * message.
+	 */
+	private static function render_share_group( string $token ): string {
+		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+		if ( ! $group_post ) {
+			status_header( 404 );
+			return self::render_not_found( __( 'Este link no funciona o ya venció.', 'mantia' ) );
+		}
+		$group_id = (int) $group_post->ID;
+		$group    = Mantia_Repository::group_to_array( $group_id );
+		$rows     = Mantia_Leaderboard::rows( $group_id, 1 );
+		$members  = Mantia_Repository::group_members( $group_id );
+
+		// No predictions yet → no leader. Fall back to a different copy.
+		$leader = ! empty( $rows ) ? $rows[0] : null;
+
+		$back_url = Mantia_Repository::group_view_url( $group_id );
+		if ( '' === $back_url ) {
+			$back_url = home_url( '/penca/g/' . $token . '/' );
+		}
+		$share_url = $back_url;
+
+		return self::render_share_poster(
+			array(
+				'title'         => $group['name'],
+				'subtitle'      => $group['competition_name'] ?? '',
+				'leader_name'   => $leader ? (string) $leader['name'] : '',
+				'leader_rank'   => $leader ? (int) $leader['rank'] : 0,
+				'in_label'      => sprintf( __( 'en %s', 'mantia' ), $group['name'] ),
+				'stat_a_value'  => $leader ? (int) $leader['points'] : 0,
+				'stat_a_label'  => 'pts',
+				'stat_b_value'  => $leader ? (int) $leader['exacts'] : 0,
+				'stat_b_label'  => 'exc',
+				'stat_c_value'  => count( $members ),
+				'stat_c_label'  => 'jug',
+				'share_url'     => $share_url,
+				'back_url'      => $back_url,
+				'empty_message' => __( 'Sin pronósticos todavía. Sumate antes que arranquen los partidos.', 'mantia' ),
+			)
+		);
+	}
+
+	/**
+	 * Share-card view for a user — shows their own rank/points in their
+	 * primary group as a screenshot-friendly portrait poster. Drawn from
+	 * the same template as the group share.
+	 */
+	private static function render_share_user( string $token ): string {
+		$user_post = Mantia_Repository::find_user_by_view_token( $token );
+		if ( ! $user_post ) {
+			status_header( 404 );
+			return self::render_not_found( __( 'Este link privado no funciona o ya venció.', 'mantia' ) );
+		}
+		$user_id = (int) $user_post->ID;
+		$name    = self::display_name_for( $user_id );
+		$groups  = Mantia_Repository::user_groups_to_array( $user_id );
+
+		// Pick the user's "best showing" — highest points across their groups.
+		$best = null;
+		foreach ( $groups as $g ) {
+			$gid = (int) $g['id'];
+			foreach ( Mantia_Leaderboard::rows( $gid, 100 ) as $row ) {
+				if ( (int) $row['user_id'] === $user_id ) {
+					if ( null === $best || (int) $row['points'] > (int) $best['row']['points'] ) {
+						$best = array( 'row' => $row, 'group' => $g );
+					}
+				}
+			}
+		}
+
+		$back_url = Mantia_Repository::user_view_url( $user_id );
+		if ( '' === $back_url ) {
+			$back_url = home_url( '/penca/me/' . $token . '/' );
+		}
+
+		$share_group_url = $best ? Mantia_Repository::group_view_url( (int) $best['group']['id'] ) : home_url( '/' );
+
+		return self::render_share_poster(
+			array(
+				'title'         => $name,
+				'subtitle'      => $best ? (string) ( $best['group']['competition_name'] ?? '' ) : '',
+				'leader_name'   => $name,
+				'leader_rank'   => $best ? (int) $best['row']['rank'] : 0,
+				'in_label'      => $best ? sprintf( __( 'en %s', 'mantia' ), $best['group']['name'] ) : '',
+				'stat_a_value'  => $best ? (int) $best['row']['points'] : 0,
+				'stat_a_label'  => 'pts',
+				'stat_b_value'  => $best ? (int) $best['row']['exacts'] : 0,
+				'stat_b_label'  => 'exc',
+				'stat_c_value'  => $best ? (int) $best['row']['predictions'] : 0,
+				'stat_c_label'  => 'jug',
+				'share_url'     => $share_group_url,
+				'back_url'      => $back_url,
+				'empty_message' => __( 'Sin pronósticos todavía.', 'mantia' ),
+			)
+		);
+	}
+
+	/**
+	 * Pure render helper for the share poster. Both group and user share
+	 * views feed it. Stays on a deep-ink ground regardless of the rest of
+	 * the site's marfil palette — the poster has to look monumental and
+	 * "afiche-like" so people screenshot it.
+	 *
+	 * @param array<string,mixed> $args Poster fields.
+	 */
+	private static function render_share_poster( array $args ): string {
+		$rank        = (int) ( $args['leader_rank'] ?? 0 );
+		$rank_label  = $rank > 0 ? self::rank_label( $rank ) . '°' : '·';
+		$share_url   = (string) ( $args['share_url'] ?? '' );
+		$short_url   = preg_replace( '#^https?://#', '', $share_url );
+		$has_leader  = '' !== (string) ( $args['leader_name'] ?? '' );
+
+		ob_start();
+		self::page_header( sprintf( __( 'Compartir — %s', 'mantia' ), (string) ( $args['title'] ?? 'Mantia' ) ), true );
+		?>
+		<main class="mantia-share">
+			<div class="mantia-share-card">
+				<div class="mantia-share-top">
+					<span class="mantia-share-wordmark">mantia</span>
+					<span class="mantia-share-comp"><?php echo esc_html( wp_strip_all_tags( (string) ( $args['subtitle'] ?? '' ) ) ); ?></span>
+				</div>
+
+				<?php if ( $has_leader ) : ?>
+					<div class="mantia-share-center">
+						<div class="mantia-share-rank"><?php echo esc_html( $rank_label ); ?></div>
+						<div class="mantia-share-name"><?php echo esc_html( (string) $args['leader_name'] ); ?></div>
+						<?php if ( ! empty( $args['in_label'] ) ) : ?>
+							<div class="mantia-share-in"><?php echo esc_html( (string) $args['in_label'] ); ?></div>
+						<?php endif; ?>
+					</div>
+
+					<div class="mantia-share-stats">
+						<div class="mantia-share-stat">
+							<div class="mantia-share-num"><?php echo (int) $args['stat_a_value']; ?></div>
+							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_a_label'] ); ?></div>
+						</div>
+						<div class="mantia-share-stat mantia-share-stat-bordered">
+							<div class="mantia-share-num"><?php echo (int) $args['stat_b_value']; ?></div>
+							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_b_label'] ); ?></div>
+						</div>
+						<div class="mantia-share-stat mantia-share-stat-bordered">
+							<div class="mantia-share-num"><?php echo (int) $args['stat_c_value']; ?></div>
+							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_c_label'] ); ?></div>
+						</div>
+					</div>
+				<?php else : ?>
+					<div class="mantia-share-center mantia-share-empty">
+						<div class="mantia-share-mark">·</div>
+						<div class="mantia-share-name"><?php echo esc_html( (string) $args['title'] ); ?></div>
+						<div class="mantia-share-in"><?php echo esc_html( (string) $args['empty_message'] ); ?></div>
+					</div>
+				<?php endif; ?>
+
+				<?php if ( '' !== $short_url ) : ?>
+					<div class="mantia-share-url"><?php echo esc_html( $short_url ); ?></div>
+				<?php endif; ?>
+			</div>
+
+			<div class="mantia-share-actions">
+				<button class="mantia-share-copy" type="button" data-url="<?php echo esc_attr( $share_url ); ?>">
+					<?php
+					printf(
+						/* translators: %s: short URL */
+						esc_html__( 'Copiar link · %s', 'mantia' ),
+						esc_html( (string) $short_url )
+					);
+					?>
+				</button>
+				<a class="mantia-share-close" href="<?php echo esc_url( (string) $args['back_url'] ); ?>">
+					<?php esc_html_e( 'Cerrar', 'mantia' ); ?>
+				</a>
+			</div>
+		</main>
+
+		<script>
+		(function () {
+			var btn = document.querySelector('.mantia-share-copy');
+			if (!btn) return;
+			var original = btn.textContent;
+			btn.addEventListener('click', function () {
+				var url = btn.getAttribute('data-url') || '';
+				if (!url) return;
+				var done = function () {
+					btn.textContent = <?php echo wp_json_encode( __( '✓ Link copiado · pegalo en el grupo', 'mantia' ) ); ?>;
+					btn.classList.add('is-copied');
+					setTimeout(function () {
+						btn.textContent = original;
+						btn.classList.remove('is-copied');
+					}, 1800);
+				};
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(url).then(done, done);
+				} else {
+					var ta = document.createElement('textarea');
+					ta.value = url; document.body.appendChild(ta); ta.select();
+					try { document.execCommand('copy'); } catch (e) {}
+					document.body.removeChild(ta);
+					done();
+				}
+			});
+		})();
+		</script>
+		<?php
+		self::page_footer( true );
 		return (string) ob_get_clean();
 	}
 
@@ -505,14 +743,20 @@ final class Mantia_Frontend {
 	 * Component renderers
 	 * ================================================================= */
 
-	private static function render_topbar( bool $with_share = false ): void {
+	private static function render_topbar( string $share_url = '' ): void {
 		?>
 		<div class="mantia-topbar">
 			<a class="mantia-topbar-btn" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php esc_attr_e( 'Inicio', 'mantia' ); ?>">
 				<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
 			</a>
 			<span class="mantia-wordmark-sm">mantia</span>
-			<span class="mantia-topbar-spacer"></span>
+			<?php if ( '' !== $share_url ) : ?>
+				<a class="mantia-topbar-btn" href="<?php echo esc_url( $share_url ); ?>" aria-label="<?php esc_attr_e( 'Compartir', 'mantia' ); ?>">
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5h14v-5"/></svg>
+				</a>
+			<?php else : ?>
+				<span class="mantia-topbar-spacer"></span>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -890,23 +1134,27 @@ final class Mantia_Frontend {
 	 * Page chrome + stylesheet
 	 * ================================================================= */
 
-	private static function page_header( string $title ): void {
+	private static function page_header( string $title, bool $for_share = false ): void {
+		$theme_color = $for_share ? '#14130f' : '#f5f1e8';
+		$body_class  = $for_share ? 'mantia-body-share' : '';
 		?><!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="theme-color" content="#f5f1e8">
+	<meta name="theme-color" content="<?php echo esc_attr( $theme_color ); ?>">
 	<title><?php echo esc_html( $title ); ?></title>
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<style><?php echo self::stylesheet(); ?></style>
 </head>
-<body>
+<body class="<?php echo esc_attr( $body_class ); ?>">
 		<?php
 	}
 
-	private static function page_footer(): void {
+	private static function page_footer( bool $for_share = false ): void {
+		if ( $for_share ) {
+			echo "</body></html>";
+			return;
+		}
 		?>
 		<footer class="mantia-foot">
 			<a href="<?php echo esc_url( home_url( '/' ) ); ?>">mantia</a> · penca por whatsapp
@@ -1154,6 +1402,12 @@ body {
 .mantia-pill-ghost:hover { background: var(--field); }
 .mantia-page .mantia-pill { width: 100%; }
 .mantia-aside { margin: 18px 0 4px; }
+.mantia-aside-pair {
+	margin: 24px 0 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
 .mantia-ghost-link {
 	color: var(--ink-soft);
 	text-decoration: none;
@@ -1569,12 +1823,177 @@ body {
 	font-weight: 500;
 }
 
+/* ─── Share card (screenshotable poster) ─────────────────────────── */
+
+body.mantia-body-share {
+	background: #14130f;
+	color: #f5f1e8;
+	min-height: 100vh;
+}
+.mantia-share {
+	max-width: 420px;
+	margin: 0 auto;
+	padding: 56px 22px 32px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-height: 100vh;
+}
+.mantia-share-card {
+	width: 100%;
+	max-width: 320px;
+	aspect-ratio: 4 / 5;
+	position: relative;
+	background: #14130f;
+	color: #f5f1e8;
+	border-radius: 6px;
+	padding: 24px 22px;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+	border: 1px solid rgba(245, 241, 232, 0.08);
+	font-family: var(--font-body);
+}
+.mantia-share-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+}
+.mantia-share-wordmark {
+	font-family: var(--font-display);
+	font-size: 16px;
+	font-weight: 500;
+	letter-spacing: -0.04em;
+	color: #f5f1e8;
+}
+.mantia-share-comp {
+	font-size: 9.5px;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: rgba(245, 241, 232, 0.55);
+	text-align: right;
+	line-height: 1.4;
+	max-width: 50%;
+}
+.mantia-share-center {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 12px 0;
+}
+.mantia-share-rank,
+.mantia-share-mark {
+	font-family: var(--font-display);
+	font-size: 92px;
+	line-height: 0.85;
+	letter-spacing: -0.06em;
+	color: #c8a472;
+	font-weight: 400;
+}
+.mantia-share-mark { color: rgba(245,241,232,0.55); font-size: 64px; }
+.mantia-share-name {
+	margin-top: 16px;
+	font-family: var(--font-display);
+	font-size: 22px;
+	line-height: 1.1;
+	letter-spacing: -0.025em;
+	color: #f5f1e8;
+	text-wrap: balance;
+}
+.mantia-share-in {
+	margin-top: 6px;
+	font-size: 11.5px;
+	letter-spacing: 0.04em;
+	color: rgba(245, 241, 232, 0.55);
+}
+.mantia-share-empty .mantia-share-name { font-size: 18px; }
+.mantia-share-stats {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 0;
+	padding-top: 16px;
+	border-top: 1px solid rgba(245, 241, 232, 0.14);
+}
+.mantia-share-stat {
+	text-align: center;
+	padding: 4px 4px 0;
+}
+.mantia-share-stat-bordered { border-left: 1px solid rgba(245, 241, 232, 0.14); }
+.mantia-share-num {
+	font-family: var(--font-display);
+	font-size: 22px;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	color: #f5f1e8;
+	font-variant-numeric: tabular-nums;
+}
+.mantia-share-label {
+	font-size: 9.5px;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: rgba(245, 241, 232, 0.55);
+	margin-top: 6px;
+}
+.mantia-share-url {
+	margin-top: 14px;
+	font-size: 10.5px;
+	letter-spacing: 0.08em;
+	color: rgba(245, 241, 232, 0.55);
+	text-align: center;
+	word-break: break-all;
+}
+
+.mantia-share-actions {
+	margin-top: 28px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	width: 100%;
+	max-width: 320px;
+}
+.mantia-share-copy {
+	appearance: none;
+	cursor: pointer;
+	height: 48px;
+	border-radius: 999px;
+	border: 0;
+	background: #f5f1e8;
+	color: #14130f;
+	font-family: var(--font-body);
+	font-size: 14.5px;
+	font-weight: 500;
+	letter-spacing: -0.005em;
+	padding: 0 18px;
+	transition: filter 0.15s ease, background 0.15s ease;
+	text-align: center;
+}
+.mantia-share-copy.is-copied { background: #c8a472; color: #14130f; }
+.mantia-share-copy:hover { filter: brightness(0.96); }
+.mantia-share-close {
+	height: 48px;
+	border-radius: 999px;
+	background: transparent;
+	border: 1px solid rgba(245, 241, 232, 0.3);
+	color: #f5f1e8;
+	font-family: var(--font-body);
+	font-size: 14px;
+	letter-spacing: -0.005em;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-decoration: none;
+}
+.mantia-share-close:hover { border-color: rgba(245, 241, 232, 0.6); }
+
 /* ─── Mobile tuning ──────────────────────────────────────────────── */
 
 @media (max-width: 380px) {
 	.mantia-h1 { font-size: 28px; }
 	.mantia-wordmark { font-size: 48px; }
 	.mantia-qr-img { width: 200px; height: 200px; }
+	.mantia-share-rank { font-size: 80px; }
+	.mantia-share-name { font-size: 20px; }
 }
 CSS;
 	}
