@@ -436,11 +436,25 @@ final class Mantia_Whatsapp_Flow {
 		$label = trim( ( $competition['emoji'] ?? '' ) . ' ' . $competition['name'] );
 		return array(
 			'reply'     => sprintf(
-				"*%s* — ¿cómo se va a llamar tu penca?\n\nMandame un nombre cortito (ej: *Amigos del Faso*) y la creo. Mandá *cancelar* si cambiaste de idea.",
-				$label
+				"*%s* — ¿cómo se va a llamar tu penca?\n\nMandame un nombre cortito (ej: *%s*) y la creo. Mandá *cancelar* si cambiaste de idea.",
+				$label,
+				self::pick_name_example()
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * Rotating examples for "how should we name this penca?" prompts.
+	 * Stays neutral + grouped around the most common penca social
+	 * settings (family, friends, work). No slang.
+	 */
+	private static function pick_name_example(): string {
+		$examples = apply_filters(
+			'mantia_name_examples',
+			array( 'Los Amigos', 'La Familia', 'La Oficina', 'Los Mundialistas', 'Los Pibes' )
+		);
+		return (string) $examples[ array_rand( $examples ) ];
 	}
 
 	/**
@@ -453,7 +467,7 @@ final class Mantia_Whatsapp_Flow {
 		$name = trim( (string) preg_replace( '/[.!?,;:]+$/u', '', $name ) );
 		if ( '' === $name || strlen( $name ) > 80 ) {
 			return array(
-				'reply'     => 'Decime un nombre cortito (max 80 chars). Ej: *Amigos del Faso*.',
+				'reply'     => sprintf( 'Decime un nombre cortito (max 80 chars). Ej: *%s*.', self::pick_name_example() ),
 				'completed' => true,
 			);
 		}
