@@ -56,7 +56,7 @@ Mantia_E2E::step( '4. Alice names the penca → group is created' );
 /* ------------------------------------------------------------------------- */
 $penca_name = Mantia_E2E::TEST_NAME_PREFIX . ' La Familia';
 $r = Mantia_E2E::send( $alice, $penca_name );
-Mantia_E2E::assert_contains( $r, 'Creé', 'creation confirmed' );
+Mantia_E2E::assert_contains( $r, 'Creaste', 'creation confirmed' );
 Mantia_E2E::assert_contains( $r, $penca_name, 'reply mentions the penca name' );
 
 $group_post = null;

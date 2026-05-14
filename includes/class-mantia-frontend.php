@@ -36,6 +36,16 @@ final class Mantia_Frontend {
 
 	public static function register_rewrites(): void {
 		add_rewrite_rule(
+			'^penca/g/([a-f0-9]+)/sumate/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=join-landing&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		add_rewrite_rule(
+			'^penca/g/([a-f0-9]+)/og/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=join-og&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		add_rewrite_rule(
 			'^penca/g/([a-f0-9]+)/compartir/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
@@ -94,6 +104,12 @@ final class Mantia_Frontend {
 				break;
 			case 'share-user':
 				echo self::render_share_user( (string) $id );
+				break;
+			case 'join-landing':
+				echo self::render_join_landing( (string) $id );
+				break;
+			case 'join-og':
+				self::render_join_og_png( (string) $id ); // emits headers + body + exits.
 				break;
 			default:
 				status_header( 404 );
@@ -494,6 +510,358 @@ final class Mantia_Frontend {
 		<?php
 		self::page_footer();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Landing page for an invitation link. Pasted into a WhatsApp/Slack/
+	 * Discord chat, it renders a rich preview via OpenGraph tags pointing
+	 * at /og.png; a human tap immediately 302s to wa.me with the invite
+	 * code prefilled. The OG scraper sees the tags + image; the user
+	 * never lingers on this page.
+	 */
+	private static function render_join_landing( string $token ): string {
+		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+		if ( ! $group_post ) {
+			status_header( 404 );
+			return self::render_not_found( __( 'Esta invitación ya no funciona.', 'mantia' ) );
+		}
+		$group_id  = (int) $group_post->ID;
+		$group     = Mantia_Repository::group_to_array( $group_id );
+		$members   = Mantia_Repository::group_members( $group_id );
+		$wa_target = (string) ( $group['share_url'] ?? '' );
+		if ( '' === $wa_target ) {
+			// Fall back to whatever wa.me URL we can build from the code.
+			$bot   = Mantia_Repository::bot_phone_e164();
+			$code  = (string) ( $group['invite_code'] ?? '' );
+			$wa_target = ( '' !== $bot && '' !== $code ) ? sprintf( 'https://wa.me/%s?text=%s', $bot, rawurlencode( $code ) ) : home_url( '/' );
+		}
+
+		$comp_name = (string) ( $group['competition_name'] ?? '' );
+		$og_title  = sprintf( __( 'Sumate a %s', 'mantia' ), $group['name'] );
+		$og_desc   = trim(
+			$comp_name
+			. ( '' !== $comp_name ? ' · ' : '' )
+			. sprintf( _n( '%d jugador', '%d jugadores', count( $members ), 'mantia' ), count( $members ) )
+		);
+		$og_image  = home_url( '/penca/g/' . $token . '/og/' );
+		$page_url  = home_url( '/penca/g/' . $token . '/sumate/' );
+
+		ob_start();
+		?><!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?php echo esc_html( $og_title ); ?> — Mantia</title>
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="<?php echo esc_url( $page_url ); ?>">
+<meta property="og:title" content="<?php echo esc_attr( $og_title ); ?>">
+<meta property="og:description" content="<?php echo esc_attr( $og_desc ); ?>">
+<meta property="og:image" content="<?php echo esc_url( $og_image ); ?>">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="Mantia">
+<meta property="og:locale" content="es_UY">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<?php echo esc_attr( $og_title ); ?>">
+<meta name="twitter:description" content="<?php echo esc_attr( $og_desc ); ?>">
+<meta name="twitter:image" content="<?php echo esc_url( $og_image ); ?>">
+
+<meta http-equiv="refresh" content="0; url=<?php echo esc_url( $wa_target ); ?>">
+<link rel="canonical" href="<?php echo esc_url( $page_url ); ?>">
+
+<style><?php echo self::stylesheet(); ?></style>
+<script>
+// Belt-and-braces redirect — meta refresh covers no-JS, this covers no-meta-refresh.
+window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
+</script>
+</head>
+<body class="mantia-body-share">
+<main class="mantia-share">
+	<div class="mantia-share-card">
+		<div class="mantia-share-top">
+			<span class="mantia-share-wordmark">mantia</span>
+			<span class="mantia-share-comp"><?php echo esc_html( wp_strip_all_tags( $comp_name ) ); ?></span>
+		</div>
+		<div class="mantia-share-center">
+			<div class="mantia-share-mark">·</div>
+			<div class="mantia-share-name"><?php echo esc_html( (string) $group['name'] ); ?></div>
+			<div class="mantia-share-in"><?php echo esc_html( $og_desc ); ?></div>
+		</div>
+		<div class="mantia-share-url">
+			<?php esc_html_e( 'Abriendo WhatsApp…', 'mantia' ); ?>
+		</div>
+	</div>
+	<div class="mantia-share-actions">
+		<a class="mantia-share-copy" href="<?php echo esc_url( $wa_target ); ?>">
+			<?php esc_html_e( 'Tocá si no abre solo', 'mantia' ); ?>
+		</a>
+	</div>
+	<noscript>
+		<p style="color:#f5f1e8;margin-top:24px;text-align:center">
+			<?php esc_html_e( 'Redirigiendo a WhatsApp…', 'mantia' ); ?>
+			<a href="<?php echo esc_url( $wa_target ); ?>" style="color:#c8a472">
+				<?php esc_html_e( 'tocá acá', 'mantia' ); ?>
+			</a>
+		</p>
+	</noscript>
+</main>
+</body>
+</html>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render the OG image (1200×630) for an invitation link.
+	 *
+	 * Two backends in order of preference:
+	 * 1. GD + bundled TTF — when imagettftext + a usable font are
+	 *    available, we rasterize to PNG (WhatsApp's strict scraper renders
+	 *    this perfectly; Twitter renders it; Slack renders it).
+	 * 2. SVG fallback — when neither (e.g. wp.com Atomic, which lacks
+	 *    Imagick + ships fonts under theme dirs that may move). Slack +
+	 *    Discord + Twitter render SVG og:images; WhatsApp may not, in
+	 *    which case the og:title + og:description still produce a useful
+	 *    text-only preview.
+	 *
+	 * TODO: ship Inter Variable in mantia/assets/fonts/ so backend (1)
+	 * always wins regardless of host.
+	 */
+	private static function render_join_og_png( string $token ): void {
+		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+		if ( ! $group_post ) {
+			status_header( 404 );
+			exit;
+		}
+		$group_id = (int) $group_post->ID;
+		$group    = Mantia_Repository::group_to_array( $group_id );
+		$members  = Mantia_Repository::group_members( $group_id );
+		$leader   = null;
+		$rows     = Mantia_Leaderboard::rows( $group_id, 1 );
+		if ( ! empty( $rows ) && (int) $rows[0]['points'] > 0 ) {
+			$leader = $rows[0];
+		}
+
+		// Try PNG via GD first (best preview compatibility, esp. WhatsApp).
+		$png = self::render_og_via_gd( $group, $members, $leader );
+		if ( '' !== $png ) {
+			header( 'Content-Type: image/png', true );
+			header( 'Cache-Control: public, max-age=3600' );
+			header( 'Content-Length: ' . strlen( $png ) );
+			echo $png; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			exit;
+		}
+
+		// Fall back to SVG. Most modern preview scrapers handle it.
+		$svg = self::build_join_og_svg( $group, $members, $leader );
+		header( 'Content-Type: image/svg+xml; charset=utf-8', true );
+		header( 'Cache-Control: public, max-age=3600' );
+		header( 'Content-Length: ' . strlen( $svg ) );
+		echo $svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
+	}
+
+	/**
+	 * Render the OG image as PNG via GD. Walks a list of TTF candidate
+	 * paths (bundled plugin font first, then a few stable host paths)
+	 * and returns binary PNG bytes on success, '' on failure.
+	 *
+	 * @param array<string,mixed>      $group
+	 * @param array<int,array<string,mixed>> $members
+	 * @param array<string,mixed>|null $leader
+	 */
+	private static function render_og_via_gd( array $group, array $members, ?array $leader ): string {
+		if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagettftext' ) ) {
+			return '';
+		}
+		$font_path = self::locate_og_font();
+		if ( '' === $font_path ) {
+			return '';
+		}
+
+		$W = 1200;
+		$H = 630;
+		$im = imagecreatetruecolor( $W, $H );
+		// Colors
+		$ink   = imagecolorallocate( $im, 0x14, 0x13, 0x0f );
+		$marfil = imagecolorallocate( $im, 0xf5, 0xf1, 0xe8 );
+		$soft  = imagecolorallocate( $im, 0xa2, 0x9e, 0x91 );
+		$brass = imagecolorallocate( $im, 0xc8, 0xa4, 0x72 );
+		$rule  = imagecolorallocate( $im, 0x2b, 0x29, 0x22 );
+		imagefilledrectangle( $im, 0, 0, $W, $H, $ink );
+
+		$count    = count( $members );
+		$has_lead = null !== $leader;
+		$comp     = strtoupper( (string) ( $group['competition_name'] ?? '' ) );
+		$name     = (string) ( $group['name'] ?? 'Mantia' );
+		if ( function_exists( 'mb_strlen' ) && mb_strlen( $name ) > 26 ) {
+			$name = mb_substr( $name, 0, 25 ) . '…';
+		}
+		$mark = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '·';
+
+		$invite_top  = 'SUMATE A';
+		$lead_line   = $has_lead ? sprintf( '%s va ganando', $leader['name'] ) : 'Penca abierta';
+		$meta_parts  = array();
+		if ( $count > 0 ) {
+			$meta_parts[] = sprintf( $count === 1 ? '%d jugador' : '%d jugadores', $count );
+		}
+		if ( $has_lead ) {
+			$meta_parts[] = sprintf( '%d pts · %d exactos', (int) $leader['points'], (int) $leader['exacts'] );
+		}
+		$meta_line = implode( ' · ', $meta_parts );
+
+		// Top row
+		imagettftext( $im, 24, 0, 64, 84, $marfil, $font_path, 'mantia' );
+		if ( '' !== $comp ) {
+			$box = imagettfbbox( 14, 0, $font_path, $comp );
+			$w   = $box[2] - $box[0];
+			imagettftext( $im, 14, 0, $W - 64 - $w, 84, $soft, $font_path, $comp );
+		}
+
+		// Brass rank mark on the left
+		$mark_size = ( '·' === $mark ) ? 220 : 200;
+		imagettftext( $im, $mark_size, 0, 64, 430, $brass, $font_path, $mark );
+
+		// Right block
+		imagettftext( $im, 16, 0, 520, 230, $soft, $font_path, $invite_top );
+		imagettftext( $im, 52, 0, 520, 310, $marfil, $font_path, $name );
+		imagettftext( $im, 20, 0, 520, 360, $soft, $font_path, $lead_line );
+		if ( '' !== $meta_line ) {
+			imagettftext( $im, 18, 0, 520, 400, $soft, $font_path, $meta_line );
+		}
+
+		// Bottom rule + footer
+		imageline( $im, 64, 540, $W - 64, 540, $rule );
+		imagettftext( $im, 14, 0, 64, 580, $soft, $font_path, 'PENCA POR WHATSAPP' );
+		$tag = 'MANTIA · 2026';
+		$box = imagettfbbox( 14, 0, $font_path, $tag );
+		$w   = $box[2] - $box[0];
+		imagettftext( $im, 14, 0, $W - 64 - $w, 580, $soft, $font_path, $tag );
+
+		ob_start();
+		imagepng( $im, null, 8 );
+		$bytes = (string) ob_get_clean();
+		imagedestroy( $im );
+		return $bytes;
+	}
+
+	/**
+	 * Locate a TTF font we can use for the OG image. Prefers a font
+	 * bundled with the plugin; falls back to known host paths if not.
+	 * Returns absolute path or empty string if none found.
+	 */
+	private static function locate_og_font(): string {
+		$candidates = array(
+			MANTIA_PATH . 'assets/fonts/Inter-SemiBold.ttf',
+			MANTIA_PATH . 'assets/fonts/Inter-Regular.ttf',
+			// wp.com Atomic ships Inter inside the bundled default theme
+			ABSPATH . 'wp-content/themes/twentytwentythree/assets/fonts/inter/Inter-VariableFont_slnt,wght.ttf',
+			'/home/' . get_current_user() . '/wordpress/themes/twentytwentythree/1.6/assets/fonts/inter/Inter-VariableFont_slnt,wght.ttf',
+		);
+		// Also discover any theme-bundled NotoSans / Inter on the host.
+		$discovered = glob( WP_CONTENT_DIR . '/themes/**/assets/fonts/**/*.ttf' );
+		if ( is_array( $discovered ) ) {
+			$candidates = array_merge( $candidates, $discovered );
+		}
+		foreach ( $candidates as $path ) {
+			if ( is_string( $path ) && '' !== $path && file_exists( $path ) && is_readable( $path ) ) {
+				return $path;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Build the 1200×630 OG image as SVG. Layout: monumental brass mark
+	 * left (rank or empty-dot), name + meta right. Marfil hairlines on
+	 * deep ink ground — same vocabulary as the share-card poster but
+	 * landscape so WhatsApp + Twitter render it without cropping.
+	 */
+	private static function build_join_og_svg( array $group, array $members, ?array $leader ): string {
+		$name     = self::escape_svg( (string) ( $group['name'] ?? 'Mantia' ) );
+		$comp     = self::escape_svg( strtoupper( (string) ( $group['competition_name'] ?? '' ) ) );
+		$count    = count( $members );
+		$has_lead = null !== $leader;
+
+		$mark_label = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '·';
+		$mark_color = $has_lead ? '#c8a472' : 'rgba(245,241,232,0.55)';
+		$mark_size  = '·' === $mark_label ? 320 : 280;
+
+		$line1 = $has_lead
+			? sprintf( '%s va ganando', self::escape_svg( (string) $leader['name'] ) )
+			: __( 'Penca abierta', 'mantia' );
+		$line2_parts = array();
+		if ( $count > 0 ) {
+			$line2_parts[] = sprintf(
+				_n( '%d jugador', '%d jugadores', $count, 'mantia' ),
+				$count
+			);
+		}
+		if ( $has_lead ) {
+			$line2_parts[] = sprintf( '%d pts · %d exactos', (int) $leader['points'], (int) $leader['exacts'] );
+		}
+		$line2 = self::escape_svg( implode( ' · ', $line2_parts ) );
+
+		return <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+	<rect width="1200" height="630" fill="#14130f"/>
+	<!-- top row -->
+	<text x="64" y="80" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="500" fill="#f5f1e8" letter-spacing="-1">mantia</text>
+	<text x="1136" y="80" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="3.6" fill="rgba(245,241,232,0.55)" text-anchor="end">{$comp}</text>
+	<!-- big brass mark on the left -->
+	<text x="64" y="430" font-family="Helvetica, Arial, sans-serif" font-size="{$mark_size}" font-weight="400" fill="{$mark_color}" letter-spacing="-12">{$mark_label}</text>
+	<!-- right block: invitation -->
+	<text x="500" y="240" font-family="Helvetica, Arial, sans-serif" font-size="22" letter-spacing="4" fill="rgba(245,241,232,0.55)">SUMATE A</text>
+	<text x="500" y="320" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="500" fill="#f5f1e8" letter-spacing="-2">{$name}</text>
+	<text x="500" y="380" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="rgba(245,241,232,0.55)">{$line1}</text>
+	<text x="500" y="420" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="rgba(245,241,232,0.55)">{$line2}</text>
+	<!-- bottom hairline + URL -->
+	<line x1="64" y1="540" x2="1136" y2="540" stroke="rgba(245,241,232,0.14)" stroke-width="1"/>
+	<text x="64" y="580" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="2" fill="rgba(245,241,232,0.55)">PENCA POR WHATSAPP</text>
+	<text x="1136" y="580" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="2" fill="rgba(245,241,232,0.55)" text-anchor="end">MANTIA · 2026</text>
+</svg>
+SVG;
+	}
+
+	/**
+	 * Minimal SVG-text escape (preserves the tags we control; escapes
+	 * the dynamic strings interpolated inside <text> nodes).
+	 */
+	private static function escape_svg( string $s ): string {
+		$s = htmlspecialchars( $s, ENT_QUOTES | ENT_XML1, 'UTF-8' );
+		// Truncate very long names to keep the layout intact.
+		if ( mb_strlen( $s ) > 36 ) {
+			$s = mb_substr( $s, 0, 35 ) . '…';
+		}
+		return $s;
+	}
+
+	/**
+	 * SVG → PNG via Imagick. Returns binary PNG bytes or '' on failure
+	 * (caller handles the fallback). Imagick is available on wp.com
+	 * Atomic + most managed WP hosts; on environments without it the
+	 * empty string triggers the 1×1 transparent fallback.
+	 */
+	private static function svg_to_png( string $svg ): string {
+		if ( ! class_exists( '\Imagick' ) ) {
+			return '';
+		}
+		try {
+			$im = new \Imagick();
+			$im->setBackgroundColor( new \ImagickPixel( '#14130f' ) );
+			$im->readImageBlob( '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . $svg );
+			$im->setImageFormat( 'png32' );
+			$im->setImageDepth( 8 );
+			$im->resizeImage( 1200, 630, \Imagick::FILTER_LANCZOS, 1, true );
+			$bytes = $im->getImageBlob();
+			$im->clear();
+			return (string) $bytes;
+		} catch ( \Throwable $e ) {
+			return '';
+		}
 	}
 
 	/**

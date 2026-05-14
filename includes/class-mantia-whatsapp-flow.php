@@ -421,33 +421,106 @@ final class Mantia_Whatsapp_Flow {
 		$creator = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		$me_id   = $creator ? (int) $creator->ID : 0;
 
+		// Send the forwardable invitation card FIRST (will appear upper in
+		// the chat — slightly older). It's self-contained: no "vos creaste"
+		// context, so a friend who receives a long-press-and-forward of it
+		// reads a clean invitation.
+		self::send_invite_card( $identity['recipient'], $group );
+
+		// The bot's reply to the creator (lower in chat = newest = visible).
+		// Explains what they should do next: forward the card above.
 		$lines = array(
-			sprintf( 'Creé *%s* para %s. Ya estás dentro.', $group['name'], $group['competition_name'] ),
+			sprintf( '✅ Creaste *%s* para %s.', $group['name'], $group['competition_name'] ),
+			'',
+			'_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._',
 			'',
 		);
 		$lines = array_merge( $lines, self::member_lines( $group_id, $me_id ) );
-
-		if ( '' !== ( $group['share_url'] ?? '' ) ) {
-			$lines[] = '';
-			$lines[] = 'Reenvía este link a quien quieras sumar:';
-			$lines[] = $group['share_url'];
-		} else {
-			$lines[] = '';
-			$lines[] = sprintf( 'Que tus amigos manden este codigo al bot: *%s*', $group['invite_code'] );
-		}
 
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:share-link',  'title' => '📤 Compartir' ),
+					array( 'id' => 'mantia:cmd:share-link',  'title' => '📤 Re-enviar' ),
 					array( 'id' => 'mantia:cmd:matches',     'title' => '📅 Partidos' ),
 					array( 'id' => 'mantia:cmd:help',        'title' => '❓ Ayuda' ),
 				),
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * A self-contained invitation card the user can long-press → Forward to
+	 * a WhatsApp group. The text reads cleanly when received by someone who
+	 * is NOT the creator: it's framed as an invitation, not a confirmation.
+	 *
+	 * Sent as a separate outbound message (not the preflight reply) so it
+	 * lives in its own bubble and forwards independently of the creator's
+	 * confirmation + buttons.
+	 */
+	private static function send_invite_card( string $recipient, array $group ): bool {
+		if ( '' === $recipient || ! class_exists( 'OpenclaWP_Whatsapp' ) ) {
+			return false;
+		}
+		$lines = self::build_invite_card_lines( $group );
+		if ( empty( $lines ) ) {
+			return false;
+		}
+		return (bool) OpenclaWP_Whatsapp::send_text_message( $recipient, implode( "\n", $lines ) );
+	}
+
+	/**
+	 * @param array<string,mixed> $group Group array from Mantia_Repository::group_to_array
+	 * @return array<int,string>
+	 */
+	private static function build_invite_card_lines( array $group ): array {
+		$name      = (string) ( $group['name'] ?? '' );
+		$comp      = (string) ( $group['competition_name'] ?? '' );
+		$code      = (string) ( $group['invite_code'] ?? '' );
+
+		// Prefer the mantia.uy-style landing URL when we have a view token —
+		// it carries rich link previews (og:image) in WhatsApp / Slack /
+		// anywhere a URL is pasted, AND 302s the click straight to wa.me.
+		$landing = self::build_join_landing_url( $group );
+		$wa_raw  = (string) ( $group['share_url'] ?? '' );
+		$primary = '' !== $landing ? $landing : $wa_raw;
+
+		if ( '' === $name || ( '' === $primary && '' === $code ) ) {
+			return array();
+		}
+
+		$lines   = array();
+		$lines[] = sprintf( '🏆 *Sumate a %s*', $name );
+		if ( '' !== $comp ) {
+			$lines[] = $comp;
+		}
+		$lines[] = '';
+		if ( '' !== $primary ) {
+			$lines[] = 'Tocá el link para sumarte:';
+			$lines[] = $primary;
+		} else {
+			$lines[] = 'Mandale este código al bot de WhatsApp:';
+			$lines[] = '*' . $code . '*';
+		}
+		$lines[] = '';
+		$lines[] = '_— Mantia, penca por WhatsApp_';
+
+		return $lines;
+	}
+
+	/**
+	 * Build the /penca/g/<token>/sumate/ landing URL when we have a view
+	 * token on the group, otherwise empty. The landing handles OG preview
+	 * for WhatsApp + 302 to wa.me.
+	 */
+	private static function build_join_landing_url( array $group ): string {
+		$view_url = (string) ( $group['view_url'] ?? '' );
+		if ( '' === $view_url ) {
+			return '';
+		}
+		return rtrim( $view_url, '/' ) . '/sumate/';
 	}
 
 	/**
@@ -777,7 +850,16 @@ final class Mantia_Whatsapp_Flow {
 		$share = (string) ( $group['share_url'] ?? '' );
 		$view  = (string) ( $group['view_url'] ?? '' );
 
-		$lines = array( sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ) );
+		// Push a fresh invitation card the user can long-press → Forward.
+		// Lives in its own bubble (above the bot's reply with buttons) so a
+		// forward carries only the card, not the bot context.
+		self::send_invite_card( $identity['recipient'], $group );
+
+		$lines = array(
+			'_↑ Reenviá la tarjeta de arriba a tus amigos._',
+			'',
+			sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
+		);
 		$lines[] = '';
 		$lines   = array_merge( $lines, self::member_lines( $active, (int) $user->ID ) );
 
