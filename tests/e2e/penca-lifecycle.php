@@ -183,12 +183,12 @@ Mantia_E2E::assert_contains( $r, $alice_name, 'tabla lists Alice' );
 /* ------------------------------------------------------------------------- */
 Mantia_E2E::step( '13. Web frontend renders the right surfaces' );
 /* ------------------------------------------------------------------------- */
-Mantia_E2E::assert_http_ok( '/', array( 'Mantia', 'Crear una penca' ) );
+Mantia_E2E::assert_http_ok( '/', array( 'mantia', 'WhatsApp' ) );
 Mantia_E2E::assert_http_ok( '/penca/mundial-2026/', array( 'Mundial 2026', 'Crear penca' ) );
 Mantia_E2E::assert_http_ok( '/penca/g/' . $view_token . '/', array( $penca_name, 'Sumate' ) );
 
 $bob_token = Mantia_Repository::user_view_token( (int) $bob_post->ID );
-Mantia_E2E::assert_http_ok( '/penca/me/' . $bob_token . '/', array( $bob_name, 'pencas' ) );
+Mantia_E2E::assert_http_ok( '/penca/me/' . $bob_token . '/', array( $bob_name, 'puntos' ) );
 
 Mantia_E2E::assert_http_status( '/penca/g/0000000000000000/', 404, array( 'no funciona', 'Crear una penca' ) );
 
