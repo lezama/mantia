@@ -663,16 +663,32 @@ final class Mantia_Whatsapp_Flow {
 				'completed' => true,
 			);
 		}
-		$group = Mantia_Repository::group_to_array( $active );
-		$share = (string) ( $group['share_url'] ?? '' );
-		$view  = (string) ( $group['view_url'] ?? '' );
+		$group   = Mantia_Repository::group_to_array( $active );
+		$share   = (string) ( $group['share_url'] ?? '' );
+		$view    = (string) ( $group['view_url'] ?? '' );
+		$members = Mantia_Repository::group_members( $active );
+		$me_id   = (int) $user->ID;
 
 		$lines = array( sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ) );
+
+		// Surface who's already in so the inviter knows who to nudge.
+		$lines[] = '';
+		if ( 1 === count( $members ) ) {
+			$lines[] = '👥 Solo vos por ahora. Pegale el link a alguien!';
+		} else {
+			$lines[] = sprintf( '👥 Quiénes están (%d):', count( $members ) );
+			foreach ( $members as $m ) {
+				$marker  = (int) $m['id'] === $me_id ? ' _(vos)_' : '';
+				$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
+			}
+		}
+
 		if ( '' !== $share ) {
 			$lines[] = '';
 			$lines[] = '🤝 Invitar amigos (1 toque):';
 			$lines[] = $share;
 		} else {
+			$lines[] = '';
 			$lines[] = sprintf( 'Codigo: *%s*', $group['invite_code'] );
 		}
 		if ( '' !== $view ) {

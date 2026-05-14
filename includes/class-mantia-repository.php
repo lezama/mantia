@@ -264,6 +264,48 @@ final class Mantia_Repository {
 	}
 
 	/**
+	 * Return every user post that has $group_id in its META_GROUP_IDS.
+	 * Penca scale is small (<100 members), so full-table scan over the
+	 * user CPT is fine and saves us a serialized-meta LIKE hack.
+	 *
+	 * @return array<int, array{id:int,name:string,phone:string,display_name:string}>
+	 */
+	public static function group_members( int $group_id ): array {
+		if ( $group_id <= 0 ) {
+			return array();
+		}
+		$users = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::USER,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+			)
+		);
+		$members = array();
+		foreach ( $users as $u ) {
+			$groups = (array) get_post_meta( (int) $u->ID, self::META_GROUP_IDS, true );
+			if ( ! in_array( $group_id, array_map( 'intval', $groups ), true ) ) {
+				continue;
+			}
+			$title   = (string) get_the_title( (int) $u->ID );
+			$phone   = (string) get_post_meta( (int) $u->ID, self::META_PHONE, true );
+			$has_name = '' !== $title && $title !== $phone;
+			$members[] = array(
+				'id'           => (int) $u->ID,
+				'name'         => $title,
+				'phone'        => $phone,
+				'display_name' => $has_name ? $title : __( 'sin nombre', 'mantia' ),
+			);
+		}
+		usort(
+			$members,
+			static fn( array $a, array $b ): int => strcasecmp( (string) $a['display_name'], (string) $b['display_name'] )
+		);
+		return $members;
+	}
+
+	/**
 	 * Return the user's group IDs that belong to a given competition. A
 	 * "match" here is at storage_id level: a group in libertadores-semana
 	 * (a view) is considered a match for any match in libertadores-2026
