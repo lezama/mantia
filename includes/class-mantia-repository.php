@@ -447,13 +447,30 @@ final class Mantia_Repository {
 			return '';
 		}
 
+		// 1. Single token (the user pasted just the code).
 		if ( ! str_contains( $message, ' ' ) && ! str_contains( $message, "\n" ) && ! str_contains( $message, "\t" ) ) {
 			$code = self::normalize_invite_code( $message );
 			return strlen( $code ) >= 4 ? $code : '';
 		}
 
 		$plain = function_exists( 'remove_accents' ) ? remove_accents( $message ) : $message;
-		if ( preg_match( '/^\s*(?:codigo|grupo|penca|invite|invitacion|me\s+uno(?:\s+a)?|unirme(?:\s+a)?)\s*[:#-]?\s+([A-Za-z0-9_-]{4,32})\s*$/i', (string) $plain, $matches ) ) {
+
+		// 2. Conversational forms with the code at the end after a separator
+		//    e.g. "Hola, me quiero sumar a Penca Familia · CODE".
+		if ( preg_match( '/[·•|\-]\s+([A-Za-z0-9_-]{4,32})\s*$/u', $message, $matches ) ) {
+			$code = self::normalize_invite_code( (string) $matches[1] );
+			if ( strlen( $code ) >= 4 ) {
+				return $code;
+			}
+		}
+
+		// 3. Command-prefix forms — keeps the older patterns + adds "sumar"
+		//    so wa.me prefills like "sumar CODE" route correctly.
+		if ( preg_match(
+			'/^\s*(?:codigo|grupo|penca|invite|invitacion|sumar(?:me)?|me\s+sumo(?:\s+a)?|me\s+quiero\s+sumar(?:\s+a)?|me\s+uno(?:\s+a)?|unirme(?:\s+a)?)\s*[:#\-·]?\s+([A-Za-z0-9_-]{4,32})\s*$/i',
+			(string) $plain,
+			$matches
+		) ) {
 			return self::normalize_invite_code( (string) $matches[1] );
 		}
 
@@ -656,7 +673,7 @@ final class Mantia_Repository {
 
 		$name      = get_the_title( $group_id );
 		$code      = (string) get_post_meta( $group_id, self::META_INVITE_CODE, true );
-		$share_url = self::build_share_url( $code );
+		$share_url = self::build_share_url( $code, (string) $name );
 		$comp_id   = self::group_competition_id( $group_id );
 		$comp      = Mantia_Competitions::get( $comp_id );
 
@@ -697,13 +714,23 @@ final class Mantia_Repository {
 		return preg_replace( '/\D+/', '', $value ) ?: '';
 	}
 
-	public static function build_share_url( string $invite_code ): string {
+	/**
+	 * Build a wa.me deeplink whose prefilled text looks like a real
+	 * message — "Hola, me quiero sumar a <Penca> · <CODE>" — so the
+	 * recipient sees a coherent message in their compose box and can
+	 * just hit send. The bot's extract_invite_code_from_message still
+	 * recovers the code from this form.
+	 */
+	public static function build_share_url( string $invite_code, string $group_name = '' ): string {
 		$invite_code = self::normalize_invite_code( $invite_code );
 		$bot_phone   = self::bot_phone_e164();
 		if ( '' === $invite_code || '' === $bot_phone ) {
 			return '';
 		}
-		return sprintf( 'https://wa.me/%s?text=%s', $bot_phone, rawurlencode( $invite_code ) );
+		$text = '' !== $group_name
+			? sprintf( 'Hola, me quiero sumar a %s · %s', $group_name, $invite_code )
+			: sprintf( 'sumar %s', $invite_code );
+		return sprintf( 'https://wa.me/%s?text=%s', $bot_phone, rawurlencode( $text ) );
 	}
 
 	public static function upcoming_matches( int $hours_ahead = 48 ): array {
