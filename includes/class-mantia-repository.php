@@ -264,6 +264,80 @@ final class Mantia_Repository {
 	}
 
 	/**
+	 * Download an image and attach it to the given mantia_user post as
+	 * the featured image (post_thumbnail). The frontend already prefers
+	 * the thumbnail over the generated initials avatar, so the moment
+	 * openclawp surfaces inbound image messages, hooking into this is
+	 * enough to give users their real photo.
+	 *
+	 * @return int Attachment ID, or 0 on failure.
+	 */
+	public static function set_user_avatar_from_url( int $user_id, string $image_url, array $request_headers = array() ): int {
+		if ( $user_id <= 0 || '' === $image_url ) {
+			return 0;
+		}
+		if ( get_post_type( $user_id ) !== Mantia_CPTs::USER ) {
+			return 0;
+		}
+
+		$response = wp_remote_get(
+			$image_url,
+			array(
+				'timeout' => 15,
+				'headers' => $request_headers, // Meta media URLs need Bearer auth
+			)
+		);
+		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+			return 0;
+		}
+
+		$body         = (string) wp_remote_retrieve_body( $response );
+		$content_type = (string) wp_remote_retrieve_header( $response, 'content-type' );
+		$ext          = self::guess_extension_from_content_type( $content_type );
+		if ( '' === $ext ) {
+			return 0;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+
+		$tmp = wp_tempnam( 'mantia-avatar-' . $user_id . '.' . $ext );
+		if ( false === file_put_contents( $tmp, $body ) ) {
+			return 0;
+		}
+
+		$attachment_id = media_handle_sideload(
+			array(
+				'name'     => sprintf( 'avatar-%d-%d.%s', $user_id, time(), $ext ),
+				'tmp_name' => $tmp,
+				'size'     => strlen( $body ),
+				'type'     => $content_type,
+			),
+			$user_id,
+			sprintf( 'Avatar for mantia user %d', $user_id )
+		);
+		if ( is_wp_error( $attachment_id ) ) {
+			@unlink( $tmp );
+			return 0;
+		}
+
+		set_post_thumbnail( $user_id, (int) $attachment_id );
+		return (int) $attachment_id;
+	}
+
+	private static function guess_extension_from_content_type( string $content_type ): string {
+		$content_type = strtolower( trim( explode( ';', $content_type )[0] ) );
+		return match ( $content_type ) {
+			'image/jpeg', 'image/jpg' => 'jpg',
+			'image/png'               => 'png',
+			'image/webp'              => 'webp',
+			'image/gif'               => 'gif',
+			default                   => '',
+		};
+	}
+
+	/**
 	 * Return every user post that has $group_id in its META_GROUP_IDS.
 	 * Penca scale is small (<100 members), so full-table scan over the
 	 * user CPT is fine and saves us a serialized-meta LIKE hack.

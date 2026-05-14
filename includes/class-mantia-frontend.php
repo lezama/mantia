@@ -130,7 +130,10 @@ final class Mantia_Frontend {
 						<?php foreach ( $rows as $row ) : ?>
 							<tr>
 								<td><?php echo (int) $row['rank']; ?></td>
-								<td><?php echo esc_html( $row['name'] ); ?></td>
+								<td class="mantia-player">
+									<?php echo self::user_avatar( (int) $row['user_id'], 28 ); ?>
+									<span class="mantia-player-name"><?php echo esc_html( $row['name'] ); ?></span>
+								</td>
 								<td><?php echo esc_html( $row['group_name'] ); ?></td>
 								<td><strong><?php echo (int) $row['points']; ?></strong></td>
 								<td><?php echo (int) $row['exacts']; ?></td>
@@ -208,7 +211,10 @@ final class Mantia_Frontend {
 						<?php foreach ( $rows as $row ) : ?>
 							<tr>
 								<td><?php echo (int) $row['rank']; ?></td>
-								<td><?php echo esc_html( $row['name'] ); ?></td>
+								<td class="mantia-player">
+									<?php echo self::user_avatar( (int) $row['user_id'], 28 ); ?>
+									<span class="mantia-player-name"><?php echo esc_html( $row['name'] ); ?></span>
+								</td>
 								<td><strong><?php echo (int) $row['points']; ?></strong></td>
 								<td><?php echo (int) $row['exacts']; ?></td>
 								<td><?php echo (int) $row['predictions']; ?></td>
@@ -253,9 +259,12 @@ final class Mantia_Frontend {
 		?>
 		<div class="mantia-private-badge">🔒 link privado — no lo compartas</div>
 
-		<header class="mantia-hero">
-			<h1><?php printf( esc_html__( 'Hola %s', 'mantia' ), esc_html( $display_name ) ); ?></h1>
-			<p class="mantia-sub"><?php esc_html_e( 'Tus pencas, ranking y pronósticos.', 'mantia' ); ?></p>
+		<header class="mantia-hero mantia-hero-user">
+			<?php echo self::user_avatar( $user_id, 56 ); ?>
+			<div>
+				<h1><?php printf( esc_html__( 'Hola %s', 'mantia' ), esc_html( $display_name ) ); ?></h1>
+				<p class="mantia-sub"><?php esc_html_e( 'Tus pencas, ranking y pronósticos.', 'mantia' ); ?></p>
+			</div>
 		</header>
 
 		<?php if ( empty( $groups ) ) : ?>
@@ -640,6 +649,64 @@ CSS;
 	}
 
 	/**
+	 * Avatar markup for a user. Two layers:
+	 * 1. If the mantia_user post has a thumbnail attached (uploaded via
+	 *    WhatsApp once openclawp surfaces image messages), use it.
+	 * 2. Otherwise generate a circle with the user's initials + a color
+	 *    derived from a stable hash of the name. Zero external deps.
+	 *
+	 * @param int $user_id mantia_user post id
+	 * @param int $size    diameter in px
+	 */
+	private static function user_avatar( int $user_id, int $size = 40 ): string {
+		if ( has_post_thumbnail( $user_id ) ) {
+			$url = (string) get_the_post_thumbnail_url( $user_id, array( $size * 2, $size * 2 ) );
+			if ( '' !== $url ) {
+				return sprintf(
+					'<img class="mantia-avatar mantia-avatar-img" src="%s" width="%d" height="%d" alt="" loading="lazy">',
+					esc_url( $url ),
+					$size,
+					$size
+				);
+			}
+		}
+
+		$name = self::display_name_for( $user_id );
+		if ( '' === $name || __( 'jugador', 'mantia' ) === $name ) {
+			$initials = '?';
+			$seed     = 'u' . $user_id;
+		} else {
+			$initials = self::initials_from( $name );
+			$seed     = $name;
+		}
+		$color   = self::avatar_color_for( $seed );
+		$inline  = sprintf( '--avatar-bg:%s;width:%dpx;height:%dpx;font-size:%dpx;', $color, $size, $size, (int) round( $size * 0.42 ) );
+		return sprintf(
+			'<span class="mantia-avatar mantia-avatar-initials" style="%s" aria-hidden="true">%s</span>',
+			esc_attr( $inline ),
+			esc_html( $initials )
+		);
+	}
+
+	private static function initials_from( string $name ): string {
+		$parts = preg_split( '/\s+/u', trim( $name ) ) ?: array();
+		$out   = '';
+		foreach ( array_slice( $parts, 0, 2 ) as $p ) {
+			$first = function_exists( 'mb_substr' ) ? mb_substr( $p, 0, 1 ) : substr( $p, 0, 1 );
+			$out  .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( $first ) : strtoupper( $first );
+		}
+		return '' !== $out ? $out : '?';
+	}
+
+	private static function avatar_color_for( string $seed ): string {
+		$palette = array(
+			'#f97316', '#0ea5e9', '#10b981', '#a855f7', '#ef4444',
+			'#eab308', '#ec4899', '#06b6d4', '#84cc16', '#6366f1',
+		);
+		return $palette[ abs( crc32( $seed ) ) % count( $palette ) ];
+	}
+
+	/**
 	 * Resolve a friendly display name for a user. If they never set one we
 	 * fall back to "jugador/a" rather than showing the raw E.164 phone in
 	 * a greeting — the phone is the post_title only because nothing else
@@ -843,6 +910,43 @@ body {
 .mantia-vs {
 	color: var(--fg-dim);
 	margin: 0 6px;
+}
+.mantia-avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: var(--avatar-bg, #555);
+	color: #fff;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	vertical-align: middle;
+	margin-right: 8px;
+	flex-shrink: 0;
+	overflow: hidden;
+	user-select: none;
+}
+.mantia-avatar-img {
+	object-fit: cover;
+}
+.mantia-player {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.mantia-player-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mantia-hero-user {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+.mantia-hero-user h1 {
+	margin: 0 0 4px;
 }
 .mantia-cta {
 	display: inline-block;
