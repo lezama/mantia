@@ -33,6 +33,20 @@ final class Mantia_E2E {
 		self::log( "\n" . str_repeat( '━', 60 ) );
 		self::log( "▶ {$scenario}" );
 		self::log( str_repeat( '━', 60 ) );
+
+		// Tests bypass the openclawp dispatcher (which would normally
+		// wp_set_current_user before invoking abilities), so we have to
+		// log in as an admin here. Otherwise ability permission_callbacks
+		// reject with manage_options denied and the test breaks deep
+		// inside an ->execute() with a WP_Error→array cast fatal.
+		self::login_as_admin();
+	}
+
+	private static function login_as_admin(): void {
+		$admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ) );
+		if ( ! empty( $admins ) ) {
+			wp_set_current_user( (int) $admins[0] );
+		}
 	}
 
 	public static function step( string $name ): void {
