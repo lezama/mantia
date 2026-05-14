@@ -119,10 +119,10 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		// User tapped a match in /partidos or /pendientes and we asked for a
-		// score. A bare "2-1" / "2 1" / "2:1" is the prediction for that
-		// specific match. Falls through if it doesn't look like a score so
-		// the LLM can still handle full "Team A 2 Team B 1" syntax.
-		if ( '' !== $identity['phone'] && preg_match( '/^\s*(\d{1,2})\s*[-:\s]\s*(\d{1,2})\s*$/u', $plain, $sc ) ) {
+		// score. Accept every natural form a Spanish speaker reaches for:
+		// "2-1", "2 1", "2:1", "2x1", "2 a 1". Falls through if it doesn't
+		// look like a score so the LLM can still handle full "Team A 2 Team B 1".
+		if ( '' !== $identity['phone'] && preg_match( '/^\s*(\d{1,2})\s*(?:\s+a\s+|[-:x\s])\s*(\d{1,2})\s*$/iu', $plain, $sc ) ) {
 			$pending_match = (int) get_transient( self::pending_match_key( $identity['phone'] ) );
 			if ( $pending_match > 0 ) {
 				return self::handle_quick_score( $pending_match, (int) $sc[1], (int) $sc[2], $identity );
@@ -149,7 +149,10 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_leaderboard( $identity );
 		}
 
-		if ( preg_match( '/^(?:mis\s+pronostic[oa]s?|mis\s+preds?|historial|mi\s+historial|jugadas|mis\s+jugadas)$/i', $lc ) ) {
+		// Broad match: "mis predicciones", "cuales son mis predicciones?",
+		// "ver mis pronosticos", "que prediji", "mi historial" — anything
+		// that's clearly asking about the user's own predictions.
+		if ( preg_match( '/\b(?:mis\s+(?:pronostic[oa]s|prediccion(?:es)?|preds?|jugadas)|que\s+(?:prediji|pronostique)|mi\s+historial|^\s*historial\s*\??$|^\s*jugadas\s*\??$)\b/iu', $lc ) ) {
 			return self::handle_my_predictions( $identity );
 		}
 
@@ -897,7 +900,15 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( 0 === $total ) {
 			return array(
-				'reply'     => '✅ Tenés todos los partidos pronosticados. ¡Bien ahí!',
+				'reply'       => '✅ Tenés todos los partidos pronosticados. ¡Bien ahí!',
+				'interactive' => array(
+					'type'    => 'button',
+					'buttons' => array(
+						array( 'id' => 'mantia:cmd:my-predictions', 'title' => '📋 Mis pronósticos' ),
+						array( 'id' => 'mantia:cmd:matches',        'title' => '📅 Próximos partidos' ),
+						array( 'id' => 'mantia:cmd:leaderboard',    'title' => '📊 Tabla' ),
+					),
+				),
 				'completed' => true,
 			);
 		}
