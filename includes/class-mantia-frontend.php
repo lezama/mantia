@@ -686,27 +686,29 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		$H = 630;
 		$im = imagecreatetruecolor( $W, $H );
 		// Colors
-		$ink   = imagecolorallocate( $im, 0x14, 0x13, 0x0f );
+		$ink    = imagecolorallocate( $im, 0x14, 0x13, 0x0f );
 		$marfil = imagecolorallocate( $im, 0xf5, 0xf1, 0xe8 );
-		$soft  = imagecolorallocate( $im, 0xa2, 0x9e, 0x91 );
-		$brass = imagecolorallocate( $im, 0xc8, 0xa4, 0x72 );
-		$rule  = imagecolorallocate( $im, 0x2b, 0x29, 0x22 );
+		$soft   = imagecolorallocate( $im, 0xa2, 0x9e, 0x91 );
+		$brass  = imagecolorallocate( $im, 0xc8, 0xa4, 0x72 );
+		$rule   = imagecolorallocate( $im, 0x2b, 0x29, 0x22 );
 		imagefilledrectangle( $im, 0, 0, $W, $H, $ink );
 
 		$count    = count( $members );
 		$has_lead = null !== $leader;
-		$comp     = strtoupper( (string) ( $group['competition_name'] ?? '' ) );
-		$name     = (string) ( $group['name'] ?? 'Mantia' );
-		if ( function_exists( 'mb_strlen' ) && mb_strlen( $name ) > 26 ) {
-			$name = mb_substr( $name, 0, 25 ) . '…';
-		}
-		$mark = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '·';
+
+		// Inter has no emoji glyphs, so emoji prefixes ("📅 Esta semana") would
+		// render as broken tofu rectangles. Strip everything outside the
+		// printable ASCII + Latin block before sending text to imagettftext.
+		$comp = strtoupper( self::strip_non_text( (string) ( $group['competition_name'] ?? '' ) ) );
+		$name = self::strip_non_text( (string) ( $group['name'] ?? 'Mantia' ) );
+
+		$mark = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '';
 
 		$invite_top  = 'SUMATE A';
-		$lead_line   = $has_lead ? sprintf( '%s va ganando', $leader['name'] ) : 'Penca abierta';
+		$lead_line   = $has_lead ? sprintf( '%s va ganando', self::strip_non_text( (string) $leader['name'] ) ) : 'Penca abierta';
 		$meta_parts  = array();
 		if ( $count > 0 ) {
-			$meta_parts[] = sprintf( $count === 1 ? '%d jugador' : '%d jugadores', $count );
+			$meta_parts[] = sprintf( 1 === $count ? '%d jugador' : '%d jugadores', $count );
 		}
 		if ( $has_lead ) {
 			$meta_parts[] = sprintf( '%d pts · %d exactos', (int) $leader['points'], (int) $leader['exacts'] );
@@ -714,23 +716,37 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		$meta_line = implode( ' · ', $meta_parts );
 
 		// Top row
-		imagettftext( $im, 24, 0, 64, 84, $marfil, $font_path, 'mantia' );
+		imagettftext( $im, 26, 0, 64, 90, $marfil, $font_path, 'mantia' );
 		if ( '' !== $comp ) {
 			$box = imagettfbbox( 14, 0, $font_path, $comp );
 			$w   = $box[2] - $box[0];
-			imagettftext( $im, 14, 0, $W - 64 - $w, 84, $soft, $font_path, $comp );
+			imagettftext( $im, 14, 0, $W - 64 - $w, 90, $soft, $font_path, $comp );
 		}
 
-		// Brass rank mark on the left
-		$mark_size = ( '·' === $mark ) ? 220 : 200;
-		imagettftext( $im, $mark_size, 0, 64, 430, $brass, $font_path, $mark );
+		// Left mark — brass rank "I°/II°/04°" when there's a leader, or an
+		// outlined ring as empty-state placeholder. The glyph version of "·"
+		// at 200px+ renders as a tiny dot, so we draw a real ring instead.
+		$cx = 200;
+		$cy = 330;
+		if ( $has_lead ) {
+			imagettftext( $im, 220, 0, 64, 430, $brass, $font_path, $mark );
+		} else {
+			// Two-px stroked ring via two filled ellipses, ~260px diameter
+			imagefilledellipse( $im, $cx, $cy, 260, 260, $brass );
+			imagefilledellipse( $im, $cx, $cy, 254, 254, $ink );
+		}
 
-		// Right block
-		imagettftext( $im, 16, 0, 520, 230, $soft, $font_path, $invite_top );
-		imagettftext( $im, 52, 0, 520, 310, $marfil, $font_path, $name );
-		imagettftext( $im, 20, 0, 520, 360, $soft, $font_path, $lead_line );
+		// Right block — start at x=460 to give the name more room. Auto-fit
+		// the headline font size so long penca names don't overflow.
+		$right_x   = 460;
+		$right_max = $W - $right_x - 64;
+		$headline_size = self::fit_font_size( $font_path, $name, $right_max, 56, 28 );
+
+		imagettftext( $im, 16, 0, $right_x, 230, $soft,   $font_path, $invite_top );
+		imagettftext( $im, $headline_size, 0, $right_x, 310, $marfil, $font_path, $name );
+		imagettftext( $im, 20, 0, $right_x, 360, $soft,   $font_path, $lead_line );
 		if ( '' !== $meta_line ) {
-			imagettftext( $im, 18, 0, 520, 400, $soft, $font_path, $meta_line );
+			imagettftext( $im, 18, 0, $right_x, 400, $soft, $font_path, $meta_line );
 		}
 
 		// Bottom rule + footer
@@ -746,6 +762,31 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		$bytes = (string) ob_get_clean();
 		imagedestroy( $im );
 		return $bytes;
+	}
+
+	/**
+	 * Strip emoji + other non-text codepoints so imagettftext doesn't render
+	 * tofu boxes. Keeps ASCII, Latin-1 supplement + extended, basic Latin
+	 * punctuation, and middot — enough for Spanish + the design's typography.
+	 */
+	private static function strip_non_text( string $s ): string {
+		$out = preg_replace( '/[^\x{0020}-\x{007E}\x{00A0}-\x{024F}\x{2010}-\x{2027}\x{00B7}]+/u', '', $s );
+		return trim( (string) $out );
+	}
+
+	/**
+	 * Pick the largest font size from $max..$min that fits $text inside
+	 * $max_width using $font_path. Returns the size in points.
+	 */
+	private static function fit_font_size( string $font_path, string $text, int $max_width, int $max, int $min ): int {
+		for ( $size = $max; $size >= $min; $size -= 2 ) {
+			$box = imagettfbbox( $size, 0, $font_path, $text );
+			$w   = $box[2] - $box[0];
+			if ( $w <= $max_width ) {
+				return $size;
+			}
+		}
+		return $min;
 	}
 
 	/**
