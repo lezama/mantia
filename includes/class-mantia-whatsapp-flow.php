@@ -491,11 +491,13 @@ final class Mantia_Whatsapp_Flow {
 			return array();
 		}
 
+		// Deliberately NO competition line in the text body — without a
+		// "Torneo:" prefix it reads as ambiguous prose ("Esta semana" looks
+		// like a phrase, not a tournament name). The OG card preview that
+		// renders below the link already shows the competition in uppercase
+		// labeled context where it reads as a category.
 		$lines   = array();
 		$lines[] = sprintf( '🏆 *Sumate a %s*', $name );
-		if ( '' !== $comp ) {
-			$lines[] = $comp;
-		}
 		$lines[] = '';
 		if ( '' !== $primary ) {
 			$lines[] = 'Tocá el link para sumarte:';
@@ -506,7 +508,7 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$lines[] = '';
 		$lines[] = '_— Mantia, penca por WhatsApp_';
-
+		unset( $comp ); // intentionally not used in the body
 		return $lines;
 	}
 
