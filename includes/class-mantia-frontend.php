@@ -755,11 +755,13 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 	 */
 	private static function locate_og_font(): string {
 		$candidates = array(
+			// Bundled with the plugin — always present, works on any WP host.
+			MANTIA_PATH . 'assets/fonts/InterVariable.ttf',
+			// Legacy bundle paths if a sibling project shipped one of these.
 			MANTIA_PATH . 'assets/fonts/Inter-SemiBold.ttf',
 			MANTIA_PATH . 'assets/fonts/Inter-Regular.ttf',
 			// wp.com Atomic ships Inter inside the bundled default theme
 			ABSPATH . 'wp-content/themes/twentytwentythree/assets/fonts/inter/Inter-VariableFont_slnt,wght.ttf',
-			'/home/' . get_current_user() . '/wordpress/themes/twentytwentythree/1.6/assets/fonts/inter/Inter-VariableFont_slnt,wght.ttf',
 		);
 		// Also discover any theme-bundled NotoSans / Inter on the host.
 		$discovered = glob( WP_CONTENT_DIR . '/themes/**/assets/fonts/**/*.ttf' );

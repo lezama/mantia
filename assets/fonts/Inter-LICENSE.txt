@@ -1,0 +1,11 @@
+Inter — SIL Open Font License, Version 1.1
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+Bundled file: InterVariable.ttf (Inter v4.0, variable font)
+Source: https://github.com/rsms/inter/releases/tag/v4.0
+
+This font is licensed under the SIL Open Font License 1.1. Full text at:
+  https://scripts.sil.org/OFL
+
+Used by Mantia to render the OG preview image (1200×630 PNG) for
+invitation landing pages — see includes/class-mantia-frontend.php.
