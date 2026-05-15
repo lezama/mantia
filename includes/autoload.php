@@ -26,6 +26,7 @@ spl_autoload_register(
 			'Mantia_Repository'      => 'class-mantia-repository.php',
 			'Mantia_Results_Fetcher' => 'class-mantia-results-fetcher.php',
 			'Mantia_Scoring'         => 'class-mantia-scoring.php',
+			'Mantia_Vocab'           => 'class-mantia-vocab.php',
 			'Mantia_Whatsapp_Flow'   => 'class-mantia-whatsapp-flow.php',
 			'Mantia_Workflows'       => 'class-mantia-workflows.php',
 		);

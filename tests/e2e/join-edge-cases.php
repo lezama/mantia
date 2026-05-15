@@ -47,9 +47,9 @@ Mantia_E2E::assert_contains( $r, Mantia_E2E::TEST_NAME_PREFIX, 'reply names the 
 Mantia_E2E::step( '2. Joining the same group twice → already-member path' );
 /* ------------------------------------------------------------------------- */
 $r = Mantia_E2E::send( $bob, $invite );
-// The repository returns `already_member=true`; the bot says "cambie tu penca activa"
+// The repository returns `already_member=true`; the bot says "penca activa: *Name*"
 // instead of "te sume" — confirms we recognized the existing membership.
-Mantia_E2E::assert_contains( $r, 'cambie tu penca activa', 'already-member path triggered' );
+Mantia_E2E::assert_contains( $r, 'penca activa:', 'already-member path triggered' );
 Mantia_E2E::assert_not_contains( $r, 'sume a', 'no duplicate "sume" message' );
 
 // Bob's group list should still have exactly one entry for this group_id.
