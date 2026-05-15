@@ -151,8 +151,12 @@ final class Mantia_Frontend {
 		?>
 		<main class="mantia-page mantia-home">
 			<div class="mantia-home-mark">
+				<div class="mantia-home-stickers" aria-hidden="true">
+					<span class="mantia-home-sticker mantia-home-sticker-l"><?php esc_html_e( 'penca', 'mantia' ); ?></span>
+					<span class="mantia-home-sticker mantia-home-sticker-r">x WhatsApp</span>
+				</div>
 				<h1 class="mantia-wordmark">mantia</h1>
-				<div class="mantia-tagline">penca · whatsapp</div>
+				<p class="mantia-tagline"><?php esc_html_e( 'Pronosticá, picanteá el grupo, ganale a tus amigos. Sin app.', 'mantia' ); ?></p>
 			</div>
 
 			<?php if ( '' !== $wa ) : ?>
@@ -160,17 +164,10 @@ final class Mantia_Frontend {
 					<img class="mantia-qr-img" src="<?php echo esc_url( self::qr_image_url( $wa, 448 ) ); ?>"
 						alt="<?php esc_attr_e( 'Código QR para chatear con Mantia por WhatsApp', 'mantia' ); ?>"
 						width="224" height="224" loading="eager">
+					<div class="mantia-qr-caption"><?php esc_html_e( 'escaneá · mandá "hola"', 'mantia' ); ?></div>
 				</a>
-				<p class="mantia-home-hint">
-					<?php
-					printf(
-						/* translators: %s: literal "hola" — the prefilled WhatsApp message. */
-						esc_html__( 'Escaneá con la cámara. Mandanos %s para empezar.', 'mantia' ),
-						'<span class="mantia-ink">"' . esc_html( $msg ) . '"</span>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-					);
-					?>
-				</p>
-				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $wa ); ?>">
+				<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $wa ); ?>">
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7 0-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.7.1-.1.3-.4.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.2-.7-1.6-.9-2.2-.2-.6-.4-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.3 4.8.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.4.7 3 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>
 					<?php esc_html_e( 'Abrir WhatsApp', 'mantia' ); ?>
 				</a>
 			<?php else : ?>
@@ -180,8 +177,8 @@ final class Mantia_Frontend {
 			<?php endif; ?>
 
 			<?php if ( '' !== $ranking_url ) : ?>
-				<a class="mantia-ghost-link" href="<?php echo esc_url( $ranking_url ); ?>">
-					<?php esc_html_e( 'ver el ranking', 'mantia' ); ?> →
+				<a class="mantia-pill mantia-pill-ghost" href="<?php echo esc_url( $ranking_url ); ?>">
+					<?php esc_html_e( 'Ver el ranking del Mundial', 'mantia' ); ?>
 				</a>
 			<?php endif; ?>
 		</main>
@@ -600,9 +597,9 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		</a>
 	</div>
 	<noscript>
-		<p style="color:#f5f1e8;margin-top:24px;text-align:center">
+		<p style="color:#0a0a0a;margin-top:24px;text-align:center;font-weight:700">
 			<?php esc_html_e( 'Redirigiendo a WhatsApp…', 'mantia' ); ?>
-			<a href="<?php echo esc_url( $wa_target ); ?>" style="color:#c8a472">
+			<a href="<?php echo esc_url( $wa_target ); ?>" style="color:#0a0a0a;text-decoration:underline">
 				<?php esc_html_e( 'tocá acá', 'mantia' ); ?>
 			</a>
 		</p>
@@ -685,27 +682,27 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		$W = 1200;
 		$H = 630;
 		$im = imagecreatetruecolor( $W, $H );
-		// Colors
-		$ink    = imagecolorallocate( $im, 0x14, 0x13, 0x0f );
-		$marfil = imagecolorallocate( $im, 0xf5, 0xf1, 0xe8 );
-		$soft   = imagecolorallocate( $im, 0xa2, 0x9e, 0x91 );
-		$brass  = imagecolorallocate( $im, 0xc8, 0xa4, 0x72 );
-		$rule   = imagecolorallocate( $im, 0x2b, 0x29, 0x22 );
-		imagefilledrectangle( $im, 0, 0, $W, $H, $ink );
+		// Cancha palette — lime ground, black ink, magenta accent.
+		$lime    = imagecolorallocate( $im, 0xc5, 0xf2, 0x4e );
+		$ink     = imagecolorallocate( $im, 0x0a, 0x0a, 0x0a );
+		$soft    = imagecolorallocate( $im, 0x59, 0x58, 0x51 );
+		$magenta = imagecolorallocate( $im, 0xff, 0x3d, 0x8e );
+		$gold    = imagecolorallocate( $im, 0xff, 0xd4, 0x00 );
+		$white   = imagecolorallocate( $im, 0xff, 0xff, 0xff );
+		imagefilledrectangle( $im, 0, 0, $W, $H, $lime );
 
 		$count    = count( $members );
 		$has_lead = null !== $leader;
 
-		// Inter has no emoji glyphs, so emoji prefixes ("📅 Esta semana") would
-		// render as broken tofu rectangles. Strip everything outside the
-		// printable ASCII + Latin block before sending text to imagettftext.
+		// Archivo / Inter have no emoji glyphs, so emoji prefixes would render
+		// as broken tofu boxes. Strip everything outside the printable ASCII +
+		// Latin block before sending text to imagettftext.
 		$comp = strtoupper( self::strip_non_text( (string) ( $group['competition_name'] ?? '' ) ) );
 		$name = self::strip_non_text( (string) ( $group['name'] ?? 'Mantia' ) );
 
-		$mark = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '';
-
-		$invite_top  = 'SUMATE A';
-		$lead_line   = $has_lead ? sprintf( '%s va ganando', self::strip_non_text( (string) $leader['name'] ) ) : 'Penca abierta';
+		$lead_line   = $has_lead
+			? sprintf( '%s va ganando', self::strip_non_text( (string) $leader['name'] ) )
+			: 'Penca abierta — sumate antes que arranque';
 		$meta_parts  = array();
 		if ( $count > 0 ) {
 			$meta_parts[] = sprintf( 1 === $count ? '%d jugador' : '%d jugadores', $count );
@@ -715,53 +712,114 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		}
 		$meta_line = implode( ' · ', $meta_parts );
 
-		// Top row
-		imagettftext( $im, 26, 0, 64, 90, $marfil, $font_path, 'mantia' );
+		// Top row: wordmark left, magenta sticker tag with competition right.
+		imagettftext( $im, 30, 0, 64, 96, $ink, $font_path, 'mantia' );
 		if ( '' !== $comp ) {
-			$box = imagettfbbox( 14, 0, $font_path, $comp );
-			$w   = $box[2] - $box[0];
-			imagettftext( $im, 14, 0, $W - 64 - $w, 90, $soft, $font_path, $comp );
+			$box   = imagettfbbox( 16, 0, $font_path, $comp );
+			$tag_w = ( $box[2] - $box[0] ) + 36;
+			$tag_h = 38;
+			$tag_x = $W - 64 - $tag_w;
+			$tag_y = 60;
+			self::imagerect_rounded( $im, $tag_x, $tag_y, $tag_x + $tag_w, $tag_y + $tag_h, $magenta );
+			self::imagerect_rounded_outline( $im, $tag_x, $tag_y, $tag_x + $tag_w, $tag_y + $tag_h, $ink );
+			imagettftext( $im, 16, 0, $tag_x + 18, $tag_y + 26, $white, $font_path, $comp );
 		}
 
-		// Left mark — brass rank "I°/II°/04°" when there's a leader, or an
-		// outlined ring as empty-state placeholder. The glyph version of "·"
-		// at 200px+ renders as a tiny dot, so we draw a real ring instead.
+		// Big medal disc left — gold for the leader, white circle as empty-state.
+		// Drawn as filled circles to mimic the sticker disc with the rank inside.
 		$cx = 200;
 		$cy = 330;
+		// Sticker shadow (offset black disc behind the medal)
+		imagefilledellipse( $im, $cx + 8, $cy + 8, 280, 280, $ink );
 		if ( $has_lead ) {
-			imagettftext( $im, 220, 0, 64, 430, $brass, $font_path, $mark );
+			imagefilledellipse( $im, $cx, $cy, 280, 280, $gold );
+			imagefilledellipse( $im, $cx, $cy, 268, 268, $gold );
+			// Black outline ring
+			imagefilledellipse( $im, $cx, $cy, 280, 280, $ink );
+			imagefilledellipse( $im, $cx, $cy, 272, 272, $gold );
+			// Rank glyph inside — "1" / "2" / "3" or zero-padded "04"
+			$mark = self::rank_label( (int) $leader['rank'] );
+			$size = mb_strlen( $mark ) > 1 ? 160 : 200;
+			$box  = imagettfbbox( $size, 0, $font_path, $mark );
+			$tw   = $box[2] - $box[0];
+			$th   = $box[1] - $box[7];
+			$tx   = $cx - (int) round( $tw / 2 ) - $box[0];
+			$ty   = $cy + (int) round( $th / 2 );
+			imagettftext( $im, $size, 0, $tx, $ty, $ink, $font_path, $mark );
 		} else {
-			// Two-px stroked ring via two filled ellipses, ~260px diameter
-			imagefilledellipse( $im, $cx, $cy, 260, 260, $brass );
-			imagefilledellipse( $im, $cx, $cy, 254, 254, $ink );
+			// Empty-state: white disc with black ring
+			imagefilledellipse( $im, $cx, $cy, 280, 280, $ink );
+			imagefilledellipse( $im, $cx, $cy, 272, 272, $white );
 		}
 
-		// Right block — start at x=460 to give the name more room. Auto-fit
-		// the headline font size so long penca names don't overflow.
+		// Right block — name + lead line + meta. Auto-fit the headline so
+		// long penca names don't overflow.
 		$right_x   = 460;
 		$right_max = $W - $right_x - 64;
-		$headline_size = self::fit_font_size( $font_path, $name, $right_max, 56, 28 );
+		$headline_size = self::fit_font_size( $font_path, $name, $right_max, 60, 30 );
 
-		imagettftext( $im, 16, 0, $right_x, 230, $soft,   $font_path, $invite_top );
-		imagettftext( $im, $headline_size, 0, $right_x, 310, $marfil, $font_path, $name );
-		imagettftext( $im, 20, 0, $right_x, 360, $soft,   $font_path, $lead_line );
+		imagettftext( $im, 18, 0, $right_x, 230, $ink, $font_path, 'SUMATE A' );
+		imagettftext( $im, $headline_size, 0, $right_x, 310, $ink, $font_path, $name );
+		imagettftext( $im, 22, 0, $right_x, 360, $ink, $font_path, $lead_line );
 		if ( '' !== $meta_line ) {
 			imagettftext( $im, 18, 0, $right_x, 400, $soft, $font_path, $meta_line );
 		}
 
-		// Bottom rule + footer
-		imageline( $im, 64, 540, $W - 64, 540, $rule );
-		imagettftext( $im, 14, 0, 64, 580, $soft, $font_path, 'PENCA POR WHATSAPP' );
+		// Bottom dashed rule + footer
+		self::imageline_dashed( $im, 64, 540, $W - 64, 540, $ink );
+		imagettftext( $im, 16, 0, 64, 588, $ink, $font_path, 'PENCA POR WHATSAPP' );
 		$tag = 'MANTIA · 2026';
-		$box = imagettfbbox( 14, 0, $font_path, $tag );
+		$box = imagettfbbox( 16, 0, $font_path, $tag );
 		$w   = $box[2] - $box[0];
-		imagettftext( $im, 14, 0, $W - 64 - $w, 580, $soft, $font_path, $tag );
+		imagettftext( $im, 16, 0, $W - 64 - $w, 588, $ink, $font_path, $tag );
 
 		ob_start();
 		imagepng( $im, null, 8 );
 		$bytes = (string) ob_get_clean();
 		imagedestroy( $im );
 		return $bytes;
+	}
+
+	/**
+	 * Filled rounded rectangle (sticker pill) for GD. Approximates a radius
+	 * of $r via two side rectangles + four corner ellipses.
+	 */
+	private static function imagerect_rounded( $im, int $x1, int $y1, int $x2, int $y2, int $color, int $r = 18 ): void {
+		imagefilledrectangle( $im, $x1 + $r, $y1, $x2 - $r, $y2, $color );
+		imagefilledrectangle( $im, $x1, $y1 + $r, $x2, $y2 - $r, $color );
+		imagefilledellipse( $im, $x1 + $r, $y1 + $r, $r * 2, $r * 2, $color );
+		imagefilledellipse( $im, $x2 - $r, $y1 + $r, $r * 2, $r * 2, $color );
+		imagefilledellipse( $im, $x1 + $r, $y2 - $r, $r * 2, $r * 2, $color );
+		imagefilledellipse( $im, $x2 - $r, $y2 - $r, $r * 2, $r * 2, $color );
+	}
+
+	/**
+	 * Stroked rounded rectangle. Approximates a 2px outline by drawing
+	 * concentric rounded rects 2px apart.
+	 */
+	private static function imagerect_rounded_outline( $im, int $x1, int $y1, int $x2, int $y2, int $color, int $r = 18, int $thickness = 2 ): void {
+		for ( $i = 0; $i < $thickness; $i++ ) {
+			imagearc( $im, $x1 + $r, $y1 + $r, $r * 2 - $i, $r * 2 - $i, 180, 270, $color );
+			imagearc( $im, $x2 - $r, $y1 + $r, $r * 2 - $i, $r * 2 - $i, 270, 360, $color );
+			imagearc( $im, $x1 + $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 90,  180, $color );
+			imagearc( $im, $x2 - $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 0,   90,  $color );
+			imageline( $im, $x1 + $r, $y1 + $i,         $x2 - $r, $y1 + $i,         $color );
+			imageline( $im, $x1 + $r, $y2 - $i,         $x2 - $r, $y2 - $i,         $color );
+			imageline( $im, $x1 + $i, $y1 + $r,         $x1 + $i, $y2 - $r,         $color );
+			imageline( $im, $x2 - $i, $y1 + $r,         $x2 - $i, $y2 - $r,         $color );
+		}
+	}
+
+	/**
+	 * Dashed horizontal line. Used for the share poster's bottom divider.
+	 */
+	private static function imageline_dashed( $im, int $x1, int $y, int $x2, int $y2, int $color, int $dash = 12, int $gap = 8 ): void {
+		for ( $x = $x1; $x < $x2; $x += $dash + $gap ) {
+			$end = min( $x + $dash, $x2 );
+			imagesetthickness( $im, 2 );
+			imageline( $im, $x, $y, $end, $y, $color );
+		}
+		imagesetthickness( $im, 1 );
 	}
 
 	/**
@@ -829,13 +887,19 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		$count    = count( $members );
 		$has_lead = null !== $leader;
 
-		$mark_label = $has_lead ? self::rank_label( (int) $leader['rank'] ) . '°' : '·';
-		$mark_color = $has_lead ? '#c8a472' : 'rgba(245,241,232,0.55)';
-		$mark_size  = '·' === $mark_label ? 320 : 280;
+		$mark_label = $has_lead ? self::rank_label( (int) $leader['rank'] ) : '';
+		// Gold for #1, silver/bronze for 2/3, white empty-state.
+		$rank = $has_lead ? (int) $leader['rank'] : 0;
+		$mark_fill = '#c5f24e';
+		if ( 1 === $rank ) { $mark_fill = '#ffd400'; }
+		elseif ( 2 === $rank ) { $mark_fill = '#dadada'; }
+		elseif ( 3 === $rank ) { $mark_fill = '#e08a3c'; }
+		elseif ( ! $has_lead ) { $mark_fill = '#ffffff'; }
+		$mark_size = mb_strlen( $mark_label ) > 1 ? 110 : 150;
 
 		$line1 = $has_lead
 			? sprintf( '%s va ganando', self::escape_svg( (string) $leader['name'] ) )
-			: __( 'Penca abierta', 'mantia' );
+			: __( 'Penca abierta — sumate antes que arranque', 'mantia' );
 		$line2_parts = array();
 		if ( $count > 0 ) {
 			$line2_parts[] = sprintf(
@@ -850,21 +914,26 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 
 		return <<<SVG
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-	<rect width="1200" height="630" fill="#14130f"/>
+	<rect width="1200" height="630" fill="#c5f24e"/>
 	<!-- top row -->
-	<text x="64" y="80" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="500" fill="#f5f1e8" letter-spacing="-1">mantia</text>
-	<text x="1136" y="80" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="3.6" fill="rgba(245,241,232,0.55)" text-anchor="end">{$comp}</text>
-	<!-- big brass mark on the left -->
-	<text x="64" y="430" font-family="Helvetica, Arial, sans-serif" font-size="{$mark_size}" font-weight="400" fill="{$mark_color}" letter-spacing="-12">{$mark_label}</text>
+	<text x="64" y="96" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="36" font-weight="900" font-style="italic" fill="#0a0a0a" letter-spacing="-1.5">mantia</text>
+	<g transform="rotate(6 1000 80)">
+		<rect x="820" y="60" rx="20" ry="20" width="290" height="40" fill="#ff3d8e" stroke="#0a0a0a" stroke-width="2.5"/>
+		<text x="965" y="88" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="16" font-weight="900" letter-spacing="1.6" fill="#ffffff" text-anchor="middle">{$comp}</text>
+	</g>
+	<!-- medal disc on the left (shadow + disc + rank) -->
+	<circle cx="208" cy="338" r="140" fill="#0a0a0a"/>
+	<circle cx="200" cy="330" r="140" fill="{$mark_fill}" stroke="#0a0a0a" stroke-width="6"/>
+	<text x="200" y="365" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="{$mark_size}" font-weight="900" fill="#0a0a0a" text-anchor="middle" letter-spacing="-4">{$mark_label}</text>
 	<!-- right block: invitation -->
-	<text x="500" y="240" font-family="Helvetica, Arial, sans-serif" font-size="22" letter-spacing="4" fill="rgba(245,241,232,0.55)">SUMATE A</text>
-	<text x="500" y="320" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="500" fill="#f5f1e8" letter-spacing="-2">{$name}</text>
-	<text x="500" y="380" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="rgba(245,241,232,0.55)">{$line1}</text>
-	<text x="500" y="420" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="rgba(245,241,232,0.55)">{$line2}</text>
-	<!-- bottom hairline + URL -->
-	<line x1="64" y1="540" x2="1136" y2="540" stroke="rgba(245,241,232,0.14)" stroke-width="1"/>
-	<text x="64" y="580" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="2" fill="rgba(245,241,232,0.55)">PENCA POR WHATSAPP</text>
-	<text x="1136" y="580" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="2" fill="rgba(245,241,232,0.55)" text-anchor="end">MANTIA · 2026</text>
+	<text x="460" y="222" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="18" font-weight="800" letter-spacing="3" fill="#0a0a0a">SUMATE A</text>
+	<text x="460" y="296" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="60" font-weight="900" fill="#0a0a0a" letter-spacing="-2">{$name}</text>
+	<text x="460" y="350" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#0a0a0a">{$line1}</text>
+	<text x="460" y="394" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#595851">{$line2}</text>
+	<!-- bottom dashed rule + footer -->
+	<line x1="64" y1="540" x2="1136" y2="540" stroke="#0a0a0a" stroke-width="2" stroke-dasharray="12 8"/>
+	<text x="64" y="588" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="16" font-weight="800" letter-spacing="2" fill="#0a0a0a">PENCA POR WHATSAPP</text>
+	<text x="1136" y="588" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="16" font-weight="800" letter-spacing="2" fill="#0a0a0a" text-anchor="end">MANTIA · 2026</text>
 </svg>
 SVG;
 	}
@@ -1019,7 +1088,6 @@ SVG;
 	 */
 	private static function render_share_poster( array $args ): string {
 		$rank        = (int) ( $args['leader_rank'] ?? 0 );
-		$rank_label  = $rank > 0 ? self::rank_label( $rank ) . '°' : '·';
 		$share_url   = (string) ( $args['share_url'] ?? '' );
 		$short_url   = preg_replace( '#^https?://#', '', $share_url );
 		$has_leader  = '' !== (string) ( $args['leader_name'] ?? '' );
@@ -1031,15 +1099,25 @@ SVG;
 			<div class="mantia-share-card">
 				<div class="mantia-share-top">
 					<span class="mantia-share-wordmark">mantia</span>
-					<span class="mantia-share-comp"><?php echo esc_html( wp_strip_all_tags( (string) ( $args['subtitle'] ?? '' ) ) ); ?></span>
+					<?php if ( ! empty( $args['subtitle'] ) ) : ?>
+						<span class="mantia-share-comp"><?php echo esc_html( wp_strip_all_tags( (string) $args['subtitle'] ) ); ?></span>
+					<?php endif; ?>
 				</div>
 
 				<?php if ( $has_leader ) : ?>
 					<div class="mantia-share-center">
-						<div class="mantia-share-rank"><?php echo esc_html( $rank_label ); ?></div>
+						<div class="mantia-share-rank" data-rank="<?php echo esc_attr( (string) max( 1, min( $rank, 3 ) ) ); ?>"><?php echo esc_html( (string) $rank ); ?></div>
 						<div class="mantia-share-name"><?php echo esc_html( (string) $args['leader_name'] ); ?></div>
 						<?php if ( ! empty( $args['in_label'] ) ) : ?>
-							<div class="mantia-share-in"><?php echo esc_html( (string) $args['in_label'] ); ?></div>
+							<div class="mantia-share-in">
+								<?php
+								/* translators: %s: group name highlighted on the share poster. */
+								printf(
+									esc_html__( 'vas primero en %s', 'mantia' ),
+									'<span class="mantia-share-in-tag">' . esc_html( (string) $args['in_label'] ) . '</span>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+								);
+								?>
+							</div>
 						<?php endif; ?>
 					</div>
 
@@ -1048,18 +1126,18 @@ SVG;
 							<div class="mantia-share-num"><?php echo (int) $args['stat_a_value']; ?></div>
 							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_a_label'] ); ?></div>
 						</div>
-						<div class="mantia-share-stat mantia-share-stat-bordered">
+						<div class="mantia-share-stat">
 							<div class="mantia-share-num"><?php echo (int) $args['stat_b_value']; ?></div>
 							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_b_label'] ); ?></div>
 						</div>
-						<div class="mantia-share-stat mantia-share-stat-bordered">
+						<div class="mantia-share-stat">
 							<div class="mantia-share-num"><?php echo (int) $args['stat_c_value']; ?></div>
 							<div class="mantia-share-label"><?php echo esc_html( (string) $args['stat_c_label'] ); ?></div>
 						</div>
 					</div>
 				<?php else : ?>
 					<div class="mantia-share-center mantia-share-empty">
-						<div class="mantia-share-mark">·</div>
+						<div class="mantia-share-mark" aria-hidden="true"></div>
 						<div class="mantia-share-name"><?php echo esc_html( (string) $args['title'] ); ?></div>
 						<div class="mantia-share-in"><?php echo esc_html( (string) $args['empty_message'] ); ?></div>
 					</div>
@@ -1072,13 +1150,8 @@ SVG;
 
 			<div class="mantia-share-actions">
 				<button class="mantia-share-copy" type="button" data-url="<?php echo esc_attr( $share_url ); ?>">
-					<?php
-					printf(
-						/* translators: %s: short URL */
-						esc_html__( 'Copiar link · %s', 'mantia' ),
-						esc_html( (string) $short_url )
-					);
-					?>
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="13" height="13" rx="2"/><path d="M14 6V4.5A1.5 1.5 0 0 0 12.5 3h-7A1.5 1.5 0 0 0 4 4.5v10A1.5 1.5 0 0 0 5.5 16H6"/></svg>
+					<?php esc_html_e( 'Copiar link', 'mantia' ); ?>
 				</button>
 				<a class="mantia-share-close" href="<?php echo esc_url( (string) $args['back_url'] ); ?>">
 					<?php esc_html_e( 'Cerrar', 'mantia' ); ?>
@@ -1090,15 +1163,17 @@ SVG;
 		(function () {
 			var btn = document.querySelector('.mantia-share-copy');
 			if (!btn) return;
-			var original = btn.textContent;
+			// Preserve the icon + original label so the swap doesn't blow the SVG away.
+			var original = btn.innerHTML;
+			var copied   = <?php echo wp_json_encode( __( 'Link copiado · pegalo en el grupo', 'mantia' ) ); ?>;
 			btn.addEventListener('click', function () {
 				var url = btn.getAttribute('data-url') || '';
 				if (!url) return;
 				var done = function () {
-					btn.textContent = <?php echo wp_json_encode( __( '✓ Link copiado · pegalo en el grupo', 'mantia' ) ); ?>;
+					btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5 11-11"/></svg>' + copied;
 					btn.classList.add('is-copied');
 					setTimeout(function () {
-						btn.textContent = original;
+						btn.innerHTML = original;
 						btn.classList.remove('is-copied');
 					}, 1800);
 				};
@@ -1158,12 +1233,12 @@ SVG;
 		?>
 		<div class="mantia-topbar">
 			<a class="mantia-topbar-btn" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php esc_attr_e( 'Inicio', 'mantia' ); ?>">
-				<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
 			</a>
 			<span class="mantia-wordmark-sm">mantia</span>
 			<?php if ( '' !== $share_url ) : ?>
-				<a class="mantia-topbar-btn" href="<?php echo esc_url( $share_url ); ?>" aria-label="<?php esc_attr_e( 'Compartir', 'mantia' ); ?>">
-					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5h14v-5"/></svg>
+				<a class="mantia-topbar-btn mantia-topbar-share" href="<?php echo esc_url( $share_url ); ?>" aria-label="<?php esc_attr_e( 'Compartir', 'mantia' ); ?>">
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5h14v-5"/></svg>
 				</a>
 			<?php else : ?>
 				<span class="mantia-topbar-spacer"></span>
@@ -1216,9 +1291,9 @@ SVG;
 		$rest   = array_slice( $rows, 1 );
 		?>
 		<div class="mantia-pedestal">
-			<?php echo self::user_avatar( (int) $leader['user_id'], 56 ); ?>
+			<?php echo self::user_avatar( (int) $leader['user_id'], 56, 'mantia-avatar-ring' ); ?>
 			<div class="mantia-pedestal-text">
-				<div class="mantia-eyebrow mantia-eyebrow-accent"><?php esc_html_e( 'I · primero', 'mantia' ); ?></div>
+				<div class="mantia-eyebrow mantia-eyebrow-accent"><?php esc_html_e( 'va ganando', 'mantia' ); ?></div>
 				<div class="mantia-pedestal-name"><?php echo esc_html( $leader['name'] ); ?></div>
 				<div class="mantia-pedestal-meta">
 					<?php
@@ -1240,28 +1315,29 @@ SVG;
 		</div>
 
 		<div class="mantia-board">
-			<?php foreach ( $rest as $row ) : ?>
+			<?php foreach ( $rest as $row ) :
+				$rank = (int) $row['rank'];
+				?>
 				<div class="mantia-board-row">
-					<span class="mantia-rank"><?php echo esc_html( self::rank_label( (int) $row['rank'] ) ); ?></span>
-					<?php echo self::user_avatar( (int) $row['user_id'], 26 ); ?>
+					<span class="mantia-rank" data-rank="<?php echo esc_attr( (string) $rank ); ?>"><?php echo esc_html( self::rank_label( $rank ) ); ?></span>
+					<?php echo self::user_avatar( (int) $row['user_id'], 32 ); ?>
 					<div class="mantia-board-player">
 						<div class="mantia-board-name"><?php echo esc_html( $row['name'] ); ?></div>
-						<?php if ( 'competition' === $variant && ! empty( $row['group_name'] ) ) : ?>
-							<div class="mantia-board-group"><?php echo esc_html( $row['group_name'] ); ?></div>
-						<?php endif; ?>
+						<div class="mantia-board-exc">
+							<strong><?php echo (int) $row['exacts']; ?></strong>
+							<span><?php esc_html_e( 'exactos', 'mantia' ); ?></span>
+							<?php if ( 'competition' === $variant && ! empty( $row['group_name'] ) ) : ?>
+								<span class="mantia-mid">·</span>
+								<span class="mantia-board-group"><?php echo esc_html( $row['group_name'] ); ?></span>
+							<?php endif; ?>
+						</div>
 					</div>
-					<div class="mantia-board-pts"><?php echo (int) $row['points']; ?></div>
-					<div class="mantia-board-exc"><?php echo (int) $row['exacts']; ?></div>
+					<div class="mantia-board-stats">
+						<span class="mantia-board-pts"><?php echo (int) $row['points']; ?></span>
+						<span class="mantia-board-pts-suffix"><?php esc_html_e( 'pts', 'mantia' ); ?></span>
+					</div>
 				</div>
 			<?php endforeach; ?>
-
-			<div class="mantia-board-legend mantia-board-legend-<?php echo esc_attr( $variant ); ?>">
-				<span></span>
-				<span></span>
-				<span class="mantia-eyebrow"><?php esc_html_e( 'jugador', 'mantia' ); ?></span>
-				<span class="mantia-eyebrow mantia-text-right"><?php esc_html_e( 'pts', 'mantia' ); ?></span>
-				<span class="mantia-eyebrow mantia-text-right"><?php esc_html_e( 'exc', 'mantia' ); ?></span>
-			</div>
 		</div>
 		<?php
 	}
@@ -1412,12 +1488,14 @@ SVG;
 	 *
 	 * Palette: oklch low-chroma earth tones matching the marfil canvas.
 	 */
-	private static function user_avatar( int $user_id, int $size = 40 ): string {
+	private static function user_avatar( int $user_id, int $size = 40, string $extra_class = '' ): string {
+		$cls = 'mantia-avatar' . ( '' !== $extra_class ? ' ' . $extra_class : '' );
 		if ( has_post_thumbnail( $user_id ) ) {
 			$url = (string) get_the_post_thumbnail_url( $user_id, array( $size * 2, $size * 2 ) );
 			if ( '' !== $url ) {
 				return sprintf(
-					'<img class="mantia-avatar mantia-avatar-img" src="%s" width="%d" height="%d" alt="" loading="lazy">',
+					'<img class="%s mantia-avatar-img" src="%s" width="%d" height="%d" alt="" loading="lazy">',
+					esc_attr( $cls ),
 					esc_url( $url ),
 					$size,
 					$size
@@ -1434,20 +1512,21 @@ SVG;
 			$seed     = $name;
 		}
 
-		// Stable hue + low-chroma earth tone fill/foreground in oklch.
+		// Stable hue + bright sticker tone — saturated for the juvenil palette.
 		$hue = abs( crc32( $seed ) ) % 360;
-		$bg  = sprintf( 'oklch(0.82 0.04 %d)', $hue );
-		$fg  = sprintf( 'oklch(0.32 0.05 %d)', $hue );
+		$bg  = sprintf( 'oklch(0.78 0.18 %d)', $hue );
+		$fg  = sprintf( 'oklch(0.20 0.05 %d)', $hue );
 		$style = sprintf(
 			'--avatar-bg:%s;--avatar-fg:%s;width:%dpx;height:%dpx;font-size:%dpx;',
 			$bg,
 			$fg,
 			$size,
 			$size,
-			(int) round( $size * 0.4 )
+			(int) round( $size * 0.42 )
 		);
 		return sprintf(
-			'<span class="mantia-avatar mantia-avatar-initials" style="%s" aria-hidden="true">%s</span>',
+			'<span class="%s mantia-avatar-initials" style="%s" aria-hidden="true">%s</span>',
+			esc_attr( $cls ),
 			esc_attr( $style ),
 			esc_html( $initials )
 		);
@@ -1481,12 +1560,15 @@ SVG;
 	 * zero-padded for the rest.
 	 */
 	private static function rank_label( int $n ): string {
-		static $roman = array( '', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII' );
+		// Cancha aesthetic uses arabic digits inside medal discs (1/2/3
+		// then zero-padded 04/05). The marfil edition used Roman
+		// numerals for the top three; that read as classical, but
+		// looks off inside a coloured medal.
 		if ( $n <= 0 ) {
 			return '—';
 		}
-		if ( $n <= 3 && isset( $roman[ $n ] ) ) {
-			return $roman[ $n ];
+		if ( $n <= 3 ) {
+			return (string) $n;
 		}
 		return str_pad( (string) $n, 2, '0', STR_PAD_LEFT );
 	}
@@ -1546,7 +1628,9 @@ SVG;
 	 * ================================================================= */
 
 	private static function page_header( string $title, bool $for_share = false ): void {
-		$theme_color = $for_share ? '#14130f' : '#f5f1e8';
+		// Cancha lime is the site palette now; the share poster shifts to lime
+		// too — the somber-ink poster from the marfil edition is gone.
+		$theme_color = '#c5f24e';
 		$body_class  = $for_share ? 'mantia-body-share' : '';
 		?><!DOCTYPE html>
 <html lang="es">
@@ -1555,6 +1639,9 @@ SVG;
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="theme-color" content="<?php echo esc_attr( $theme_color ); ?>">
 	<title><?php echo esc_html( $title ); ?></title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Black&display=swap" rel="stylesheet">
 	<style><?php echo self::stylesheet(); ?></style>
 </head>
 <body class="<?php echo esc_attr( $body_class ); ?>">
@@ -1577,18 +1664,27 @@ SVG;
 
 	private static function stylesheet(): string {
 		return <<<'CSS'
-/* Mantia · marfil + Helvetica · golden-ratio scale (11/13/16/21/34/55) */
+/* Mantia · juvenil "cancha" · Archivo Black + sticker shadows */
 
 :root {
-	--bg: #f5f1e8;
-	--ink: #14130f;
-	--ink-soft: #6e6a5f;
-	--rule: rgba(20,19,15,0.10);
-	--field: #ebe5d6;
-	--accent: #8a6a3a;
+	--bg: #c5f24e;                     /* cancha lime */
+	--ink: #0a0a0a;
+	--ink-soft: #595851;
+	--rule: rgba(10,10,10,0.10);
+	--surface: #ffffff;
+	--field: rgba(10,10,10,0.06);
+	--accent: #ff3d8e;                 /* hot magenta */
+	--accent-2: #ffe54a;               /* electric yellow */
+	--accent-3: #2a7bff;
+	--medal-1: #ffd400;                /* gold */
+	--medal-2: #dadada;                /* silver */
+	--medal-3: #e08a3c;                /* bronze */
+	--shadow-sticker: 4px 4px 0 var(--ink);
+	--shadow-stickerL: 6px 6px 0 var(--ink);
+	--shadow-stickerS: 2px 2px 0 var(--ink);
 
-	--font-display: Helvetica, "Helvetica Neue", Arial, system-ui, sans-serif;
-	--font-body:    Helvetica, "Helvetica Neue", Arial, system-ui, sans-serif;
+	--font-display: 'Archivo Black', Archivo, Helvetica, Arial, sans-serif;
+	--font-body:    Archivo, 'Archivo Black', Helvetica, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -1620,55 +1716,70 @@ body {
 	padding: 32px 0 16px;
 }
 .mantia-topbar-btn {
-	width: 38px; height: 38px;
-	border: 1px solid var(--rule);
+	width: 42px; height: 42px;
+	border: 2.5px solid var(--ink);
 	border-radius: 999px;
 	display: inline-flex; align-items: center; justify-content: center;
 	color: var(--ink);
 	text-decoration: none;
-	background: transparent;
+	background: var(--surface);
 	cursor: pointer;
+	box-shadow: 3px 3px 0 var(--ink);
 }
-.mantia-topbar-btn:hover { border-color: var(--ink); }
-.mantia-topbar-spacer { width: 38px; }
+.mantia-topbar-btn:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+.mantia-topbar-share { background: var(--accent-2); }
+.mantia-topbar-spacer { width: 42px; }
 .mantia-wordmark-sm {
 	font-family: var(--font-display);
-	font-weight: 500;
-	font-size: 15px;
-	letter-spacing: -0.04em;
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.05em;
 	color: var(--ink);
+	font-style: italic;
 }
 
 /* ─── Typography ─────────────────────────────────────────────────── */
 
 .mantia-h1 {
 	font-family: var(--font-display);
-	font-weight: 500;
-	font-size: 34px;
-	line-height: 1.05;
-	letter-spacing: -0.035em;
+	font-weight: 900;
+	font-size: 38px;
+	line-height: 0.98;
+	letter-spacing: -0.04em;
 	color: var(--ink);
-	margin: 8px 0 0;
+	margin: 10px 0 0;
 }
 .mantia-h1-balance { text-wrap: balance; }
 .mantia-h2 {
 	font-family: var(--font-display);
-	font-weight: 500;
-	font-size: 21px;
-	line-height: 1.15;
-	letter-spacing: -0.02em;
+	font-weight: 900;
+	font-size: 24px;
+	line-height: 1.08;
+	letter-spacing: -0.025em;
 	color: var(--ink);
 	margin: 0;
 }
 .mantia-eyebrow {
 	font-family: var(--font-body);
-	font-size: 10.5px;
-	font-weight: 500;
-	letter-spacing: 0.18em;
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.16em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
+	color: var(--ink);
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+/* Leading dash mark (turns plain eyebrows into the juvenil "·— TAG" style). */
+.mantia-eyebrow::before {
+	content: "";
+	width: 14px;
+	height: 3px;
+	background: var(--ink);
+	display: inline-block;
 }
 .mantia-eyebrow-accent { color: var(--accent); }
+.mantia-eyebrow-accent::before { background: var(--accent); }
 .mantia-eyebrow-row {
 	display: flex;
 	align-items: baseline;
@@ -1678,8 +1789,9 @@ body {
 .mantia-eyebrow-count {
 	font-family: var(--font-body);
 	font-size: 11.5px;
+	font-weight: 700;
 	color: var(--ink-soft);
-	letter-spacing: 0.02em;
+	letter-spacing: 0.04em;
 }
 .mantia-hero {
 	padding: 8px 0 22px;
@@ -1700,32 +1812,40 @@ body {
 	display: inline-block;
 }
 .mantia-crumb {
+	display: inline-flex;
+	align-items: center;
 	font-family: var(--font-body);
-	font-size: 12.5px;
-	font-weight: 500;
-	letter-spacing: 0.16em;
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.06em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
+	color: var(--accent-2);
+	background: var(--ink);
+	padding: 5px 11px;
+	border-radius: 999px;
+	border: 2px solid var(--ink);
 	text-decoration: none;
+	margin-bottom: 12px;
 }
-.mantia-crumb:hover { color: var(--ink); }
+.mantia-crumb:hover { transform: translate(1px, 1px); }
 
 .mantia-numeral {
 	font-family: var(--font-display);
-	font-weight: 400;
+	font-weight: 900;
 	font-variant-numeric: tabular-nums;
 	color: var(--ink);
 	line-height: 0.9;
-	letter-spacing: -0.045em;
+	letter-spacing: -0.04em;
 }
-.mantia-numeral-s { font-size: 17px; line-height: 1; }
+.mantia-numeral-s { font-size: 18px; line-height: 1; }
 .mantia-numeral-m { font-size: 22px; }
-.mantia-numeral-l { font-size: 48px; }
+.mantia-numeral-l { font-size: 52px; }
 
 .mantia-stat-label {
 	font-family: var(--font-body);
 	font-size: 10.5px;
-	letter-spacing: 0.16em;
+	font-weight: 800;
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
 	color: var(--ink-soft);
 	margin-top: 6px;
@@ -1733,7 +1853,8 @@ body {
 .mantia-stat-label-inline {
 	font-family: var(--font-body);
 	font-size: 10.5px;
-	letter-spacing: 0.16em;
+	font-weight: 800;
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
 	color: var(--ink-soft);
 }
@@ -1785,59 +1906,68 @@ body {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
-	height: 48px;
+	gap: 9px;
+	height: 54px;
 	padding: 0 22px;
 	border-radius: 999px;
 	font-family: var(--font-body);
-	font-size: 15px;
-	font-weight: 500;
+	font-size: 16px;
+	font-weight: 800;
 	letter-spacing: -0.01em;
 	text-decoration: none;
-	border: 1px solid transparent;
+	border: 2.5px solid var(--ink);
 	cursor: pointer;
-	transition: filter 0.15s ease, background 0.15s ease;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-sticker);
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
 	-webkit-tap-highlight-color: transparent;
 }
+.mantia-pill:hover { transform: translate(1px, 1px); box-shadow: 3px 3px 0 var(--ink); }
+.mantia-pill:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
 .mantia-pill-primary {
-	background: var(--ink);
-	color: var(--bg);
-	border-color: var(--ink);
+	background: var(--accent);
+	color: #ffffff;
 }
-.mantia-pill-primary:hover { filter: brightness(1.1); }
 .mantia-pill-ghost {
-	background: transparent;
+	background: var(--surface);
 	color: var(--ink);
-	border-color: var(--ink);
 }
-.mantia-pill-ghost:hover { background: var(--field); }
+.mantia-pill-wa {
+	background: #25D366;
+	color: var(--ink);
+}
+.mantia-pill-ink {
+	background: var(--ink);
+	color: var(--surface);
+}
 .mantia-page .mantia-pill { width: 100%; }
 .mantia-aside { margin: 18px 0 4px; }
 .mantia-aside-pair {
-	margin: 24px 0 4px;
+	margin: 28px 0 4px;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+	align-items: center;
 }
 .mantia-ghost-link {
-	color: var(--ink-soft);
-	text-decoration: none;
-	font-size: 13.5px;
-	letter-spacing: 0.04em;
-	border-bottom: 1px dotted var(--rule);
-	padding-bottom: 1px;
-}
-.mantia-ghost-link:hover {
 	color: var(--ink);
-	border-bottom-color: var(--ink-soft);
+	text-decoration: underline;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 4px;
+	font-family: var(--font-body);
+	font-size: 13.5px;
+	font-weight: 800;
+	letter-spacing: -0.005em;
 }
+.mantia-ghost-link:hover { color: var(--accent); }
 
 /* ─── Chips (competition nav) ────────────────────────────────────── */
 
 .mantia-chips {
 	display: flex;
-	gap: 6px;
-	padding: 0 0 18px;
+	gap: 8px;
+	padding: 0 0 22px;
 	overflow-x: auto;
 	scrollbar-width: none;
 	-webkit-overflow-scrolling: touch;
@@ -1845,82 +1975,108 @@ body {
 .mantia-chips::-webkit-scrollbar { display: none; }
 .mantia-chip {
 	white-space: nowrap;
-	padding: 7px 13px;
+	padding: 9px 15px;
 	border-radius: 999px;
 	font-family: var(--font-body);
-	font-size: 12.5px;
+	font-size: 13px;
+	font-weight: 800;
 	letter-spacing: -0.005em;
-	border: 1px solid var(--rule);
-	color: var(--ink-soft);
-	background: transparent;
+	border: 2px solid var(--ink);
+	color: var(--ink);
+	background: var(--surface);
 	text-decoration: none;
+	box-shadow: 2px 2px 0 var(--ink);
 }
-.mantia-chip:hover { border-color: var(--ink-soft); color: var(--ink); }
+.mantia-chip:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
 .mantia-chip.is-active {
 	background: var(--ink);
-	color: var(--bg);
-	border-color: var(--ink);
+	color: var(--surface);
+	box-shadow: 3px 3px 0 var(--accent);
 }
 
 /* ─── Pedestal (leader) + leaderboard ────────────────────────────── */
 
 .mantia-pedestal {
 	display: grid;
-	grid-template-columns: 56px 1fr auto;
+	grid-template-columns: 60px 1fr auto;
 	align-items: center;
 	gap: 16px;
-	padding: 20px 20px 22px;
-	background: var(--field);
-	border-radius: 4px;
-	margin: 4px 0 22px;
+	padding: 18px 18px 20px;
+	background: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 18px;
+	box-shadow: var(--shadow-stickerL);
+	margin: 4px 0 24px;
 }
 .mantia-pedestal-text { min-width: 0; }
 .mantia-pedestal-name {
 	font-family: var(--font-display);
-	font-size: 21px;
+	font-weight: 900;
+	font-size: 22px;
 	letter-spacing: -0.025em;
 	color: var(--ink);
-	margin-top: 2px;
+	margin-top: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 .mantia-pedestal-meta {
 	font-family: var(--font-body);
-	font-size: 12.5px;
+	font-size: 12px;
+	font-weight: 700;
 	color: var(--ink-soft);
 	margin-top: 4px;
-	letter-spacing: 0.02em;
+	letter-spacing: 0.04em;
 }
 .mantia-pedestal-points {
 	text-align: right;
 }
 .mantia-pedestal-points .mantia-stat-label { margin-top: 2px; }
 
-.mantia-board { margin: 0 -22px; }
+.mantia-board {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
 .mantia-board-row {
 	display: grid;
-	grid-template-columns: 28px 28px 1fr 56px 42px;
+	grid-template-columns: 34px 36px 1fr auto;
 	align-items: center;
 	gap: 12px;
-	padding: 13px 22px;
-	border-top: 1px solid var(--rule);
+	padding: 13px 14px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 2px 2px 0 var(--ink);
 }
-.mantia-board-row:last-of-type { border-bottom: 1px solid var(--rule); }
+.mantia-board-row:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
 .mantia-rank {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
 	font-family: var(--font-display);
-	font-weight: 400;
+	font-weight: 900;
 	font-variant-numeric: tabular-nums;
 	font-size: 13px;
-	color: var(--ink-soft);
-	text-align: center;
+	letter-spacing: -0.02em;
+	color: var(--ink);
+	background: transparent;
+	border: 1.5px solid var(--rule);
 }
+.mantia-rank[data-rank="1"] { background: var(--medal-1); color: var(--ink); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); font-size: 15px; }
+.mantia-rank[data-rank="2"] { background: var(--medal-2); color: var(--ink); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); font-size: 15px; }
+.mantia-rank[data-rank="3"] { background: var(--medal-3); color: #ffffff;    border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); font-size: 15px; }
 .mantia-board-player { min-width: 0; }
 .mantia-board-name {
 	font-family: var(--font-body);
 	font-size: 14.5px;
+	font-weight: 800;
 	color: var(--ink);
-	letter-spacing: -0.01em;
+	letter-spacing: -0.005em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1928,70 +2084,106 @@ body {
 .mantia-board-group {
 	font-family: var(--font-body);
 	font-size: 11.5px;
+	font-weight: 700;
 	color: var(--ink-soft);
-	margin-top: 1px;
-	letter-spacing: 0.02em;
+	margin-top: 3px;
+	letter-spacing: 0.04em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+.mantia-board-stats {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+}
 .mantia-board-pts {
-	text-align: right;
 	font-family: var(--font-display);
-	font-size: 17px;
+	font-weight: 900;
+	font-size: 22px;
 	font-variant-numeric: tabular-nums;
-	letter-spacing: -0.02em;
+	letter-spacing: -0.03em;
 	color: var(--ink);
 }
-.mantia-board-exc {
-	text-align: right;
+.mantia-board-pts-suffix {
 	font-family: var(--font-body);
-	font-size: 13px;
-	font-variant-numeric: tabular-nums;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
 	color: var(--ink-soft);
 }
-.mantia-board-legend {
-	display: grid;
-	grid-template-columns: 28px 28px 1fr 56px 42px;
-	gap: 12px;
-	padding: 8px 22px 0;
+.mantia-board-exc {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-family: var(--font-body);
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--ink-soft);
+	letter-spacing: 0.04em;
+	margin-top: 3px;
+}
+.mantia-board-exc strong {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 12px;
+	color: var(--ink);
+}
+.mantia-board-legend { display: none; }
+
+/* "vos" highlight inside a leaderboard row */
+.mantia-board-row-me {
+	background: var(--accent-2);
+	box-shadow: 3px 3px 0 var(--accent);
+}
+.mantia-board-name-me {
+	color: var(--ink);
+	font-weight: 900;
 }
 
 /* ─── Match list ─────────────────────────────────────────────────── */
 
-.mantia-day-group { margin: 0 0 18px; }
-.mantia-day-eyebrow { padding: 0 0 8px; }
+.mantia-day-group { margin: 0 0 22px; }
+.mantia-day-eyebrow { padding: 0 0 10px; }
 .mantia-match-row {
 	display: grid;
-	grid-template-columns: 52px 1fr;
+	grid-template-columns: 54px 1fr;
 	align-items: center;
 	gap: 12px;
-	padding: 13px 0;
-	border-top: 1px solid var(--rule);
+	padding: 13px 14px;
+	margin-bottom: 10px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 3px 3px 0 var(--ink);
 }
-.mantia-match-row:last-of-type { border-bottom: 1px solid var(--rule); }
 .mantia-match-time {
 	font-family: var(--font-display);
+	font-weight: 900;
 	font-variant-numeric: tabular-nums;
-	font-size: 15px;
+	font-size: 16px;
 	color: var(--ink);
-	letter-spacing: -0.01em;
+	letter-spacing: -0.02em;
 }
 .mantia-match-names {
 	font-family: var(--font-body);
-	font-size: 15px;
+	font-size: 14px;
+	font-weight: 700;
 	color: var(--ink);
-	letter-spacing: -0.01em;
+	letter-spacing: -0.005em;
 	line-height: 1.3;
 }
 .mantia-match-phase {
 	font-family: var(--font-body);
-	font-size: 11.5px;
+	font-size: 11px;
+	font-weight: 700;
 	color: var(--ink-soft);
-	margin-top: 2px;
-	letter-spacing: 0.04em;
+	margin-top: 3px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 }
-.mantia-mid { color: var(--ink-soft); margin: 0 6px; }
+.mantia-mid { color: var(--ink-soft); margin: 0 6px; font-weight: 600; }
 
 /* ─── Avatars ────────────────────────────────────────────────────── */
 
@@ -2000,16 +2192,18 @@ body {
 	align-items: center;
 	justify-content: center;
 	border-radius: 50%;
-	background: var(--avatar-bg, var(--field));
+	background: var(--avatar-bg, var(--accent-2));
 	color: var(--avatar-fg, var(--ink));
 	font-family: var(--font-body);
-	font-weight: 600;
+	font-weight: 800;
 	letter-spacing: -0.02em;
+	border: 2px solid var(--ink);
 	flex-shrink: 0;
 	overflow: hidden;
 	user-select: none;
 }
 .mantia-avatar-img { object-fit: cover; }
+.mantia-avatar-ring { box-shadow: 3px 3px 0 var(--ink); }
 
 /* ─── /me view: privacy + stats + group block ────────────────────── */
 
@@ -2020,13 +2214,15 @@ body {
 	padding: 5px 11px;
 	border-radius: 999px;
 	font-family: var(--font-body);
-	font-size: 11px;
-	letter-spacing: 0.12em;
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.04em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
-	border: 1px solid var(--rule);
-	background: transparent;
-	margin: 0 0 14px;
+	color: var(--ink);
+	border: 2px solid var(--ink);
+	background: var(--surface);
+	box-shadow: 2px 2px 0 var(--ink);
+	margin: 0 0 16px;
 }
 .mantia-hero-user {
 	display: flex;
@@ -2040,22 +2236,33 @@ body {
 .mantia-stat-grid {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
+	gap: 10px;
 	padding: 0 0 28px;
 }
 .mantia-stat {
-	padding: 4px 8px;
+	padding: 14px 10px 12px;
 	text-align: center;
+	background: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 16px;
+	box-shadow: var(--shadow-sticker);
 }
-.mantia-stat-bordered { border-left: 1px solid var(--rule); }
+.mantia-stat:nth-child(1) { background: var(--accent-2); }
+.mantia-stat:nth-child(2) { background: var(--accent); color: #ffffff; }
+.mantia-stat:nth-child(2) .mantia-stat-value { color: #ffffff; }
+.mantia-stat:nth-child(2) .mantia-stat-label { color: rgba(255,255,255,0.85); }
+.mantia-stat:nth-child(3) { background: var(--surface); }
+.mantia-stat-bordered { border-left: 2.5px solid var(--ink); }
 .mantia-stat-value {
 	font-family: var(--font-display);
-	font-size: 36px;
+	font-weight: 900;
+	font-size: 32px;
 	line-height: 1;
 	letter-spacing: -0.045em;
 	color: var(--ink);
 	font-variant-numeric: tabular-nums;
 }
-.mantia-stat-label { margin-top: 7px; }
+.mantia-stat-label { margin-top: 6px; }
 
 .mantia-group-head {
 	display: flex;
@@ -2066,60 +2273,73 @@ body {
 }
 .mantia-tag-active {
 	font-family: var(--font-body);
-	font-size: 10.5px;
-	letter-spacing: 0.16em;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.06em;
 	text-transform: uppercase;
-	color: var(--bg);
+	color: #ffffff;
 	background: var(--accent);
-	padding: 3px 9px;
+	padding: 5px 10px;
 	border-radius: 999px;
+	border: 2px solid var(--ink);
+	box-shadow: 2px 2px 0 var(--ink);
 	flex-shrink: 0;
 }
 .mantia-me-line {
 	margin: 12px 0 22px;
-	padding: 14px 16px;
-	background: var(--field);
-	border-radius: 4px;
+	padding: 18px;
+	background: var(--ink);
+	color: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 18px;
+	box-shadow: var(--shadow-stickerL);
 	display: flex;
 	align-items: baseline;
-	gap: 8px;
+	gap: 10px;
 	line-height: 1.4;
 }
-.mantia-me-rank-suffix { color: var(--ink-soft); }
+.mantia-me-line .mantia-numeral { color: var(--accent-2); }
+.mantia-me-rank-suffix { color: rgba(255,255,255,0.7); }
 .mantia-me-points-wrap {
 	margin-left: auto;
 	display: flex;
 	align-items: baseline;
 	gap: 6px;
 }
+.mantia-me-points-wrap .mantia-stat-label-inline { color: rgba(255,255,255,0.7); }
 .mantia-subblock-eyebrow {
 	font-family: var(--font-body);
-	font-size: 10.5px;
-	font-weight: 500;
-	letter-spacing: 0.18em;
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
-	margin: 22px 0 8px;
+	color: var(--ink);
+	margin: 22px 0 10px;
 }
 
 /* ─── History rows ───────────────────────────────────────────────── */
 
 .mantia-history {
-	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }
 .mantia-history-row {
 	display: grid;
-	grid-template-columns: 1fr 56px 56px 40px;
+	grid-template-columns: 1fr 64px 64px 44px;
 	align-items: center;
-	gap: 8px;
-	padding: 12px 0;
-	border-top: 1px solid var(--rule);
+	gap: 10px;
+	padding: 12px 14px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 2px 2px 0 var(--ink);
 }
-.mantia-history-row:last-of-type { border-bottom: 1px solid var(--rule); }
 .mantia-history-match { min-width: 0; }
 .mantia-history-teams {
 	font-family: var(--font-body);
 	font-size: 13.5px;
+	font-weight: 800;
 	color: var(--ink);
 	letter-spacing: -0.005em;
 	overflow: hidden;
@@ -2128,37 +2348,87 @@ body {
 }
 .mantia-history-day {
 	font-family: var(--font-body);
-	font-size: 11px;
+	font-size: 10.5px;
+	font-weight: 700;
 	color: var(--ink-soft);
-	margin-top: 2px;
-	letter-spacing: 0.04em;
+	margin-top: 3px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 }
 .mantia-history-score { text-align: center; }
 .mantia-score-line {
 	font-family: var(--font-display);
-	font-size: 15px;
-	letter-spacing: -0.02em;
+	font-weight: 900;
+	font-size: 17px;
+	letter-spacing: -0.03em;
 	color: var(--ink);
 	font-variant-numeric: tabular-nums;
 }
-.mantia-history-points { text-align: right; }
+.mantia-score-line .mantia-mid { font-size: 14px; }
+.mantia-history-points { text-align: right; display: inline-flex; justify-content: flex-end; }
+.mantia-history-points .mantia-numeral {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 40px;
+	height: 30px;
+	padding: 0 8px;
+	border-radius: 8px;
+	border: 2px solid var(--ink);
+	background: var(--surface);
+}
+.mantia-history-points .mantia-text-accent {
+	background: var(--accent-2);
+	color: var(--ink) !important;
+}
+.mantia-history-points .mantia-soft {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 40px;
+	height: 30px;
+	padding: 0 8px;
+	border-radius: 8px;
+	border: 2px dashed var(--rule);
+	color: var(--ink-soft);
+}
 
 /* ─── Scoring rows (group view) ──────────────────────────────────── */
 
 .mantia-scoring-rows {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
+	padding: 16px;
+	background: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 18px;
+	box-shadow: var(--shadow-stickerL);
 }
 .mantia-scoring-row {
 	display: flex;
 	justify-content: space-between;
-	align-items: baseline;
-	padding: 8px 0;
-	border-bottom: 1px solid var(--rule);
+	align-items: center;
+	padding: 10px 0;
+	border-bottom: 1.5px dashed var(--rule);
 	font-family: var(--font-body);
-	font-size: 13.5px;
+	font-weight: 700;
+	font-size: 14px;
 	color: var(--ink);
+}
+.mantia-scoring-row:last-child { border-bottom: 0; }
+.mantia-scoring-row .mantia-numeral-s {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 38px;
+	height: 28px;
+	padding: 0 8px;
+	border-radius: 8px;
+}
+.mantia-scoring-row:first-child .mantia-numeral-s {
+	background: var(--accent-2);
+	border: 2px solid var(--ink);
 }
 
 /* ─── Home ───────────────────────────────────────────────────────── */
@@ -2168,52 +2438,98 @@ body {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding-top: 56px;
+	padding-top: 32px;
 	min-height: 100vh;
 }
-.mantia-home-mark { text-align: center; padding: 28px 0 20px; }
+.mantia-home-mark {
+	text-align: center;
+	padding: 28px 0 8px;
+	position: relative;
+	width: 100%;
+}
 .mantia-wordmark {
 	font-family: var(--font-display);
-	font-weight: 500;
-	font-size: 55px;
-	line-height: 1;
-	letter-spacing: -0.05em;
+	font-weight: 900;
+	font-style: italic;
+	font-size: 64px;
+	line-height: 0.92;
+	letter-spacing: -0.055em;
 	color: var(--ink);
 	margin: 0;
 }
 .mantia-tagline {
-	margin-top: 14px;
+	margin: 16px auto 0;
 	font-family: var(--font-body);
-	font-size: 13px;
-	letter-spacing: 0.22em;
-	text-transform: uppercase;
-	color: var(--ink-soft);
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: -0.005em;
+	color: var(--ink);
+	text-transform: none;
+	max-width: 280px;
+	text-wrap: balance;
 }
+/* Floating sticker chips that sit just above the monumental wordmark. */
+.mantia-home-stickers {
+	pointer-events: none;
+	height: 0;
+	position: relative;
+	width: 100%;
+}
+.mantia-home-sticker {
+	position: absolute;
+	font-family: var(--font-body);
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #ffffff;
+	background: var(--accent);
+	padding: 5px 11px;
+	border-radius: 999px;
+	border: 2px solid var(--ink);
+}
+.mantia-home-sticker-l { left: 8px;  top: -22px; transform: rotate(-9deg); }
+.mantia-home-sticker-r { right: 8px; top: -16px; transform: rotate(8deg);  background: var(--accent-3); color: #ffffff; }
 .mantia-qr-card {
-	background: #ffffff;
-	border: 1px solid var(--rule);
+	background: var(--surface);
+	border: 2.5px solid var(--ink);
 	padding: 18px;
-	border-radius: 4px;
+	border-radius: 22px;
 	line-height: 0;
-	margin: 4px 0 24px;
-	display: block;
+	margin: 22px 0 22px;
+	display: inline-block;
+	text-decoration: none;
+	box-shadow: var(--shadow-stickerL);
+	transform: rotate(-2deg);
 	transition: transform 0.15s ease;
 }
-.mantia-qr-card:hover { transform: scale(1.01); }
+.mantia-qr-card:hover { transform: rotate(-2deg) translate(1px, 1px); }
 .mantia-qr-img {
 	display: block;
 	width: 224px; height: 224px;
+}
+.mantia-qr-caption {
+	margin-top: 12px;
+	font-family: var(--font-body);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink);
+	text-align: center;
+	line-height: 1;
 }
 .mantia-home-hint {
 	text-align: center;
 	color: var(--ink-soft);
 	font-size: 14px;
+	font-weight: 700;
 	line-height: 1.5;
 	max-width: 280px;
-	margin: 0 0 24px;
+	margin: 0 0 22px;
 }
 .mantia-home .mantia-pill { width: 100%; max-width: 320px; margin-bottom: 14px; }
-.mantia-home .mantia-ghost-link { margin-top: 8px; }
+.mantia-home .mantia-ghost-link { margin-top: 10px; }
 
 /* ─── Footer ─────────────────────────────────────────────────────── */
 
@@ -2223,22 +2539,24 @@ body {
 	padding: 40px 22px 36px;
 	text-align: center;
 	font-family: var(--font-body);
-	font-size: 11px;
-	letter-spacing: 0.2em;
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
+	color: var(--ink);
 }
 .mantia-foot a {
-	color: var(--ink-soft);
+	color: var(--ink);
 	text-decoration: none;
-	font-weight: 500;
+	font-weight: 900;
+	font-style: italic;
 }
 
 /* ─── Share card (screenshotable poster) ─────────────────────────── */
 
 body.mantia-body-share {
-	background: #14130f;
-	color: #f5f1e8;
+	background: var(--ink);
+	color: var(--surface);
 	min-height: 100vh;
 }
 .mantia-share {
@@ -2255,16 +2573,18 @@ body.mantia-body-share {
 	max-width: 320px;
 	aspect-ratio: 4 / 5;
 	position: relative;
-	background: #14130f;
-	color: #f5f1e8;
-	border-radius: 6px;
-	padding: 24px 22px;
+	background: var(--bg);
+	color: var(--ink);
+	border: 3px solid var(--ink);
+	border-radius: 18px;
+	padding: 22px 20px;
 	display: flex;
 	flex-direction: column;
-	box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
-	border: 1px solid rgba(245, 241, 232, 0.08);
+	box-shadow: 8px 8px 0 var(--ink);
 	font-family: var(--font-body);
+	overflow: hidden;
 }
+/* Floating sticker corner tag for the competition name. */
 .mantia-share-top {
 	display: flex;
 	justify-content: space-between;
@@ -2272,18 +2592,26 @@ body.mantia-body-share {
 }
 .mantia-share-wordmark {
 	font-family: var(--font-display);
-	font-size: 16px;
-	font-weight: 500;
-	letter-spacing: -0.04em;
-	color: #f5f1e8;
+	font-weight: 900;
+	font-style: italic;
+	font-size: 26px;
+	letter-spacing: -0.05em;
+	color: var(--ink);
 }
 .mantia-share-comp {
-	font-size: 9.5px;
-	letter-spacing: 0.18em;
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 11px;
+	letter-spacing: 0.05em;
 	text-transform: uppercase;
-	color: rgba(245, 241, 232, 0.55);
-	text-align: right;
-	line-height: 1.4;
+	color: #ffffff;
+	background: var(--accent);
+	padding: 5px 11px;
+	border-radius: 999px;
+	border: 2px solid var(--ink);
+	transform: rotate(6deg);
+	text-align: center;
+	line-height: 1.2;
 	max-width: 50%;
 }
 .mantia-share-center {
@@ -2293,70 +2621,97 @@ body.mantia-body-share {
 	justify-content: center;
 	padding: 12px 0;
 }
+/* Big medal disc in lieu of a numeral. */
 .mantia-share-rank,
 .mantia-share-mark {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 96px;
+	height: 96px;
+	border-radius: 50%;
+	background: var(--medal-1);
+	border: 3px solid var(--ink);
+	color: var(--ink);
 	font-family: var(--font-display);
-	font-size: 92px;
-	line-height: 0.85;
-	letter-spacing: -0.06em;
-	color: #c8a472;
-	font-weight: 400;
+	font-weight: 900;
+	font-size: 60px;
+	letter-spacing: -0.05em;
+	box-shadow: 5px 5px 0 var(--ink);
+	margin-bottom: 14px;
 }
-.mantia-share-mark { color: rgba(245,241,232,0.55); font-size: 64px; }
+.mantia-share-rank[data-rank="2"] { background: var(--medal-2); }
+.mantia-share-rank[data-rank="3"] { background: var(--medal-3); color: #ffffff; }
+.mantia-share-mark {
+	font-size: 0; /* hide the "·" — keep the disc as a placeholder shape */
+	background: var(--surface);
+}
 .mantia-share-name {
-	margin-top: 16px;
+	margin-top: 4px;
 	font-family: var(--font-display);
-	font-size: 22px;
-	line-height: 1.1;
-	letter-spacing: -0.025em;
-	color: #f5f1e8;
+	font-weight: 900;
+	font-size: 26px;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	color: var(--ink);
 	text-wrap: balance;
 }
 .mantia-share-in {
-	margin-top: 6px;
-	font-size: 11.5px;
-	letter-spacing: 0.04em;
-	color: rgba(245, 241, 232, 0.55);
+	margin-top: 8px;
+	font-family: var(--font-body);
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--ink);
 }
-.mantia-share-empty .mantia-share-name { font-size: 18px; }
+.mantia-share-in-tag {
+	background: var(--ink);
+	color: var(--bg);
+	padding: 1px 6px;
+	border-radius: 4px;
+}
+.mantia-share-empty .mantia-share-name { font-size: 22px; }
 .mantia-share-stats {
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr;
-	gap: 0;
-	padding-top: 16px;
-	border-top: 1px solid rgba(245, 241, 232, 0.14);
+	gap: 8px;
+	padding-top: 14px;
+	border-top: 2px dashed var(--ink);
 }
 .mantia-share-stat {
 	text-align: center;
-	padding: 4px 4px 0;
+	padding: 0;
 }
-.mantia-share-stat-bordered { border-left: 1px solid rgba(245, 241, 232, 0.14); }
+.mantia-share-stat-bordered { border-left: 0; }
 .mantia-share-num {
 	font-family: var(--font-display);
-	font-size: 22px;
+	font-weight: 900;
+	font-size: 24px;
 	line-height: 1;
-	letter-spacing: -0.03em;
-	color: #f5f1e8;
+	letter-spacing: -0.04em;
+	color: var(--ink);
 	font-variant-numeric: tabular-nums;
 }
 .mantia-share-label {
+	font-family: var(--font-body);
 	font-size: 9.5px;
+	font-weight: 800;
 	letter-spacing: 0.16em;
 	text-transform: uppercase;
-	color: rgba(245, 241, 232, 0.55);
-	margin-top: 6px;
+	color: var(--ink);
+	margin-top: 4px;
 }
 .mantia-share-url {
-	margin-top: 14px;
-	font-size: 10.5px;
+	margin-top: 12px;
+	font-size: 11px;
+	font-weight: 700;
 	letter-spacing: 0.08em;
-	color: rgba(245, 241, 232, 0.55);
+	color: var(--ink);
 	text-align: center;
 	word-break: break-all;
 }
 
 .mantia-share-actions {
-	margin-top: 28px;
+	margin-top: 24px;
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
@@ -2366,45 +2721,50 @@ body.mantia-body-share {
 .mantia-share-copy {
 	appearance: none;
 	cursor: pointer;
-	height: 48px;
+	height: 52px;
 	border-radius: 999px;
-	border: 0;
-	background: #f5f1e8;
-	color: #14130f;
+	border: 2.5px solid var(--bg);
+	background: var(--bg);
+	color: var(--ink);
 	font-family: var(--font-body);
-	font-size: 14.5px;
-	font-weight: 500;
+	font-size: 15px;
+	font-weight: 800;
 	letter-spacing: -0.005em;
 	padding: 0 18px;
-	transition: filter 0.15s ease, background 0.15s ease;
 	text-align: center;
+	box-shadow: 4px 4px 0 var(--surface);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
 }
-.mantia-share-copy.is-copied { background: #c8a472; color: #14130f; }
-.mantia-share-copy:hover { filter: brightness(0.96); }
+.mantia-share-copy.is-copied { background: var(--accent-2); border-color: var(--accent-2); }
+.mantia-share-copy:hover { transform: translate(1px, 1px); box-shadow: 3px 3px 0 var(--surface); }
 .mantia-share-close {
-	height: 48px;
+	height: 52px;
 	border-radius: 999px;
 	background: transparent;
-	border: 1px solid rgba(245, 241, 232, 0.3);
-	color: #f5f1e8;
+	border: 2.5px solid var(--surface);
+	color: var(--surface);
 	font-family: var(--font-body);
 	font-size: 14px;
+	font-weight: 700;
 	letter-spacing: -0.005em;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	text-decoration: none;
 }
-.mantia-share-close:hover { border-color: rgba(245, 241, 232, 0.6); }
+.mantia-share-close:hover { border-color: var(--bg); color: var(--bg); }
 
 /* ─── Mobile tuning ──────────────────────────────────────────────── */
 
 @media (max-width: 380px) {
-	.mantia-h1 { font-size: 28px; }
-	.mantia-wordmark { font-size: 48px; }
+	.mantia-h1 { font-size: 32px; }
+	.mantia-wordmark { font-size: 54px; }
 	.mantia-qr-img { width: 200px; height: 200px; }
-	.mantia-share-rank { font-size: 80px; }
-	.mantia-share-name { font-size: 20px; }
+	.mantia-share-rank, .mantia-share-mark { width: 84px; height: 84px; font-size: 52px; }
+	.mantia-share-name { font-size: 22px; }
 }
 CSS;
 	}

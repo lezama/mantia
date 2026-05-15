@@ -58,7 +58,7 @@ Mantia_E2E::assert_http_ok( '/penca/g/' . $group_token . '/compartir/', array(
 	'mantia-share-card',
 	'mantia-share-rank',
 	'Alice',                  // leader name
-	'I°',                     // roman rank + degree mark
+	'data-rank="1"',          // medal disc marks the leader (juvenil)
 	'Mundial 2026',           // competition subtitle
 	'Copiar link',            // primary action
 ) );
@@ -67,7 +67,7 @@ Mantia_E2E::step( '3. /penca/me/<token>/compartir/ shows the user\'s own poster'
 Mantia_E2E::assert_http_ok( '/penca/me/' . $alice_token . '/compartir/', array(
 	'mantia-share-card',
 	'Alice',
-	'I°',
+	'data-rank="1"',
 	'pts',
 	'Copiar link',
 ) );
