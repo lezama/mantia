@@ -520,18 +520,13 @@ final class Mantia_Frontend {
 
 						<?php
 						if ( ! empty( $upcoming ) ) :
-							$pending = array_filter(
-								$upcoming,
-								static fn ( $m ) => ! Mantia_Repository::find_prediction( $user_id, (int) $m['id'], $group_id )
-							);
-							if ( ! empty( $pending ) ) :
-								?>
-								<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'pendientes', 'mantia' ); ?></div>
-								<?php self::render_matches_grouped_by_day( array_slice( array_values( $pending ), 0, 8 ) ); ?>
-								<?php
-							endif;
-						endif;
-						?>
+							// Editable section: every upcoming match in this penca's
+							// competition. We don't filter out already-predicted ones —
+							// the user can change their mind right up until kickoff.
+							?>
+							<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'próximos · editá tu pronóstico', 'mantia' ); ?></div>
+							<?php self::render_editable_matches( array_slice( array_values( $upcoming ), 0, 8 ), $user_id, $group_id, $token ); ?>
+						<?php endif; ?>
 					</section>
 				<?php endforeach; ?>
 			<?php endif; ?>
@@ -1794,6 +1789,166 @@ JS;
 			</div>
 			<?php
 		endforeach;
+	}
+
+	/**
+	 * Editable variant of the match list: each row is a tiny form with
+	 * home/away number inputs (pre-filled when a prediction exists) and a
+	 * "Guardar" button that POSTs to /wp-json/mantia/v1/predictions.
+	 *
+	 * Token comes from the /me/<token>/ URL; we embed it as a data-attr
+	 * on the surrounding container so the inline JS can read it without
+	 * parsing window.location. The match still has to be in `scheduled`
+	 * state with a future kickoff — the server validates this again on
+	 * write, so this is purely a hint for the UI.
+	 */
+	private static function render_editable_matches( array $matches, int $user_id, int $group_id, string $token ): void {
+		if ( empty( $matches ) ) {
+			return;
+		}
+
+		// Bucket by local day (UY time = GMT-3). Reusing the same shape
+		// that render_matches_grouped_by_day produces so the eyebrows
+		// read identically.
+		$by_day = array();
+		foreach ( $matches as $m ) {
+			$ts = self::parse_gmt_ts( (string) $m['kickoff_gmt'] );
+			if ( null === $ts ) {
+				continue;
+			}
+			$day_key            = gmdate( 'Y-m-d', $ts - 3 * HOUR_IN_SECONDS );
+			$by_day[ $day_key ] = $by_day[ $day_key ] ?? array();
+			$by_day[ $day_key ][] = array(
+				'm' => $m,
+				'ts' => $ts,
+			);
+		}
+
+		?>
+		<div class="mantia-edit-list" data-mantia-token="<?php echo esc_attr( $token ); ?>">
+			<?php
+			foreach ( $by_day as $entries ) :
+				$first_ts = $entries[0]['ts'];
+				?>
+				<div class="mantia-day-group">
+					<div class="mantia-day-eyebrow mantia-eyebrow"><?php echo esc_html( strtoupper( self::format_es_short_day( $first_ts ) ) ); ?></div>
+					<?php
+					foreach ( $entries as $entry ) :
+						$m   = $entry['m'];
+						$hm  = gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS );
+						$pred = Mantia_Repository::find_prediction( $user_id, (int) $m['id'], $group_id );
+						$home_val = '';
+						$away_val = '';
+						if ( $pred ) {
+							$home_val = (string) (int) get_post_meta( (int) $pred->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
+							$away_val = (string) (int) get_post_meta( (int) $pred->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
+						}
+						?>
+						<form class="mantia-edit-row" data-match-id="<?php echo (int) $m['id']; ?>">
+							<div class="mantia-edit-meta">
+								<div class="mantia-edit-time"><?php echo esc_html( $hm ); ?></div>
+								<div class="mantia-edit-teams">
+									<?php echo esc_html( $m['home_team'] ); ?>
+									<span class="mantia-mid">·</span>
+									<?php echo esc_html( $m['away_team'] ); ?>
+								</div>
+								<?php if ( ! empty( $m['phase'] ) ) : ?>
+									<div class="mantia-match-phase"><?php echo esc_html( $m['phase'] ); ?></div>
+								<?php endif; ?>
+							</div>
+							<div class="mantia-edit-inputs">
+								<input class="mantia-edit-score" name="home_score" type="number" min="0" max="20" inputmode="numeric" autocomplete="off"
+									value="<?php echo esc_attr( $home_val ); ?>"
+									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), $m['home_team'] ) ); ?>">
+								<span class="mantia-edit-sep">·</span>
+								<input class="mantia-edit-score" name="away_score" type="number" min="0" max="20" inputmode="numeric" autocomplete="off"
+									value="<?php echo esc_attr( $away_val ); ?>"
+									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), $m['away_team'] ) ); ?>">
+							</div>
+							<button class="mantia-edit-save" type="submit" aria-label="<?php esc_attr_e( 'Guardar pronóstico', 'mantia' ); ?>">
+								<?php esc_html_e( 'Guardar', 'mantia' ); ?>
+							</button>
+							<div class="mantia-edit-status" hidden></div>
+						</form>
+					<?php endforeach; ?>
+				</div>
+			<?php endforeach; ?>
+		</div>
+		<?php self::print_edit_script_once(); ?>
+		<?php
+	}
+
+	/**
+	 * Print the AJAX-save script tag once per page. Subsequent calls to
+	 * render_editable_matches won't re-emit it.
+	 */
+	private static function print_edit_script_once(): void {
+		static $printed = false;
+		if ( $printed ) {
+			return;
+		}
+		$printed = true;
+		$rest_url = esc_url_raw( rest_url( Mantia_Rest::NAMESPACE_V1 . '/predictions' ) );
+		?>
+		<script>
+		(function () {
+			var REST_URL = <?php echo wp_json_encode( $rest_url ); ?>;
+			var lists = document.querySelectorAll('.mantia-edit-list');
+			lists.forEach(function (list) {
+				var token = list.getAttribute('data-mantia-token') || '';
+				list.addEventListener('submit', function (evt) {
+					evt.preventDefault();
+					var form = evt.target.closest('.mantia-edit-row');
+					if (!form) return;
+					var matchId = parseInt(form.getAttribute('data-match-id') || '0', 10);
+					var home = parseInt(form.querySelector('input[name="home_score"]').value, 10);
+					var away = parseInt(form.querySelector('input[name="away_score"]').value, 10);
+					if (isNaN(home) || isNaN(away) || home < 0 || away < 0) {
+						setStatus(form, 'Cargá los dos marcadores.', false);
+						return;
+					}
+					var btn = form.querySelector('.mantia-edit-save');
+					btn.disabled = true;
+					setStatus(form, 'Guardando…', null);
+					fetch(REST_URL, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+						body: JSON.stringify({ token: token, match_id: matchId, home_score: home, away_score: away })
+					}).then(function (res) {
+						return res.json().then(function (body) { return { res: res, body: body }; });
+					}).then(function (r) {
+						btn.disabled = false;
+						if (r.res.ok && r.body && r.body.ok) {
+							var n = (r.body.groups || []).length;
+							var msg = n > 1 ? ('Guardado en ' + n + ' pencas ✓') : 'Guardado ✓';
+							setStatus(form, msg, true);
+							setTimeout(function () { setStatus(form, '', null); }, 2400);
+						} else {
+							setStatus(form, (r.body && r.body.message) || 'No se pudo guardar.', false);
+						}
+					}).catch(function () {
+						btn.disabled = false;
+						setStatus(form, 'Sin red — intentá de nuevo en un toque.', false);
+					});
+				});
+			});
+			function setStatus(form, msg, ok) {
+				var el = form.querySelector('.mantia-edit-status');
+				if (!el) return;
+				if (!msg) {
+					el.hidden = true;
+					el.textContent = '';
+					el.classList.remove('is-ok', 'is-err');
+					return;
+				}
+				el.hidden = false;
+				el.textContent = msg;
+				el.classList.toggle('is-ok', ok === true);
+				el.classList.toggle('is-err', ok === false);
+			}
+		})();
+		</script>
+		<?php
 	}
 
 	/* =================================================================
@@ -3146,6 +3301,129 @@ body.mantia-body-share {
 	text-decoration: none;
 }
 .mantia-share-close:hover { border-color: var(--bg); color: var(--bg); }
+
+/* ─── Editable prediction rows (PWA inline edit) ─────────────────── */
+
+.mantia-edit-list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+.mantia-edit-list .mantia-day-group {
+	margin: 0;
+}
+.mantia-edit-list .mantia-day-eyebrow {
+	padding: 0 0 8px;
+}
+.mantia-edit-row {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 2px 2px 0 var(--ink);
+	margin-bottom: 10px;
+}
+.mantia-edit-meta {
+	min-width: 0;
+}
+.mantia-edit-time {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 14px;
+	letter-spacing: -0.02em;
+	color: var(--ink);
+	font-variant-numeric: tabular-nums;
+}
+.mantia-edit-teams {
+	font-family: var(--font-body);
+	font-weight: 800;
+	font-size: 13.5px;
+	color: var(--ink);
+	letter-spacing: -0.005em;
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mantia-edit-row .mantia-match-phase {
+	margin-top: 3px;
+	font-family: var(--font-body);
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink-soft);
+}
+.mantia-edit-inputs {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.mantia-edit-score {
+	width: 46px;
+	height: 38px;
+	border: 2px solid var(--ink);
+	border-radius: 10px;
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.02em;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	padding: 0 4px;
+	-moz-appearance: textfield;
+	-webkit-appearance: none;
+	appearance: none;
+}
+.mantia-edit-score::-webkit-outer-spin-button,
+.mantia-edit-score::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+.mantia-edit-score:focus {
+	outline: 0;
+	box-shadow: 2px 2px 0 var(--accent);
+}
+.mantia-edit-sep {
+	font-family: var(--font-body);
+	font-weight: 700;
+	color: var(--ink-soft);
+	font-size: 14px;
+}
+.mantia-edit-save {
+	appearance: none;
+	cursor: pointer;
+	height: 38px;
+	padding: 0 12px;
+	border-radius: 999px;
+	border: 2px solid var(--ink);
+	background: var(--accent-2);
+	color: var(--ink);
+	font-family: var(--font-body);
+	font-weight: 800;
+	font-size: 12.5px;
+	letter-spacing: -0.005em;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+.mantia-edit-save:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.mantia-edit-save:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+.mantia-edit-status {
+	grid-column: 1 / -1;
+	font-family: var(--font-body);
+	font-weight: 700;
+	font-size: 12px;
+	letter-spacing: -0.005em;
+	color: var(--ink-soft);
+	padding-top: 4px;
+}
+.mantia-edit-status.is-ok  { color: var(--ink); }
+.mantia-edit-status.is-err { color: var(--accent); }
 
 /* ─── Mobile tuning ──────────────────────────────────────────────── */
 

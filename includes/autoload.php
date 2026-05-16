@@ -24,6 +24,7 @@ spl_autoload_register(
 			'Mantia_Leaderboard'     => 'class-mantia-leaderboard.php',
 			'Mantia_Messaging'       => 'class-mantia-messaging.php',
 			'Mantia_Repository'      => 'class-mantia-repository.php',
+			'Mantia_Rest'            => 'class-mantia-rest.php',
 			'Mantia_Results_Fetcher' => 'class-mantia-results-fetcher.php',
 			'Mantia_Scoring'         => 'class-mantia-scoring.php',
 			'Mantia_Vocab'           => 'class-mantia-vocab.php',

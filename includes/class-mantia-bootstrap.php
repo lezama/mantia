@@ -28,6 +28,7 @@ final class Mantia_Bootstrap {
 		Mantia_Whatsapp_Flow::register();
 		Mantia_Workflows::register();
 		Mantia_Frontend::register();
+		Mantia_Rest::register();
 		if ( is_admin() ) {
 			Mantia_Competitions::register_admin();
 		}
