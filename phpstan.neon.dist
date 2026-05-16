@@ -12,11 +12,14 @@ parameters:
     - mantia.php
     - includes
   excludePaths:
+    # The `(?)` suffix marks the path as optional: PHPStan 2.x errors on
+    # excludePaths entries that don't exist, but node_modules + build are
+    # only created in CI / when someone runs `npm install` locally.
     - vendor
-    - node_modules
+    - node_modules (?)
     - tests
-    - drafts
-    - build
+    - drafts (?)
+    - build (?)
   # Ignore third-party classes we depend on at runtime but don't ship.
   # OpenclaWP_Whatsapp lives in a sibling plugin; PHPStan can't see it
   # during analysis on CI (Composer doesn't pull it down on a fresh
