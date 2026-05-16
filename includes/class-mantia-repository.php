@@ -222,10 +222,13 @@ final class Mantia_Repository {
 		$rows = array();
 		foreach ( $group_ids as $gid ) {
 			foreach ( Mantia_Leaderboard::rows( $gid, 100 ) as $r ) {
-				$rows[] = array_merge( $r, array(
-					'group_id'   => $gid,
-					'group_name' => get_the_title( $gid ),
-				) );
+				$rows[] = array_merge(
+					$r,
+					array(
+						'group_id'   => $gid,
+						'group_name' => get_the_title( $gid ),
+					)
+				);
 			}
 		}
 		usort(

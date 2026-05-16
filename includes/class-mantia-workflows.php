@@ -61,7 +61,10 @@ final class Mantia_Workflows {
 					),
 				),
 				'triggers' => array(
-					array( 'type' => 'cron', 'interval' => 15 * MINUTE_IN_SECONDS ),
+					array(
+						'type' => 'cron',
+						'interval' => 15 * MINUTE_IN_SECONDS,
+					),
 				),
 				'meta'     => self::meta( 'resolve-matches' ),
 			)
@@ -107,7 +110,10 @@ final class Mantia_Workflows {
 					),
 				),
 				'triggers' => array(
-					array( 'type' => 'cron', 'interval' => 30 * MINUTE_IN_SECONDS ),
+					array(
+						'type' => 'cron',
+						'interval' => 30 * MINUTE_IN_SECONDS,
+					),
 				),
 				'meta'     => self::meta( 'match-reminders' ),
 			)
@@ -153,7 +159,10 @@ final class Mantia_Workflows {
 					),
 				),
 				'triggers' => array(
-					array( 'type' => 'cron', 'expression' => '0 8 * * *' ),
+					array(
+						'type' => 'cron',
+						'expression' => '0 8 * * *',
+					),
 				),
 				'meta'     => self::meta( 'daily-digest' ),
 			)

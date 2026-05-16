@@ -105,12 +105,24 @@ final class Mantia_Abilities {
 						'match_id'            => array( 'type' => 'integer' ),
 						'team'                => array( 'type' => 'string' ),
 						'group_id'            => array( 'type' => 'integer' ),
-						'home_score'          => array( 'type' => 'integer', 'minimum' => 0 ),
-						'away_score'          => array( 'type' => 'integer', 'minimum' => 0 ),
+						'home_score'          => array(
+							'type' => 'integer',
+							'minimum' => 0,
+						),
+						'away_score'          => array(
+							'type' => 'integer',
+							'minimum' => 0,
+						),
 						'first_team'          => array( 'type' => 'string' ),
-						'first_score'         => array( 'type' => 'integer', 'minimum' => 0 ),
+						'first_score'         => array(
+							'type' => 'integer',
+							'minimum' => 0,
+						),
 						'second_team'         => array( 'type' => 'string' ),
-						'second_score'        => array( 'type' => 'integer', 'minimum' => 0 ),
+						'second_score'        => array(
+							'type' => 'integer',
+							'minimum' => 0,
+						),
 					),
 				),
 				'output_schema'       => array(
@@ -124,7 +136,10 @@ final class Mantia_Abilities {
 				),
 				'execute_callback'    => array( __CLASS__, 'register_prediction' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'destructive' => true ),
+				),
 			)
 		);
 	}
@@ -271,14 +286,24 @@ final class Mantia_Abilities {
 					'properties' => array(
 						'group_id'    => array( 'type' => 'integer' ),
 						'user_phone'  => array( 'type' => 'string' ),
-						'scope'       => array( 'type' => 'string', 'enum' => array( 'global', 'group' ) ),
-						'limit'       => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 50 ),
+						'scope'       => array(
+							'type' => 'string',
+							'enum' => array( 'global', 'group' ),
+						),
+						'limit'       => array(
+							'type' => 'integer',
+							'minimum' => 1,
+							'maximum' => 50,
+						),
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_standings' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -322,13 +347,20 @@ final class Mantia_Abilities {
 					'type'       => 'object',
 					'properties' => array(
 						'user_phone'  => array( 'type' => 'string' ),
-						'hours_ahead' => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 240 ),
+						'hours_ahead' => array(
+							'type' => 'integer',
+							'minimum' => 1,
+							'maximum' => 240,
+						),
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_upcoming_matches' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -361,7 +393,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args ): array => array( 'match' => Mantia_Repository::match_to_array( (int) ( $args['match_id'] ?? 0 ) ) ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -383,7 +418,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_user_history' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -427,7 +465,10 @@ final class Mantia_Abilities {
 					(string) ( $args['whatsapp_recipient'] ?? '' )
 				),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'destructive' => true ),
+				),
 			)
 		);
 	}
@@ -464,7 +505,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'create_group' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'destructive' => true ),
+				),
 			)
 		);
 	}
@@ -536,7 +580,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_my_groups' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -576,7 +623,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'set_active_group' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'destructive' => true ),
+				),
 			)
 		);
 	}
@@ -610,13 +660,20 @@ final class Mantia_Abilities {
 					'type'       => 'object',
 					'properties' => array(
 						'user_phone'  => array( 'type' => 'string' ),
-						'hours_ahead' => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 240 ),
+						'hours_ahead' => array(
+							'type' => 'integer',
+							'minimum' => 1,
+							'maximum' => 240,
+						),
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_whatsapp_home' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -672,7 +729,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args = array() ): array => array( 'matches' => Mantia_Repository::finished_unresolved_matches() ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -692,7 +752,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'resolve_match' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'destructive' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'destructive' => true ),
+				),
 			)
 		);
 	}
@@ -746,7 +809,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => static fn( array $args ) => Mantia_Results_Fetcher::fetch_match_result( (int) ( $args['match_id'] ?? 0 ) ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -776,7 +842,10 @@ final class Mantia_Abilities {
 					(int) $args['real_away']
 				),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -795,7 +864,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_match_reminder_targets' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}
@@ -839,7 +911,10 @@ final class Mantia_Abilities {
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'get_daily_digest_targets' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
-				'meta'                => array( 'show_in_rest' => true, 'annotations' => array( 'readonly' => true ) ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations' => array( 'readonly' => true ),
+				),
 			)
 		);
 	}

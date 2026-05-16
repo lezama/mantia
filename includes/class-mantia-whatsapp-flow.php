@@ -258,11 +258,17 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$user_id = Mantia_Repository::get_or_create_user( $identity['phone'], $name, $identity['recipient'] );
 		if ( 0 === $user_id ) {
-			return array( 'reply' => 'No pude guardar tu nombre. Reintentá.', 'completed' => true );
+			return array(
+				'reply' => 'No pude guardar tu nombre. Reintentá.',
+				'completed' => true,
+			);
 		}
 
 		return array(
@@ -270,9 +276,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:home',     'title' => '🏠 Resumen' ),
-					array( 'id' => 'mantia:cmd:matches',  'title' => '📅 Partidos' ),
-					array( 'id' => 'mantia:cmd:help',     'title' => '❓ Ayuda' ),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Resumen',
+					),
+					array(
+						'id' => 'mantia:cmd:matches',
+						'title' => '📅 Partidos',
+					),
+					array(
+						'id' => 'mantia:cmd:help',
+						'title' => '❓ Ayuda',
+					),
 				),
 			),
 			'completed' => true,
@@ -281,15 +296,24 @@ final class Mantia_Whatsapp_Flow {
 
 	private static function handle_switch_group( int $group_id, array $identity ): array {
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
-			return array( 'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ), 'completed' => true );
+			return array(
+				'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+				'completed' => true,
+			);
 		}
 		$result = Mantia_Repository::set_active_group_for_user( (int) $user->ID, $group_id );
 		if ( is_wp_error( $result ) ) {
-			return array( 'reply' => $result->get_error_message(), 'completed' => true );
+			return array(
+				'reply' => $result->get_error_message(),
+				'completed' => true,
+			);
 		}
 		$active = $result['active_group'];
 		$lines  = array( sprintf( 'Listo, %s %s: *%s*.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ), $active['name'] ), '' );
@@ -300,9 +324,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:home',       'title' => '🏠 Resumen' ),
-					array( 'id' => 'mantia:cmd:share-link', 'title' => '📤 Invitar' ),
-					array( 'id' => 'mantia:cmd:my-groups',  'title' => sprintf( '📋 Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ) ),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Resumen',
+					),
+					array(
+						'id' => 'mantia:cmd:share-link',
+						'title' => '📤 Invitar',
+					),
+					array(
+						'id' => 'mantia:cmd:my-groups',
+						'title' => sprintf( '📋 Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+					),
 				),
 			),
 			'completed' => true,
@@ -314,7 +347,10 @@ final class Mantia_Whatsapp_Flow {
 		$result = Mantia_Repository::join_group( $identity['phone'], $code, $identity['name'], $identity['recipient'] );
 
 		if ( is_wp_error( $result ) ) {
-			return array( 'reply' => $result->get_error_message(), 'completed' => true );
+			return array(
+				'reply' => $result->get_error_message(),
+				'completed' => true,
+			);
 		}
 
 		$g       = $result['group'];
@@ -340,9 +376,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:share-link', 'title' => '📤 Invitar' ),
-					array( 'id' => 'mantia:cmd:home',       'title' => '🏠 Resumen' ),
-					array( 'id' => 'mantia:cmd:my-groups',  'title' => sprintf( '📋 Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ) ),
+					array(
+						'id' => 'mantia:cmd:share-link',
+						'title' => '📤 Invitar',
+					),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Resumen',
+					),
+					array(
+						'id' => 'mantia:cmd:my-groups',
+						'title' => sprintf( '📋 Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+					),
 				),
 			),
 			'completed' => true,
@@ -384,7 +429,10 @@ final class Mantia_Whatsapp_Flow {
 				'header'       => Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
 				'button_label' => 'Elegir torneo',
 				'sections'     => array(
-					array( 'title' => 'Competencias', 'rows' => $rows ),
+					array(
+						'title' => 'Competencias',
+						'rows' => $rows,
+					),
 				),
 			),
 			'completed' => true,
@@ -393,12 +441,18 @@ final class Mantia_Whatsapp_Flow {
 
 	private static function handle_competition_chosen( string $competition_id, array $identity ): array {
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$noun        = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 		$competition = Mantia_Competitions::get( $competition_id );
 		if ( ! $competition ) {
-			return array( 'reply' => sprintf( 'Esa competencia no existe. Probá *nueva %s <nombre>* otra vez.', $noun ), 'completed' => true );
+			return array(
+				'reply' => sprintf( 'Esa competencia no existe. Probá *nueva %s <nombre>* otra vez.', $noun ),
+				'completed' => true,
+			);
 		}
 
 		$name_key = self::pending_create_key( $identity['phone'] );
@@ -413,7 +467,10 @@ final class Mantia_Whatsapp_Flow {
 
 		$group_id = Mantia_Repository::create_group( $name, '', '', $competition_id );
 		if ( $group_id <= 0 ) {
-			return array( 'reply' => sprintf( 'No pude crear esa %s. Probá con otro nombre.', $noun ), 'completed' => true );
+			return array(
+				'reply' => sprintf( 'No pude crear esa %s. Probá con otro nombre.', $noun ),
+				'completed' => true,
+			);
 		}
 
 		$group = Mantia_Repository::group_to_array( $group_id );
@@ -448,9 +505,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:share-link',  'title' => '📤 Re-enviar' ),
-					array( 'id' => 'mantia:cmd:matches',     'title' => '📅 Partidos' ),
-					array( 'id' => 'mantia:cmd:help',        'title' => '❓ Ayuda' ),
+					array(
+						'id' => 'mantia:cmd:share-link',
+						'title' => '📤 Re-enviar',
+					),
+					array(
+						'id' => 'mantia:cmd:matches',
+						'title' => '📅 Partidos',
+					),
+					array(
+						'id' => 'mantia:cmd:help',
+						'title' => '❓ Ayuda',
+					),
 				),
 			),
 			'completed' => true,
@@ -598,7 +664,10 @@ final class Mantia_Whatsapp_Flow {
 				'header'       => Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
 				'button_label' => 'Elegir torneo',
 				'sections'     => array(
-					array( 'title' => 'Competencias', 'rows' => $rows ),
+					array(
+						'title' => 'Competencias',
+						'rows' => $rows,
+					),
 				),
 			),
 			'completed' => true,
@@ -612,11 +681,17 @@ final class Mantia_Whatsapp_Flow {
 	 */
 	private static function handle_competition_picked_for_new( string $competition_id, array $identity ): array {
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$competition = Mantia_Competitions::get( $competition_id );
 		if ( ! $competition ) {
-			return array( 'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.', 'completed' => true );
+			return array(
+				'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.',
+				'completed' => true,
+			);
 		}
 
 		set_transient(
@@ -669,7 +744,10 @@ final class Mantia_Whatsapp_Flow {
 		$competition = Mantia_Competitions::get( $competition_id );
 		if ( ! $competition ) {
 			delete_transient( self::pending_comp_key( $identity['phone'] ) );
-			return array( 'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.', 'completed' => true );
+			return array(
+				'reply' => 'Esa competencia ya no existe. Probá *crear* otra vez.',
+				'completed' => true,
+			);
 		}
 
 		delete_transient( self::pending_comp_key( $identity['phone'] ) );
@@ -723,7 +801,10 @@ final class Mantia_Whatsapp_Flow {
 			foreach ( $terms as $term ) {
 				$term = (string) $term;
 				if ( '' !== $term ) {
-					$candidates[] = array( 'slug' => $slug, 'term' => $term );
+					$candidates[] = array(
+						'slug' => $slug,
+						'term' => $term,
+					);
 				}
 			}
 		}
@@ -766,9 +847,18 @@ final class Mantia_Whatsapp_Flow {
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
-						array( 'id' => 'mantia:cmd:new-penca',  'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ) ),
-						array( 'id' => 'mantia:cmd:have-code',  'title' => '🔑 Tengo código' ),
-						array( 'id' => 'mantia:cmd:help',       'title' => '❓ Ayuda' ),
+						array(
+							'id' => 'mantia:cmd:new-penca',
+							'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
+						),
+						array(
+							'id' => 'mantia:cmd:have-code',
+							'title' => '🔑 Tengo código',
+						),
+						array(
+							'id' => 'mantia:cmd:help',
+							'title' => '❓ Ayuda',
+						),
 					),
 				),
 				'completed' => true,
@@ -782,8 +872,14 @@ final class Mantia_Whatsapp_Flow {
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
-						array( 'id' => 'mantia:cmd:new-penca',  'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ) ),
-						array( 'id' => 'mantia:cmd:have-code',  'title' => '🔑 Tengo código' ),
+						array(
+							'id' => 'mantia:cmd:new-penca',
+							'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
+						),
+						array(
+							'id' => 'mantia:cmd:have-code',
+							'title' => '🔑 Tengo código',
+						),
 					),
 				),
 				'completed' => true,
@@ -816,7 +912,10 @@ final class Mantia_Whatsapp_Flow {
 					'type'         => 'list',
 					'button_label' => self::truncate_title( 'Cambiar ' . Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), 20 ),
 					'sections'     => array(
-						array( 'title' => sprintf( 'Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ), 'rows' => $rows ),
+						array(
+							'title' => sprintf( 'Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+							'rows' => $rows,
+						),
 					),
 				),
 				'completed' => true,
@@ -825,13 +924,22 @@ final class Mantia_Whatsapp_Flow {
 
 		$g = $groups[0];
 		return array(
-			'reply'       => sprintf( "Tu %s: *%s* (código `%s`).", Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), $g['name'], $g['invite_code'] ),
+			'reply'       => sprintf( 'Tu %s: *%s* (código `%s`).', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), $g['name'], $g['invite_code'] ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:share-link', 'title' => '📤 Invitar' ),
-					array( 'id' => 'mantia:cmd:home',       'title' => '🏠 Resumen' ),
-					array( 'id' => 'mantia:cmd:new-penca',  'title' => '➕ Crear otra' ),
+					array(
+						'id' => 'mantia:cmd:share-link',
+						'title' => '📤 Invitar',
+					),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Resumen',
+					),
+					array(
+						'id' => 'mantia:cmd:new-penca',
+						'title' => '➕ Crear otra',
+					),
 				),
 			),
 			'completed' => true,
@@ -894,7 +1002,10 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = $view;
 		}
 
-		return array( 'reply' => implode( "\n", $lines ), 'completed' => true );
+		return array(
+			'reply' => implode( "\n", $lines ),
+			'completed' => true,
+		);
 	}
 
 	private static function handle_home( array $identity ): array {
@@ -905,9 +1016,18 @@ final class Mantia_Whatsapp_Flow {
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
-						array( 'id' => 'mantia:cmd:new-penca', 'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ) ),
-						array( 'id' => 'mantia:cmd:have-code', 'title' => '🔑 Tengo código' ),
-						array( 'id' => 'mantia:cmd:help',      'title' => '❓ Ayuda' ),
+						array(
+							'id' => 'mantia:cmd:new-penca',
+							'title' => '➕ ' . Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
+						),
+						array(
+							'id' => 'mantia:cmd:have-code',
+							'title' => '🔑 Tengo código',
+						),
+						array(
+							'id' => 'mantia:cmd:help',
+							'title' => '❓ Ayuda',
+						),
 					),
 				),
 				'completed' => true,
@@ -951,9 +1071,18 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		$buttons = array(
-			array( 'id' => 'mantia:cmd:matches',     'title' => '📅 Partidos' ),
-			array( 'id' => 'mantia:cmd:pending',     'title' => '⏳ Pendientes' ),
-			array( 'id' => 'mantia:cmd:leaderboard', 'title' => '📊 Tabla' ),
+			array(
+				'id' => 'mantia:cmd:matches',
+				'title' => '📅 Partidos',
+			),
+			array(
+				'id' => 'mantia:cmd:pending',
+				'title' => '⏳ Pendientes',
+			),
+			array(
+				'id' => 'mantia:cmd:leaderboard',
+				'title' => '📊 Tabla',
+			),
 		);
 
 		$me_url = Mantia_Repository::user_view_url( $user_id );
@@ -965,7 +1094,10 @@ final class Mantia_Whatsapp_Flow {
 
 		return array(
 			'reply'       => implode( "\n", $lines ),
-			'interactive' => array( 'type' => 'button', 'buttons' => $buttons ),
+			'interactive' => array(
+				'type' => 'button',
+				'buttons' => $buttons,
+			),
 			'completed'   => true,
 		);
 	}
@@ -1001,7 +1133,10 @@ final class Mantia_Whatsapp_Flow {
 			sprintf( '• *tabla* — ranking de tu %s', $noun ),
 			'• *hola* / *home* — resumen general',
 		);
-		return array( 'reply' => implode( "\n", $lines ), 'completed' => true );
+		return array(
+			'reply' => implode( "\n", $lines ),
+			'completed' => true,
+		);
 	}
 
 	private static function handle_matches( array $identity ): array {
@@ -1017,7 +1152,10 @@ final class Mantia_Whatsapp_Flow {
 			$msg        = '' !== $comp_label
 				? sprintf( 'No hay partidos cargados para *%s* todavía.', $comp_label )
 				: 'No hay partidos proximos cargados todavia. Una vez que arranque el fixture, los vas a ver acá.';
-			return array( 'reply' => $msg, 'completed' => true );
+			return array(
+				'reply' => $msg,
+				'completed' => true,
+			);
 		}
 
 		$rows = array();
@@ -1051,7 +1189,10 @@ final class Mantia_Whatsapp_Flow {
 				'header'       => $header,
 				'button_label' => 'Ver partidos',
 				'sections'     => array(
-					array( 'title' => 'Proximos partidos', 'rows' => $rows ),
+					array(
+						'title' => 'Proximos partidos',
+						'rows' => $rows,
+					),
 				),
 			),
 			'completed' => true,
@@ -1060,7 +1201,10 @@ final class Mantia_Whatsapp_Flow {
 
 	private static function handle_pending( array $identity ): array {
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
@@ -1083,9 +1227,18 @@ final class Mantia_Whatsapp_Flow {
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
-						array( 'id' => 'mantia:cmd:my-predictions', 'title' => '📋 Mis pronósticos' ),
-						array( 'id' => 'mantia:cmd:matches',        'title' => '📅 Próximos partidos' ),
-						array( 'id' => 'mantia:cmd:leaderboard',    'title' => '📊 Tabla' ),
+						array(
+							'id' => 'mantia:cmd:my-predictions',
+							'title' => '📋 Mis pronósticos',
+						),
+						array(
+							'id' => 'mantia:cmd:matches',
+							'title' => '📅 Próximos partidos',
+						),
+						array(
+							'id' => 'mantia:cmd:leaderboard',
+							'title' => '📊 Tabla',
+						),
 					),
 				),
 				'completed' => true,
@@ -1246,9 +1399,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:matches',         'title' => '📅 Partidos' ),
-					array( 'id' => 'mantia:cmd:my-predictions',  'title' => '📝 Mis preds' ),
-					array( 'id' => 'mantia:cmd:home',            'title' => '🏠 Home' ),
+					array(
+						'id' => 'mantia:cmd:matches',
+						'title' => '📅 Partidos',
+					),
+					array(
+						'id' => 'mantia:cmd:my-predictions',
+						'title' => '📝 Mis preds',
+					),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Home',
+					),
 				),
 			),
 			'completed' => true,
@@ -1257,16 +1419,25 @@ final class Mantia_Whatsapp_Flow {
 
 	private static function handle_my_predictions( array $identity ): array {
 		if ( '' === $identity['phone'] ) {
-			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
 		}
 		$noun = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
-			return array( 'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ), 'completed' => true );
+			return array(
+				'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+				'completed' => true,
+			);
 		}
 		$active_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
 		if ( $active_id <= 0 ) {
-			return array( 'reply' => sprintf( 'No tenes %s %s.', $noun, Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) ), 'completed' => true );
+			return array(
+				'reply' => sprintf( 'No tenes %s %s.', $noun, Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) ),
+				'completed' => true,
+			);
 		}
 		$history = Mantia_Repository::user_history( (int) $user->ID, $active_id );
 		if ( empty( $history ) ) {
@@ -1296,7 +1467,10 @@ final class Mantia_Whatsapp_Flow {
 				'type'         => 'list',
 				'button_label' => 'Ver',
 				'sections'     => array(
-					array( 'title' => 'Mis pronosticos', 'rows' => $rows ),
+					array(
+						'title' => 'Mis pronosticos',
+						'rows' => $rows,
+					),
 				),
 			),
 			'completed' => true,
@@ -1306,7 +1480,10 @@ final class Mantia_Whatsapp_Flow {
 	private static function handle_match_detail( int $match_id, array $identity ): array {
 		$match = Mantia_Repository::match_to_array( $match_id );
 		if ( empty( $match ) ) {
-			return array( 'reply' => 'No encuentro ese partido.', 'completed' => true );
+			return array(
+				'reply' => 'No encuentro ese partido.',
+				'completed' => true,
+			);
 		}
 
 		$lines = array(
@@ -1377,9 +1554,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:matches',  'title' => '📅 Otros partidos' ),
-					array( 'id' => 'mantia:cmd:pending',  'title' => '⏳ Pendientes' ),
-					array( 'id' => 'mantia:cmd:home',     'title' => '🏠 Home' ),
+					array(
+						'id' => 'mantia:cmd:matches',
+						'title' => '📅 Otros partidos',
+					),
+					array(
+						'id' => 'mantia:cmd:pending',
+						'title' => '⏳ Pendientes',
+					),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Home',
+					),
 				),
 			),
 			'completed' => true,
@@ -1417,7 +1603,10 @@ final class Mantia_Whatsapp_Flow {
 		$result = Mantia_Abilities::register_prediction( $args );
 
 		if ( is_wp_error( $result ) ) {
-			return array( 'reply' => $result->get_error_message(), 'completed' => true );
+			return array(
+				'reply' => $result->get_error_message(),
+				'completed' => true,
+			);
 		}
 
 		$match    = (array) ( $result['match'] ?? array() );
@@ -1434,9 +1623,18 @@ final class Mantia_Whatsapp_Flow {
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array( 'id' => 'mantia:cmd:pending', 'title' => '⏳ Más pendientes' ),
-					array( 'id' => 'mantia:cmd:matches', 'title' => '📅 Otros partidos' ),
-					array( 'id' => 'mantia:cmd:home',    'title' => '🏠 Resumen' ),
+					array(
+						'id' => 'mantia:cmd:pending',
+						'title' => '⏳ Más pendientes',
+					),
+					array(
+						'id' => 'mantia:cmd:matches',
+						'title' => '📅 Otros partidos',
+					),
+					array(
+						'id' => 'mantia:cmd:home',
+						'title' => '🏠 Resumen',
+					),
 				),
 			),
 			'completed' => true,

@@ -468,7 +468,8 @@ final class Mantia_Frontend {
 			<?php if ( empty( $groups ) ) : ?>
 				<p class="mantia-empty"><?php esc_html_e( 'Todavía no estás en ninguna penca.', 'mantia' ); ?></p>
 			<?php else : ?>
-				<?php foreach ( $groups as $g ) :
+				<?php
+				foreach ( $groups as $g ) :
 					$group_id   = (int) $g['id'];
 					$lb         = Mantia_Leaderboard::rows( $group_id, 100 );
 					$my_row     = null;
@@ -512,7 +513,7 @@ final class Mantia_Frontend {
 						<?php
 						$my_history = Mantia_Repository::user_history( $user_id, $group_id );
 						if ( ! empty( $my_history ) ) :
-						?>
+							?>
 							<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'tus pronósticos', 'mantia' ); ?></div>
 							<?php self::render_history_rows( $my_history ); ?>
 						<?php endif; ?>
@@ -527,7 +528,7 @@ final class Mantia_Frontend {
 								?>
 								<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'pendientes', 'mantia' ); ?></div>
 								<?php self::render_matches_grouped_by_day( array_slice( array_values( $pending ), 0, 8 ) ); ?>
-							<?php
+								<?php
 							endif;
 						endif;
 						?>
@@ -586,7 +587,8 @@ final class Mantia_Frontend {
 		$page_url  = home_url( '/penca/g/' . $token . '/sumate/' );
 
 		ob_start();
-		?><!DOCTYPE html>
+		?>
+		<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -843,12 +845,12 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		for ( $i = 0; $i < $thickness; $i++ ) {
 			imagearc( $im, $x1 + $r, $y1 + $r, $r * 2 - $i, $r * 2 - $i, 180, 270, $color );
 			imagearc( $im, $x2 - $r, $y1 + $r, $r * 2 - $i, $r * 2 - $i, 270, 360, $color );
-			imagearc( $im, $x1 + $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 90,  180, $color );
-			imagearc( $im, $x2 - $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 0,   90,  $color );
-			imageline( $im, $x1 + $r, $y1 + $i,         $x2 - $r, $y1 + $i,         $color );
-			imageline( $im, $x1 + $r, $y2 - $i,         $x2 - $r, $y2 - $i,         $color );
-			imageline( $im, $x1 + $i, $y1 + $r,         $x1 + $i, $y2 - $r,         $color );
-			imageline( $im, $x2 - $i, $y1 + $r,         $x2 - $i, $y2 - $r,         $color );
+			imagearc( $im, $x1 + $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 90, 180, $color );
+			imagearc( $im, $x2 - $r, $y2 - $r, $r * 2 - $i, $r * 2 - $i, 0, 90, $color );
+			imageline( $im, $x1 + $r, $y1 + $i, $x2 - $r, $y1 + $i, $color );
+			imageline( $im, $x1 + $r, $y2 - $i, $x2 - $r, $y2 - $i, $color );
+			imageline( $im, $x1 + $i, $y1 + $r, $x1 + $i, $y2 - $r, $color );
+			imageline( $im, $x2 - $i, $y1 + $r, $x2 - $i, $y2 - $r, $color );
 		}
 	}
 
@@ -933,28 +935,29 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 		// Gold for #1, silver/bronze for 2/3, white empty-state.
 		$rank = $has_lead ? (int) $leader['rank'] : 0;
 		$mark_fill = '#c5f24e';
-		if ( 1 === $rank ) { $mark_fill = '#ffd400'; }
-		elseif ( 2 === $rank ) { $mark_fill = '#dadada'; }
-		elseif ( 3 === $rank ) { $mark_fill = '#e08a3c'; }
-		elseif ( ! $has_lead ) { $mark_fill = '#ffffff'; }
-		$mark_size = mb_strlen( $mark_label ) > 1 ? 110 : 150;
+		if ( 1 === $rank ) {
+			$mark_fill = '#ffd400'; } elseif ( 2 === $rank ) {
+			$mark_fill = '#dadada'; } elseif ( 3 === $rank ) {
+				$mark_fill = '#e08a3c'; } elseif ( ! $has_lead ) {
+				$mark_fill = '#ffffff'; }
+				$mark_size = mb_strlen( $mark_label ) > 1 ? 110 : 150;
 
-		$line1 = $has_lead
-			? sprintf( '%s va ganando', self::escape_svg( (string) $leader['name'] ) )
-			: __( 'Penca abierta — sumate antes que arranque', 'mantia' );
-		$line2_parts = array();
-		if ( $count > 0 ) {
-			$line2_parts[] = sprintf(
-				_n( '%d jugador', '%d jugadores', $count, 'mantia' ),
-				$count
-			);
-		}
-		if ( $has_lead ) {
-			$line2_parts[] = sprintf( '%d pts · %d exactos', (int) $leader['points'], (int) $leader['exacts'] );
-		}
-		$line2 = self::escape_svg( implode( ' · ', $line2_parts ) );
+				$line1 = $has_lead
+				? sprintf( '%s va ganando', self::escape_svg( (string) $leader['name'] ) )
+				: __( 'Penca abierta — sumate antes que arranque', 'mantia' );
+				$line2_parts = array();
+				if ( $count > 0 ) {
+					$line2_parts[] = sprintf(
+						_n( '%d jugador', '%d jugadores', $count, 'mantia' ),
+						$count
+					);
+				}
+				if ( $has_lead ) {
+					$line2_parts[] = sprintf( '%d pts · %d exactos', (int) $leader['points'], (int) $leader['exacts'] );
+				}
+				$line2 = self::escape_svg( implode( ' · ', $line2_parts ) );
 
-		return <<<SVG
+				return <<<SVG
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
 	<rect width="1200" height="630" fill="#c5f24e"/>
 	<!-- top row -->
@@ -1087,7 +1090,10 @@ SVG;
 			foreach ( Mantia_Leaderboard::rows( $gid, 100 ) as $row ) {
 				if ( (int) $row['user_id'] === $user_id ) {
 					if ( null === $best || (int) $row['points'] > (int) $best['row']['points'] ) {
-						$best = array( 'row' => $row, 'group' => $g );
+						$best = array(
+							'row' => $row,
+							'group' => $g,
+						);
 					}
 				}
 			}
@@ -1313,7 +1319,10 @@ SVG;
 					'name'  => __( 'Ver el ranking', 'mantia' ),
 					'url'   => '' !== $ranking ? wp_make_link_relative( $ranking ) : '/',
 					'icons' => array(
-						array( 'src' => home_url( '/icons/192.png/' ), 'sizes' => '192x192' ),
+						array(
+							'src' => home_url( '/icons/192.png/' ),
+							'sizes' => '192x192',
+						),
 					),
 				),
 			),
@@ -1593,7 +1602,8 @@ JS;
 		}
 		?>
 		<nav class="mantia-chips" aria-label="<?php esc_attr_e( 'Otras competencias', 'mantia' ); ?>">
-			<?php foreach ( $competitions as $c ) :
+			<?php
+			foreach ( $competitions as $c ) :
 				$is_active = (string) $c['id'] === $active_slug;
 				$url       = Mantia_Repository::competition_view_url( (string) $c['id'] );
 				$label     = (string) $c['name'];
@@ -1607,7 +1617,8 @@ JS;
 					<a class="<?php echo esc_attr( $cls ); ?>" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $label ); ?></a>
 					<?php
 				endif;
-			endforeach; ?>
+			endforeach;
+			?>
 		</nav>
 		<?php
 	}
@@ -1650,7 +1661,8 @@ JS;
 		</div>
 
 		<div class="mantia-board">
-			<?php foreach ( $rest as $row ) :
+			<?php
+			foreach ( $rest as $row ) :
 				$rank = (int) $row['rank'];
 				?>
 				<div class="mantia-board-row">
@@ -1683,7 +1695,8 @@ JS;
 	private static function render_history_rows( array $history ): void {
 		?>
 		<div class="mantia-history">
-			<?php foreach ( array_slice( $history, 0, 8 ) as $p ) :
+			<?php
+			foreach ( array_slice( $history, 0, 8 ) as $p ) :
 				$m = $p['match'] ?? array();
 				if ( empty( $m ) ) {
 					continue;
@@ -1748,7 +1761,10 @@ JS;
 				continue;
 			}
 			$day_key = gmdate( 'Y-m-d', $ts - 3 * HOUR_IN_SECONDS );
-			$by_day[ $day_key ][] = array( 'm' => $m, 'ts' => $ts );
+			$by_day[ $day_key ][] = array(
+				'm' => $m,
+				'ts' => $ts,
+			);
 		}
 
 		foreach ( $by_day as $entries ) :
@@ -1756,7 +1772,8 @@ JS;
 			?>
 			<div class="mantia-day-group">
 				<div class="mantia-day-eyebrow mantia-eyebrow"><?php echo esc_html( strtoupper( self::format_es_short_day( $first_ts ) ) ); ?></div>
-				<?php foreach ( $entries as $entry ) :
+				<?php
+				foreach ( $entries as $entry ) :
 					$m  = $entry['m'];
 					$hm = gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS );
 					?>
@@ -1974,7 +1991,8 @@ JS;
 		$manifest    = home_url( '/manifest.json/' );
 		$icon_192    = home_url( '/icons/192.png/' );
 		$icon_512    = home_url( '/icons/512.png/' );
-		?><!DOCTYPE html>
+		?>
+		<!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="utf-8">
@@ -2002,7 +2020,7 @@ JS;
 	private static function page_footer( bool $for_share = false ): void {
 		if ( $for_share ) {
 			self::print_pwa_register();
-			echo "</body></html>";
+			echo '</body></html>';
 			return;
 		}
 		?>

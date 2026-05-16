@@ -52,8 +52,24 @@ final class Mantia_Vocab {
 	 */
 	private const VOCAB = array(
 		// Uruguay (and Paraguay by tradition) — the native term.
-		'UY' => array( 'noun' => 'penca',      'plural' => 'pencas',      'create' => 'Crear penca',      'article' => 'la', 'article_indef' => 'una', 'new_adj' => 'nueva', 'active_adj' => 'activa' ),
-		'PY' => array( 'noun' => 'penca',      'plural' => 'pencas',      'create' => 'Crear penca',      'article' => 'la', 'article_indef' => 'una', 'new_adj' => 'nueva', 'active_adj' => 'activa' ),
+		'UY' => array(
+			'noun' => 'penca',
+			'plural' => 'pencas',
+			'create' => 'Crear penca',
+			'article' => 'la',
+			'article_indef' => 'una',
+			'new_adj' => 'nueva',
+			'active_adj' => 'activa',
+		),
+		'PY' => array(
+			'noun' => 'penca',
+			'plural' => 'pencas',
+			'create' => 'Crear penca',
+			'article' => 'la',
+			'article_indef' => 'una',
+			'new_adj' => 'nueva',
+			'active_adj' => 'activa',
+		),
 		// Other Spanish-speaking countries — "pronóstico" is the
 		// neutral term that everyone understands. ("Prode" is a dated
 		// lottery brand in AR, "quiniela" reads as the national
@@ -61,12 +77,52 @@ final class Mantia_Vocab {
 		// there's an intentional double meaning with the individual
 		// match prediction — context disambiguates ("Crear pronóstico"
 		// = make a pool, "Tu pronóstico: 2-1" = your guess).
-		'AR' => array( 'noun' => 'pronóstico', 'plural' => 'pronósticos', 'create' => 'Crear pronóstico', 'article' => 'el', 'article_indef' => 'un',  'new_adj' => 'nuevo', 'active_adj' => 'activo' ),
-		'CL' => array( 'noun' => 'pronóstico', 'plural' => 'pronósticos', 'create' => 'Crear pronóstico', 'article' => 'el', 'article_indef' => 'un',  'new_adj' => 'nuevo', 'active_adj' => 'activo' ),
-		'MX' => array( 'noun' => 'pronóstico', 'plural' => 'pronósticos', 'create' => 'Crear pronóstico', 'article' => 'el', 'article_indef' => 'un',  'new_adj' => 'nuevo', 'active_adj' => 'activo' ),
-		'ES' => array( 'noun' => 'pronóstico', 'plural' => 'pronósticos', 'create' => 'Crear pronóstico', 'article' => 'el', 'article_indef' => 'un',  'new_adj' => 'nuevo', 'active_adj' => 'activo' ),
+		'AR' => array(
+			'noun' => 'pronóstico',
+			'plural' => 'pronósticos',
+			'create' => 'Crear pronóstico',
+			'article' => 'el',
+			'article_indef' => 'un',
+			'new_adj' => 'nuevo',
+			'active_adj' => 'activo',
+		),
+		'CL' => array(
+			'noun' => 'pronóstico',
+			'plural' => 'pronósticos',
+			'create' => 'Crear pronóstico',
+			'article' => 'el',
+			'article_indef' => 'un',
+			'new_adj' => 'nuevo',
+			'active_adj' => 'activo',
+		),
+		'MX' => array(
+			'noun' => 'pronóstico',
+			'plural' => 'pronósticos',
+			'create' => 'Crear pronóstico',
+			'article' => 'el',
+			'article_indef' => 'un',
+			'new_adj' => 'nuevo',
+			'active_adj' => 'activo',
+		),
+		'ES' => array(
+			'noun' => 'pronóstico',
+			'plural' => 'pronósticos',
+			'create' => 'Crear pronóstico',
+			'article' => 'el',
+			'article_indef' => 'un',
+			'new_adj' => 'nuevo',
+			'active_adj' => 'activo',
+		),
 		// Brazil — Portuguese, native term.
-		'BR' => array( 'noun' => 'bolão',      'plural' => 'bolões',      'create' => 'Criar bolão',      'article' => 'o',  'article_indef' => 'um',  'new_adj' => 'novo',  'active_adj' => 'ativo'  ),
+		'BR' => array(
+			'noun' => 'bolão',
+			'plural' => 'bolões',
+			'create' => 'Criar bolão',
+			'article' => 'o',
+			'article_indef' => 'um',
+			'new_adj' => 'novo',
+			'active_adj' => 'ativo',
+		),
 	);
 
 	private const DEFAULT_VOCAB = array(
