@@ -34,7 +34,37 @@ final class Mantia_Frontend {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_home' ), 5 );
 	}
 
+	/**
+	 * Bump this when the PWA shell or service worker logic changes — the
+	 * service worker keys its cache on this string, so a bump triggers
+	 * "waiting → activate → clean old caches" on every installed client.
+	 */
+	const PWA_VERSION = 'mantia-v1';
+
 	public static function register_rewrites(): void {
+		// PWA endpoints. All at root scope so the service worker can
+		// control /penca/* paths — a SW served from /penca/... can only
+		// control siblings of its own path.
+		add_rewrite_rule(
+			'^manifest\.json$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-manifest',
+			'top'
+		);
+		add_rewrite_rule(
+			'^service-worker\.js$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-sw',
+			'top'
+		);
+		add_rewrite_rule(
+			'^penca/offline/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-offline',
+			'top'
+		);
+		add_rewrite_rule(
+			'^icons/(192|512)\.png$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-icon&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
 		add_rewrite_rule(
 			'^penca/g/([a-f0-9]+)/sumate/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=join-landing&' . self::QUERY_VAR_ID . '=$matches[1]',
@@ -110,6 +140,18 @@ final class Mantia_Frontend {
 				break;
 			case 'join-og':
 				self::render_join_og_png( (string) $id ); // emits headers + body + exits.
+				break;
+			case 'pwa-manifest':
+				self::render_pwa_manifest(); // headers + body + exits.
+				break;
+			case 'pwa-sw':
+				self::render_pwa_service_worker(); // headers + body + exits.
+				break;
+			case 'pwa-offline':
+				echo self::render_pwa_offline();
+				break;
+			case 'pwa-icon':
+				self::render_pwa_icon( (int) $id ); // headers + body + exits.
 				break;
 			default:
 				status_header( 404 );
@@ -1226,6 +1268,299 @@ SVG;
 	}
 
 	/* =================================================================
+	 * PWA renderers (manifest, service worker, offline, icons)
+	 * ================================================================= */
+
+	/**
+	 * Emit the Web App Manifest. Browsers fetch this once the
+	 * <link rel="manifest"> tag is present; everything else (install
+	 * prompt, splash screen, theme color, shortcuts) is derived from it.
+	 */
+	private static function render_pwa_manifest(): void {
+		$home    = home_url( '/' );
+		$default = Mantia_Competitions::default_id();
+		$ranking = '' !== $default ? Mantia_Repository::competition_view_url( $default ) : $home;
+
+		$manifest = array(
+			'name'             => 'Mantia · Penca por WhatsApp',
+			'short_name'       => 'Mantia',
+			'description'      => __( 'Pronosticá, picanteá el grupo, ganale a tus amigos. Sin app.', 'mantia' ),
+			'start_url'        => '/',
+			'scope'            => '/',
+			'display'          => 'standalone',
+			'orientation'      => 'portrait',
+			'background_color' => '#c5f24e',
+			'theme_color'      => '#c5f24e',
+			'lang'             => 'es-UY',
+			'dir'              => 'ltr',
+			'categories'       => array( 'sports', 'social', 'entertainment' ),
+			'icons'            => array(
+				array(
+					'src'     => home_url( '/icons/192.png/' ),
+					'sizes'   => '192x192',
+					'type'    => 'image/png',
+					'purpose' => 'any maskable',
+				),
+				array(
+					'src'     => home_url( '/icons/512.png/' ),
+					'sizes'   => '512x512',
+					'type'    => 'image/png',
+					'purpose' => 'any maskable',
+				),
+			),
+			'shortcuts'        => array(
+				array(
+					'name'  => __( 'Ver el ranking', 'mantia' ),
+					'url'   => '' !== $ranking ? wp_make_link_relative( $ranking ) : '/',
+					'icons' => array(
+						array( 'src' => home_url( '/icons/192.png/' ), 'sizes' => '192x192' ),
+					),
+				),
+			),
+		);
+
+		nocache_headers();
+		header( 'Content-Type: application/manifest+json; charset=utf-8' );
+		header( 'Cache-Control: public, max-age=300' );
+		echo wp_json_encode( $manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		exit;
+	}
+
+	/**
+	 * Emit the service worker. Strategy:
+	 *   - Pre-cache the home + offline page + icons + manifest on install.
+	 *   - Navigation requests: network-first → cache fallback → offline page.
+	 *     Cache successful navigations so the user sees a recent snapshot
+	 *     when they re-open the PWA without signal.
+	 *   - Static assets (fonts, icons, og): cache-first with background
+	 *     revalidation.
+	 *
+	 * Versioning: the cache name embeds PWA_VERSION. Bump that constant
+	 * to force every installed client to drop old caches on activate.
+	 */
+	private static function render_pwa_service_worker(): void {
+		$version       = self::PWA_VERSION;
+		$home          = home_url( '/' );
+		$offline       = home_url( '/penca/offline/' );
+		$manifest_url  = home_url( '/manifest.json/' );
+		$icon_192      = home_url( '/icons/192.png/' );
+		$icon_512      = home_url( '/icons/512.png/' );
+
+		// Service workers must be served with a JS content type and from the
+		// origin they want to control. We also require the most permissive
+		// scope header so SW at /service-worker.js controls all of /.
+		header( 'Content-Type: application/javascript; charset=utf-8' );
+		header( 'Service-Worker-Allowed: /' );
+		header( 'Cache-Control: no-cache' );
+
+		$pre_cache = wp_json_encode(
+			array( $home, $offline, $manifest_url, $icon_192, $icon_512 ),
+			JSON_UNESCAPED_SLASHES
+		);
+		$offline_js = wp_json_encode( $offline, JSON_UNESCAPED_SLASHES );
+		$ver_js     = wp_json_encode( $version );
+
+		echo <<<JS
+// Mantia · Service Worker
+// Cache key is versioned — bump PWA_VERSION in PHP to evict old caches.
+
+const VERSION = {$ver_js};
+const CACHE   = VERSION;
+const PRE_CACHE  = {$pre_cache};
+const OFFLINE_URL = {$offline_js};
+
+self.addEventListener('install', (event) => {
+	event.waitUntil(
+		caches.open(CACHE).then((cache) => cache.addAll(PRE_CACHE)).then(() => self.skipWaiting())
+	);
+});
+
+self.addEventListener('activate', (event) => {
+	event.waitUntil(
+		caches.keys().then((keys) =>
+			Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+		).then(() => self.clients.claim())
+	);
+});
+
+// Heuristic for "this is a navigable HTML request". Strict equality on
+// request.mode === 'navigate' is the canonical check, but we also accept
+// GET requests with an Accept header that includes text/html.
+function isNav(request) {
+	if (request.mode === 'navigate') return true;
+	const accept = request.headers.get('accept') || '';
+	return request.method === 'GET' && accept.includes('text/html');
+}
+
+function isStaticAsset(url) {
+	const p = url.pathname;
+	return (
+		p.startsWith('/icons/') ||
+		p.endsWith('.png') ||
+		p.endsWith('.svg') ||
+		p.endsWith('.woff2') ||
+		p.endsWith('/og/')
+	);
+}
+
+self.addEventListener('fetch', (event) => {
+	const req = event.request;
+	if (req.method !== 'GET') return;
+
+	const url = new URL(req.url);
+	if (url.origin !== self.location.origin) return; // let cross-origin pass through
+
+	// wa.me / WhatsApp redirect links never benefit from caching.
+	if (url.pathname.startsWith('/wp-admin/') || url.pathname.startsWith('/wp-json/')) return;
+
+	if (isNav(req)) {
+		event.respondWith(
+			fetch(req)
+				.then((res) => {
+					// Cache successful HTML responses so re-opens work offline.
+					if (res && res.ok && res.type === 'basic') {
+						const copy = res.clone();
+						caches.open(CACHE).then((c) => c.put(req, copy));
+					}
+					return res;
+				})
+				.catch(() =>
+					caches.match(req).then((hit) => hit || caches.match(OFFLINE_URL))
+				)
+		);
+		return;
+	}
+
+	if (isStaticAsset(url)) {
+		event.respondWith(
+			caches.match(req).then((hit) => {
+				const fetcher = fetch(req).then((res) => {
+					if (res && res.ok) {
+						const copy = res.clone();
+						caches.open(CACHE).then((c) => c.put(req, copy));
+					}
+					return res;
+				}).catch(() => hit);
+				return hit || fetcher;
+			})
+		);
+	}
+});
+JS;
+		exit;
+	}
+
+	/**
+	 * Render the offline fallback page. Shown when the service worker
+	 * can't reach the network and there's no cached copy for the path
+	 * the user asked for.
+	 */
+	private static function render_pwa_offline(): string {
+		$bot_phone = Mantia_Repository::bot_phone_e164();
+		$wa_url    = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=hola', $bot_phone ) : '';
+
+		ob_start();
+		self::page_header( __( 'Sin conexión — Mantia', 'mantia' ) );
+		?>
+		<main class="mantia-page mantia-page-narrow">
+			<?php self::render_topbar(); ?>
+			<section class="mantia-hero">
+				<div class="mantia-eyebrow"><?php esc_html_e( 'sin señal', 'mantia' ); ?></div>
+				<h1 class="mantia-h1"><?php esc_html_e( 'Mantia te espera cuando vuelva la red.', 'mantia' ); ?></h1>
+				<p class="mantia-hero-meta"><?php esc_html_e( 'La penca se carga por WhatsApp — y la web necesita red para mostrar la tabla. Mientras tanto, mandale lo que tengas al bot cuando vuelvas.', 'mantia' ); ?></p>
+			</section>
+			<?php if ( '' !== $wa_url ) : ?>
+				<section class="mantia-cta-section mantia-cta-stack">
+					<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $wa_url ); ?>">
+						<?php esc_html_e( 'Abrir WhatsApp', 'mantia' ); ?>
+					</a>
+				</section>
+			<?php endif; ?>
+		</main>
+		<?php
+		self::page_footer();
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render a Mantia icon (192 or 512) as a PNG. Lime ground + black
+	 * italic Archivo Black "m" centred. Generated at runtime via GD so
+	 * we don't have to bundle binary PNGs in the plugin repo; cached
+	 * for a year client-side.
+	 *
+	 * Note on "any maskable" purpose: we reserve ~10% safe-zone padding
+	 * so the icon survives the platform's adaptive mask (Android cuts
+	 * a circle out of the bounding box).
+	 */
+	private static function render_pwa_icon( int $size ): void {
+		$size = in_array( $size, array( 192, 512 ), true ) ? $size : 192;
+		if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagettftext' ) ) {
+			status_header( 503 );
+			exit;
+		}
+		$font = self::locate_og_font();
+		if ( '' === $font ) {
+			status_header( 503 );
+			exit;
+		}
+
+		$im = imagecreatetruecolor( $size, $size );
+		// Allocate true colors; alpha not needed — solid lime ground reads
+		// cleanly under both maskable + any purposes.
+		$lime    = imagecolorallocate( $im, 0xc5, 0xf2, 0x4e );
+		$ink     = imagecolorallocate( $im, 0x0a, 0x0a, 0x0a );
+		$magenta = imagecolorallocate( $im, 0xff, 0x3d, 0x8e );
+		imagefilledrectangle( $im, 0, 0, $size, $size, $lime );
+
+		// Black outer ring inside the safe zone so the wordmark feels
+		// contained even under an adaptive mask.
+		$ring_inset = (int) round( $size * 0.10 );
+		$ring_thick = (int) round( $size * 0.045 );
+		for ( $i = 0; $i < $ring_thick; $i++ ) {
+			imagerectangle(
+				$im,
+				$ring_inset + $i,
+				$ring_inset + $i,
+				$size - $ring_inset - $i - 1,
+				$size - $ring_inset - $i - 1,
+				$ink
+			);
+		}
+
+		// Big italic "m" centered in the safe zone. imagettftext doesn't
+		// support italic faux-slant so we approximate by transform-baking
+		// the glyph onto a separate canvas, then copying it across; but
+		// for simplicity (and Archivo not present), we just render upright
+		// "m" in Inter Bold weight. Good enough at 192/512.
+		$font_size  = (int) round( $size * 0.5 );
+		$mark       = 'm';
+		$box        = imagettfbbox( $font_size, 0, $font, $mark );
+		$text_w     = $box[2] - $box[0];
+		$text_h     = $box[1] - $box[7];
+		$x          = (int) round( ( $size - $text_w ) / 2 - $box[0] );
+		$y          = (int) round( ( $size + $text_h ) / 2 );
+		imagettftext( $im, $font_size, 0, $x, $y, $ink, $font, $mark );
+
+		// Small magenta dot in the corner — sticker accent that survives
+		// the maskable crop on Android (lives just outside the safe zone
+		// but inside the bounding box).
+		$dot_r = (int) round( $size * 0.06 );
+		$dot_x = (int) round( $size * 0.82 );
+		$dot_y = (int) round( $size * 0.22 );
+		imagefilledellipse( $im, $dot_x, $dot_y, $dot_r * 2, $dot_r * 2, $magenta );
+		// Black outline on the dot
+		for ( $i = 0; $i < 3; $i++ ) {
+			imageellipse( $im, $dot_x, $dot_y, $dot_r * 2 + $i, $dot_r * 2 + $i, $ink );
+		}
+
+		header( 'Content-Type: image/png' );
+		header( 'Cache-Control: public, max-age=' . YEAR_IN_SECONDS );
+		imagepng( $im, null, 8 );
+		imagedestroy( $im );
+		exit;
+	}
+
+	/* =================================================================
 	 * Component renderers
 	 * ================================================================= */
 
@@ -1632,16 +1967,32 @@ SVG;
 		// too — the somber-ink poster from the marfil edition is gone.
 		$theme_color = '#c5f24e';
 		$body_class  = $for_share ? 'mantia-body-share' : '';
+		// Trailing slashes are mandatory: wp.com Atomic's nginx hijacks
+		// requests whose path ends in a recognized static extension (.json,
+		// .js, .png) before WP can route them. A trailing slash dodges
+		// that and lets our rewrite rule match.
+		$manifest    = home_url( '/manifest.json/' );
+		$icon_192    = home_url( '/icons/192.png/' );
+		$icon_512    = home_url( '/icons/512.png/' );
 		?><!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="<?php echo esc_attr( $theme_color ); ?>">
 	<title><?php echo esc_html( $title ); ?></title>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Black&display=swap" rel="stylesheet">
+	<link rel="manifest" href="<?php echo esc_url( $manifest ); ?>">
+	<link rel="icon" type="image/png" sizes="192x192" href="<?php echo esc_url( $icon_192 ); ?>">
+	<link rel="apple-touch-icon" href="<?php echo esc_url( $icon_192 ); ?>">
+	<link rel="apple-touch-icon" sizes="512x512" href="<?php echo esc_url( $icon_512 ); ?>">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="Mantia">
+	<meta name="application-name" content="Mantia">
 	<style><?php echo self::stylesheet(); ?></style>
 </head>
 <body class="<?php echo esc_attr( $body_class ); ?>">
@@ -1650,6 +2001,7 @@ SVG;
 
 	private static function page_footer( bool $for_share = false ): void {
 		if ( $for_share ) {
+			self::print_pwa_register();
 			echo "</body></html>";
 			return;
 		}
@@ -1657,8 +2009,28 @@ SVG;
 		<footer class="mantia-foot">
 			<a href="<?php echo esc_url( home_url( '/' ) ); ?>">mantia</a> · penca por whatsapp
 		</footer>
+		<?php self::print_pwa_register(); ?>
 </body>
 </html>
+		<?php
+	}
+
+	/**
+	 * Register the service worker after page load. Kept inline so we
+	 * don't have to ship a separate JS file just for one navigator call.
+	 * Falls silent on browsers without SW support (still renders fine
+	 * as a plain web page).
+	 */
+	private static function print_pwa_register(): void {
+		$sw_url = home_url( '/service-worker.js/' );
+		?>
+		<script>
+		if ('serviceWorker' in navigator) {
+			window.addEventListener('load', function () {
+				navigator.serviceWorker.register(<?php echo wp_json_encode( wp_make_link_relative( $sw_url ) ); ?>, { scope: '/' }).catch(function () { /* offline-first is optional; fail silently */ });
+			});
+		}
+		</script>
 		<?php
 	}
 
