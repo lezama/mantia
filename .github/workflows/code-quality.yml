@@ -1,0 +1,63 @@
+# PHPCS (WordPress-Core baseline + i18n + PHP-compat) and PHPStan
+# (level 1, phpstan-wordpress bootstrap). Both jobs share the same
+# Composer install so we don't pay for two `composer install` runs.
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'drafts/**'
+      - 'tareas/**'
+      - 'LICENSE'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: code-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: PHPCS + PHPStan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, intl, zip
+          tools: composer:v2, cs2pr
+          coverage: none
+
+      - name: Get Composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.json') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPCS (WordPress-Core + i18n + PHP compat)
+        # cs2pr converts checkstyle output into inline PR annotations so
+        # reviewers see violations on the diff itself, not buried in the
+        # CI log.
+        run: vendor/bin/phpcs -q --report=checkstyle | cs2pr
+
+      - name: Run PHPStan
+        # --error-format=github gives clickable file:line annotations on
+        # the PR; --memory-limit dodges OOM on phpstan-wordpress's stubs.
+        run: vendor/bin/phpstan analyse --error-format=github --memory-limit=1G --no-progress

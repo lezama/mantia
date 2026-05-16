@@ -1,0 +1,39 @@
+# Mantia · PHPStan config
+#
+# Day-1 settings prioritise catching real bugs over chasing perfect type
+# coverage on a young codebase. Bump level only after the existing
+# warnings are zero — otherwise CI just turns into a baseline manager.
+includes:
+  - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+  level: 1
+  paths:
+    - mantia.php
+    - includes
+  excludePaths:
+    - vendor
+    - node_modules
+    - tests
+    - drafts
+    - build
+  # Ignore third-party classes we depend on at runtime but don't ship.
+  # OpenclaWP_Whatsapp lives in a sibling plugin; PHPStan can't see it
+  # during analysis on CI (Composer doesn't pull it down on a fresh
+  # checkout because it's a git-based dev dep).
+  # Don't fail if our overly-broad ignore patterns don't match — the
+  # codebase is moving, and false-positive matches are cheaper than
+  # red CI when an ignored class/function genuinely goes away.
+  reportUnmatchedIgnoredErrors: false
+  ignoreErrors:
+    # Sibling plugins we consume at runtime but don't pull during static
+    # analysis (dev-deps via git, not on packagist).
+    - '#Class OpenclaWP_(.*) not found#'
+    - '#Class Mantia_E2E not found#'
+    # agents-api primitives (registered in the sibling plugin's bootstrap).
+    - '#Function wp_register_(workflow|ability|agent) not found#'
+    # MANTIA_* constants are defined in mantia.php at runtime.
+    - '#Constant MANTIA_PATH not found#'
+    - '#Constant MANTIA_URL not found#'
+    - '#Constant MANTIA_VERSION not found#'
+    - '#Constant MANTIA_PLUGIN_FILE not found#'

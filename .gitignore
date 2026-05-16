@@ -2,6 +2,16 @@
 /vendor/
 composer.lock
 
+# CI build artefacts (release.yml zips the plugin under build/mantia/)
+/build/
+mantia-*.zip
+/mantia.zip
+
+# PHPCS / PHPStan caches
+.phpcs-cache
+.phpunit.result.cache
+phpstan-baseline.neon
+
 # Editors
 .vscode/
 .idea/

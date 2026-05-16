@@ -1,0 +1,79 @@
+# On `git push --tags v*`, build a clean plugin zip and attach it to a
+# GitHub Release. The zip is what users drop into wp-admin → Plugins →
+# Add New → Upload.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build & publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Resolve version from tag
+        id: ver
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Composer install (prod only)
+        run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Build plugin zip
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          # Stage a clean copy of the plugin under build/mantia/ so the
+          # zip extracts to mantia/* (WP looks for the plugin folder by
+          # name, not the zip name). rsync's --exclude makes sure we
+          # never ship dev/CI artefacts.
+          mkdir -p build
+          rsync -a \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/tests/' \
+            --exclude='/bin/' \
+            --exclude='/drafts/' \
+            --exclude='/node_modules/' \
+            --exclude='/.claude/' \
+            --exclude='.wp-env.json' \
+            --exclude='.gitignore' \
+            --exclude='.editorconfig' \
+            --exclude='phpcs.xml*' \
+            --exclude='phpstan.neon*' \
+            --exclude='*.log' \
+            --exclude='.DS_Store' \
+            ./ build/mantia/
+          ( cd build && zip -rq "../mantia-${VERSION}.zip" mantia )
+          # Also publish a slug-only copy so "Download Latest" badges
+          # can point at a stable URL.
+          cp "mantia-${VERSION}.zip" mantia.zip
+          ls -la mantia-${VERSION}.zip mantia.zip
+          unzip -l "mantia-${VERSION}.zip" | head -30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mantia-${{ steps.ver.outputs.VERSION }}.zip
+            mantia.zip
+          name: Mantia v${{ steps.ver.outputs.VERSION }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

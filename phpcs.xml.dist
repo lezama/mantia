@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!--
+  Mantia · PHPCS ruleset
+
+  Scope is deliberately narrow on Day 1: we adopt WordPress-Core (the
+  baseline syntax + spacing rules) and skip WordPress-Extra (escape /
+  sanitization rules) until the codebase is clean enough to enforce
+  them without a 1000-warning baseline. Add WordPress-Extra here once
+  the team is ready to fix what it flags.
+-->
+<ruleset name="Mantia">
+	<description>Coding standards for the Mantia plugin.</description>
+
+	<!-- Scan the plugin entry + all includes. Tests/drafts are excluded
+	     so experimental code doesn't gate the PR. -->
+	<file>mantia.php</file>
+	<file>includes/</file>
+
+	<!-- Exclude generated, vendored, or out-of-scope folders. -->
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/tests/*</exclude-pattern>
+	<exclude-pattern>*/drafts/*</exclude-pattern>
+	<exclude-pattern>*/build/*</exclude-pattern>
+
+	<!-- Output settings: relative paths, coloured output, show source IDs
+	     so devs can easily silence specific rules with phpcs:ignore. -->
+	<arg value="psn"/>
+	<arg name="colors"/>
+	<arg name="basepath" value="."/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<!-- ===== WordPress core: syntax + spacing baseline ===== -->
+	<rule ref="WordPress-Core">
+		<!-- Yoda conditions are required by core but read as noise in modern PHP. -->
+		<exclude name="WordPress.PHP.YodaConditions"/>
+		<!-- Filename conventions don't fit our class-* file naming with
+		     namespaced classnames; keep it as is. -->
+		<exclude name="WordPress.Files.FileName"/>
+		<!-- Short ternaries (?:) are idiomatic in modern PHP and often
+		     clearer than the long form when defaulting nullable inputs. -->
+		<exclude name="Universal.Operators.DisallowShortTernary"/>
+		<!-- Width/height locals in GD image code conventionally use uppercase
+		     ($W, $H) — a hard snake_case rule on short-lived locals reads
+		     as noise. Real WP-facing variables (options, post meta) still
+		     get snake_cased; the sniff only catches local scalars. -->
+		<exclude name="WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase"/>
+	</rule>
+
+	<!-- ===== Plugin name + minimum versions ===== -->
+	<config name="minimum_supported_wp_version" value="7.0"/>
+	<config name="testVersion" value="8.1-"/>
+
+	<rule ref="PHPCompatibilityWP"/>
+
+	<!-- ===== Text-domain enforcement: every __() / _e() / etc.
+	     must use 'mantia' so translation tooling picks them up. ===== -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="mantia"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>
