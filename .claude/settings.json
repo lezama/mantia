@@ -1,6 +1,29 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "for d in ../agents-api ../openclawp; do if [ -d \"$d/.git\" ]; then DIRTY=$(cd \"$d\" && git status -s 2>/dev/null | wc -l | xargs); BRANCH=$(cd \"$d\" && git branch --show-current 2>/dev/null); if [ \"${DIRTY:-0}\" -gt 0 ]; then echo \"⚠️  $(basename \"$d\") on $BRANCH: $DIRTY uncommitted file(s) — review before deploy\"; fi; fi; done",
+            "description": "Flag uncommitted work in the sibling plugins (agents-api, openclawp) at session start. Mantia deploys often pick up their state, so knowing they're dirty up front avoids deploying stale or in-progress substrate."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" == *mantia.php ]] || [[ \"$CLAUDE_FILE_PATHS\" == */mantia.php ]]; then echo '💡 Touching mantia.php — if you change Version:, bump MANTIA_VERSION constant in the same edit. CI lint.yml enforces no-drift.'; fi",
+            "description": "Reminder when touching the plugin entry: Version header and MANTIA_VERSION constant must stay in lockstep. The lint workflow checks the invariant; this is a friendly nudge so we never get there."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
