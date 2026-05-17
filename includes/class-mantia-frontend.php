@@ -80,8 +80,14 @@ final class Mantia_Frontend {
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
+		// /penca/me/share/<share_token>/ — the screenshotable poster.
+		// Uses a SEPARATE token from /penca/me/<view_token>/ so a leaked
+		// share link can't be transformed into the private edit URL by
+		// dropping segments. Old `/penca/me/<view_token>/compartir/`
+		// route is removed in the same commit; any previously-screenshot
+		// share URL now 404s, which is the right failure mode.
 		add_rewrite_rule(
-			'^penca/me/([a-f0-9]+)/compartir/?$',
+			'^penca/me/share/([a-f0-9]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-user&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
@@ -427,7 +433,12 @@ final class Mantia_Frontend {
 			}
 		}
 
-		$share_url = home_url( '/penca/me/' . $token . '/compartir/' );
+		// IMPORTANT: the share URL uses a SEPARATE token from this page's
+		// private view token. Sharing /me/<view>/compartir/ would let
+		// recipients strip /compartir/ and land on the editable view —
+		// a privacy + write-access leak. The share token is a distinct
+		// random hex string with no relation to the view token.
+		$share_url = home_url( '/penca/me/share/' . Mantia_Repository::user_share_token( $user_id ) . '/' );
 
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $display_name ) );
@@ -1069,10 +1080,14 @@ SVG;
 	 * the same template as the group share.
 	 */
 	private static function render_share_user( string $token ): string {
-		$user_post = Mantia_Repository::find_user_by_view_token( $token );
+		// Lookup by SHARE token, never view token. The two are
+		// independently random — see Mantia_Repository::META_USER_SHARE_TOKEN
+		// — so even a leaked share URL can't be transformed into the
+		// private /me/<view>/ edit page.
+		$user_post = Mantia_Repository::find_user_by_share_token( $token );
 		if ( ! $user_post ) {
 			status_header( 404 );
-			return self::render_not_found( __( 'Este link privado no funciona o ya venció.', 'mantia' ) );
+			return self::render_not_found( __( 'Este link de compartir no funciona o ya venció.', 'mantia' ) );
 		}
 		$user_id = (int) $user_post->ID;
 		$name    = self::display_name_for( $user_id );
@@ -1094,10 +1109,11 @@ SVG;
 			}
 		}
 
-		$back_url = Mantia_Repository::user_view_url( $user_id );
-		if ( '' === $back_url ) {
-			$back_url = home_url( '/penca/me/' . $token . '/' );
-		}
+		// "Back" goes home — NOT to the private /me/ page. We never want
+		// to surface the view token in any link reachable from the share
+		// poster page (someone screenshots the URL bar of the page they
+		// were sent and the recipient could now navigate to it).
+		$back_url = home_url( '/' );
 
 		$share_group_url = $best ? Mantia_Repository::group_view_url( (int) $best['group']['id'] ) : home_url( '/' );
 

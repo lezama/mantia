@@ -51,7 +51,8 @@ Mantia_E2E::finish_match( $match_id, 2, 1 );
 Mantia_Abilities::resolve_match( array( 'match_id' => $match_id ) );
 
 $alice_post  = Mantia_Repository::find_user_by_phone( $alice['phone'] );
-$alice_token = Mantia_Repository::user_view_token( (int) $alice_post->ID );
+$alice_id    = (int) $alice_post->ID;
+$alice_token = Mantia_Repository::user_view_token( $alice_id );
 
 Mantia_E2E::step( '2. /penca/g/<token>/compartir/ shows the leader poster' );
 Mantia_E2E::assert_http_ok( '/penca/g/' . $group_token . '/compartir/', array(
@@ -63,8 +64,11 @@ Mantia_E2E::assert_http_ok( '/penca/g/' . $group_token . '/compartir/', array(
 	'Copiar link',            // primary action
 ) );
 
-Mantia_E2E::step( '3. /penca/me/<token>/compartir/ shows the user\'s own poster' );
-Mantia_E2E::assert_http_ok( '/penca/me/' . $alice_token . '/compartir/', array(
+Mantia_E2E::step( '3. /penca/me/share/<share_token>/ shows the user\'s own poster' );
+// Share path uses a SEPARATE token from the private edit token. The
+// helper lazy-generates a distinct random hex on first call.
+$alice_share_token = Mantia_Repository::user_share_token( $alice_id );
+Mantia_E2E::assert_http_ok( '/penca/me/share/' . $alice_share_token . '/', array(
 	'mantia-share-card',
 	'Alice',
 	'data-rank="1"',
@@ -72,9 +76,20 @@ Mantia_E2E::assert_http_ok( '/penca/me/' . $alice_token . '/compartir/', array(
 	'Copiar link',
 ) );
 
-Mantia_E2E::step( '4. Invalid tokens 404 with friendly recovery' );
+Mantia_E2E::step( '4. PRIVACY — share token cannot reach the private edit page, and vice versa' );
+// View token on the share path must 404. If this assertion ever flips,
+// it means the two token namespaces have merged — re-read the rewrite
+// rules carefully.
+Mantia_E2E::assert_http_status( '/penca/me/share/' . $alice_token . '/', 404 );
+// Share token on the private path must 404 too.
+Mantia_E2E::assert_http_status( '/penca/me/' . $alice_share_token . '/', 404 );
+// The pre-Aug-2026 path /penca/me/<view>/compartir/ no longer routes
+// to anything — verifies we removed it.
+Mantia_E2E::assert_http_status( '/penca/me/' . $alice_token . '/compartir/', 404 );
+
+Mantia_E2E::step( '5. Invalid tokens 404 with friendly recovery' );
 Mantia_E2E::assert_http_status( '/penca/g/0000000000000000/compartir/', 404, array( 'no funciona' ) );
-Mantia_E2E::assert_http_status( '/penca/me/0000000000000000/compartir/', 404, array( 'no funciona' ) );
+Mantia_E2E::assert_http_status( '/penca/me/share/0000000000000000/', 404, array( 'no funciona' ) );
 
 Mantia_E2E::step( '5. Cleanup' );
 Mantia_E2E::cleanup();

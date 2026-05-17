@@ -152,8 +152,13 @@ final class Mantia_Repository {
 		return '' !== $id ? $id : Mantia_Competitions::default_id();
 	}
 
-	public const META_GROUP_VIEW_TOKEN = '_mantia_group_view_token';
-	public const META_USER_VIEW_TOKEN  = '_mantia_user_view_token';
+	public const META_GROUP_VIEW_TOKEN  = '_mantia_group_view_token';
+	public const META_USER_VIEW_TOKEN   = '_mantia_user_view_token';
+	// SEPARATE share token for /me/share/<t>/ — must not equal the view
+	// token. Otherwise anyone holding the share link could strip the
+	// /share/ segment and land on the private edit page. Same token =
+	// privacy break + write-access leak.
+	public const META_USER_SHARE_TOKEN  = '_mantia_user_share_token';
 
 	public static function group_view_token( int $group_id ): string {
 		$token = (string) get_post_meta( $group_id, self::META_GROUP_VIEW_TOKEN, true );
@@ -203,6 +208,45 @@ final class Mantia_Repository {
 				'posts_per_page' => 1,
 				'no_found_rows'  => true,
 				'meta_key'       => self::META_USER_VIEW_TOKEN,
+				'meta_value'     => $token,
+			)
+		);
+		return $posts[0] ?? null;
+	}
+
+	/**
+	 * Share token: an INDEPENDENTLY-random hex string distinct from the
+	 * user's view token. The two never overlap, which is the whole point
+	 * — `/penca/me/<view>/` is the private edit URL; `/penca/me/share/<share>/`
+	 * is the screenshotable read-only summary. If they shared a token,
+	 * anyone with the share link could land on the edit page by chopping
+	 * the URL.
+	 */
+	public static function user_share_token( int $user_id ): string {
+		$token = (string) get_post_meta( $user_id, self::META_USER_SHARE_TOKEN, true );
+		if ( '' === $token ) {
+			// Loop to be paranoid about the (astronomical) chance of
+			// colliding with the view token — both are 24 hex chars.
+			do {
+				$token = bin2hex( random_bytes( 12 ) );
+			} while ( $token === (string) get_post_meta( $user_id, self::META_USER_VIEW_TOKEN, true ) );
+			update_post_meta( $user_id, self::META_USER_SHARE_TOKEN, $token );
+		}
+		return $token;
+	}
+
+	public static function find_user_by_share_token( string $token ): ?WP_Post {
+		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
+		if ( strlen( $token ) < 16 ) {
+			return null;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::USER,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'meta_key'       => self::META_USER_SHARE_TOKEN,
 				'meta_value'     => $token,
 			)
 		);
