@@ -208,6 +208,19 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_my_groups( $identity );
 		}
 
+		// Bulk-set "Argentina gana todo" / "Brasil gana siempre" / "Marca a
+		// Uruguay como ganador". Maps every upcoming match where the named
+		// team plays to a 2-1 win (most common winning scoreline). Lets
+		// users "back a favourite" without typing 64 individual scores.
+		// Accepts a few natural phrasings: "X gana todo|siempre|todos los
+		// partidos" or "marca[r] [a] X [como (ganador|wins)]".
+		if ( preg_match( '/^(.+?)\s+(?:gana|wins?)\s+(?:todo|todos?(?:\s+los\s+partidos)?|siempre)$/iu', $plain, $bm ) ) {
+			return self::handle_bulk_back_team( trim( (string) $bm[1] ), $identity );
+		}
+		if ( preg_match( '/^marca(?:r)?\s+(?:a\s+)?(.+?)(?:\s+(?:gana(?:dor)?|wins?))?$/iu', $plain, $bm ) ) {
+			return self::handle_bulk_back_team( trim( (string) $bm[1] ), $identity );
+		}
+
 		if ( preg_match( '/^(?:partidos?|proximos?|fixture|matches)$/i', $lc ) ) {
 			return self::handle_matches( $identity );
 		}
@@ -245,6 +258,93 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Bulk-back a team: set 2-1 wins for every upcoming match where the
+	 * named team plays in any of the user's pencas. The pick is the most
+	 * common winning scoreline so the "back my country / favourite club"
+	 * intent gets a sensible default without typing 7 individual scores.
+	 *
+	 * Predictions are fanned out across all the user's pencas in each
+	 * match's competition (same fan-out the regular score command uses),
+	 * so backing Argentina updates Family penca + Office penca at once.
+	 */
+	private static function handle_bulk_back_team( string $team_raw, array $identity ): array {
+		if ( '' === trim( $team_raw ) ) {
+			return array(
+				'reply' => 'Decime qué equipo querés bancar. Ej: *Argentina gana todo*.',
+				'completed' => true,
+			);
+		}
+		if ( '' === $identity['phone'] ) {
+			return array(
+				'reply' => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
+		}
+		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		if ( ! $user ) {
+			$noun = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
+			return array(
+				'reply'     => sprintf( 'Primero entrá a una %s con su código y volvemos al bulk-set.', $noun ),
+				'completed' => true,
+			);
+		}
+
+		$user_id     = (int) $user->ID;
+		$canonical   = Mantia_Repository::team_canonical( $team_raw );
+		if ( '' === $canonical ) {
+			return array(
+				'reply'     => sprintf( 'No reconozco *%s* como un equipo del Mundial. Probá con el nombre exacto, ej: *Argentina gana todo*.', sanitize_text_field( $team_raw ) ),
+				'completed' => true,
+			);
+		}
+
+		// Collect upcoming matches across every penca the user belongs to.
+		$touched   = 0;
+		$competitions = array();
+		foreach ( Mantia_Repository::user_groups_to_array( $user_id ) as $g ) {
+			$gid     = (int) $g['id'];
+			$comp_id = Mantia_Repository::group_competition_id( $gid );
+			if ( '' === $comp_id || isset( $competitions[ $comp_id ] ) ) {
+				continue;
+			}
+			$competitions[ $comp_id ] = true;
+			foreach ( Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 365 ) as $match ) {
+				$home = (string) $match['home_team'];
+				$away = (string) $match['away_team'];
+				if ( $canonical !== $home && $canonical !== $away ) {
+					continue;
+				}
+				$is_home = ( $canonical === $home );
+				$pred = Mantia_Abilities::register_prediction(
+					array(
+						'user_phone'   => $identity['phone'],
+						'match_id'     => (int) $match['id'],
+						'first_team'   => $home,
+						'first_score'  => $is_home ? 2 : 1,
+						'second_team'  => $away,
+						'second_score' => $is_home ? 1 : 2,
+					)
+				);
+				if ( ! is_wp_error( $pred ) ) {
+					$touched++;
+				}
+			}
+		}
+
+		if ( 0 === $touched ) {
+			return array(
+				'reply'     => sprintf( 'No encontré partidos pendientes con *%s*. Quizás ya jugaron, o no están en tus pencas.', $canonical ),
+				'completed' => true,
+			);
+		}
+
+		return array(
+			'reply'     => sprintf( '✅ Listo, *%s* sale ganando en %d %s. Para ajustar uno, mandame el marcador (ej: *3-0*).', $canonical, $touched, $touched === 1 ? 'partido' : 'partidos' ),
+			'completed' => true,
+		);
 	}
 
 	private static function handle_set_name( string $raw_name, array $identity ): array {
@@ -358,11 +458,19 @@ final class Mantia_Whatsapp_Flow {
 		$me_id   = $joiner ? (int) $joiner->ID : 0;
 		$noun    = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 		$activa  = Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' );
-		$intro   = ! empty( $result['already_member'] )
+		$autofilled = (int) ( $result['autofilled'] ?? 0 );
+		$intro      = ! empty( $result['already_member'] )
 			? sprintf( 'Listo, %s %s: *%s*.', $noun, $activa, $g['name'] )
 			: sprintf( 'Listo, te sume a *%s*. Esa queda como tu %s %s.', $g['name'], $noun, $activa );
 
-		$lines = array( $intro, '' );
+		$lines = array( $intro );
+		if ( $autofilled > 0 ) {
+			$lines[] = sprintf(
+				'_Ya te puse pronósticos para los %d partidos. Mandame el marcador o tocá un partido para cambiarlos._',
+				$autofilled
+			);
+		}
+		$lines[] = '';
 		$lines = array_merge( $lines, self::member_lines( (int) $g['id'], $me_id ) );
 
 		if ( '' !== ( $g['share_url'] ?? '' ) ) {
@@ -474,15 +582,16 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		$group = Mantia_Repository::group_to_array( $group_id );
-		Mantia_Repository::join_group(
+		$join_result = Mantia_Repository::join_group(
 			$identity['phone'],
 			$group['invite_code'],
 			$identity['name'],
 			$identity['recipient']
 		);
 
-		$creator = Mantia_Repository::find_user_by_phone( $identity['phone'] );
-		$me_id   = $creator ? (int) $creator->ID : 0;
+		$creator    = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		$me_id      = $creator ? (int) $creator->ID : 0;
+		$autofilled = is_array( $join_result ) ? (int) ( $join_result['autofilled'] ?? 0 ) : 0;
 
 		// Send the forwardable invitation card FIRST (will appear upper in
 		// the chat — slightly older). It's self-contained: no "vos creaste"
@@ -494,10 +603,16 @@ final class Mantia_Whatsapp_Flow {
 		// Explains what they should do next: forward the card above.
 		$lines = array(
 			sprintf( '✅ Creaste *%s* para %s.', $group['name'], $group['competition_name'] ),
-			'',
-			'_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._',
-			'',
 		);
+		if ( $autofilled > 0 ) {
+			$lines[] = sprintf(
+				'_Ya te puse pronósticos para los %d partidos. Mandame el marcador o tocá un partido para cambiarlos._',
+				$autofilled
+			);
+		}
+		$lines[] = '';
+		$lines[] = '_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._';
+		$lines[] = '';
 		$lines = array_merge( $lines, self::member_lines( $group_id, $me_id ) );
 
 		return array(

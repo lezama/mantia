@@ -503,13 +503,227 @@ final class Mantia_Repository {
 		}
 		update_post_meta( $user_id, self::META_ACTIVE_GROUP_ID, (int) $group->ID );
 
+		// Auto-fill predictions for every upcoming match in this penca's
+		// competition. Keeps users "in the game" the second they join —
+		// they can override any score before kickoff, but they don't have
+		// to predict every match manually to appear on the leaderboard.
+		// Filter `mantia_auto_predict_on_join` (default true) flips it off
+		// for installs that want to enforce manual-only predictions.
+		$autofilled = 0;
+		if ( ! $already_member && apply_filters( 'mantia_auto_predict_on_join', true, $user_id, (int) $group->ID ) ) {
+			$autofilled = self::auto_fill_predictions( $user_id, (int) $group->ID );
+		}
+
 		return array(
 			'user_id'        => $user_id,
 			'group_id'       => (int) $group->ID,
 			'already_member' => $already_member,
 			'active_group'   => (int) $group->ID,
 			'group'          => self::group_to_array( (int) $group->ID ),
+			'autofilled'     => $autofilled,
 		);
+	}
+
+	/**
+	 * Seed predictions for every upcoming match in the group's competition
+	 * that this user doesn't have one for yet.
+	 *
+	 * If the user has already predicted the same match in another penca
+	 * (same competition, different group), we copy that score instead of
+	 * generating a fresh random — consistent with the WhatsApp fan-out
+	 * behavior where one prediction spans every penca in the competition.
+	 *
+	 * Returns the number of predictions created (skipped ones don't count).
+	 */
+	public static function auto_fill_predictions( int $user_id, int $group_id ): int {
+		$competition_id = self::group_competition_id( $group_id );
+		if ( '' === $competition_id ) {
+			return 0;
+		}
+
+		// Wide window: cover the entire Mundial (1 year is plenty of
+		// headroom for any pool we care about — group stage starts
+		// 11 jun, final ~19 jul). The repository's "upcoming" filter
+		// already drops finished matches.
+		$matches = self::upcoming_matches_for_competition( $competition_id, 24 * 365 );
+		if ( empty( $matches ) ) {
+			return 0;
+		}
+
+		$created = 0;
+		foreach ( $matches as $match ) {
+			$match_id = (int) $match['id'];
+			if ( self::find_prediction( $user_id, $match_id, $group_id ) ) {
+				continue;
+			}
+
+			$existing = self::find_existing_user_match_scores( $user_id, $match_id, $group_id );
+			if ( $existing ) {
+				$scores = $existing;
+			} else {
+				// Strength-aware random: heavy favorites get higher expected
+				// goals, so Argentina vs Tunisia auto-fills closer to 2-0 than
+				// 1-1, while Uruguay vs Portugal hovers near the realistic
+				// "any of three results" middle.
+				$home_str = self::team_strength( (string) $match['home_team'] );
+				$away_str = self::team_strength( (string) $match['away_team'] );
+				$scores   = self::random_realistic_score( $home_str, $away_str );
+			}
+
+			$pred = self::register_prediction(
+				$user_id,
+				$match_id,
+				$group_id,
+				(int) $scores[0],
+				(int) $scores[1]
+			);
+			if ( ! is_wp_error( $pred ) ) {
+				$created++;
+			}
+		}
+		return $created;
+	}
+
+	/**
+	 * Look across all of the user's other groups for a prior prediction
+	 * on the same match. Returns [home, away] or null when there isn't one.
+	 *
+	 * The $skip_group_id parameter avoids picking up the empty slot we're
+	 * about to fill in the caller's group.
+	 */
+	private static function find_existing_user_match_scores( int $user_id, int $match_id, int $skip_group_id ): ?array {
+		foreach ( self::user_group_ids( $user_id ) as $gid ) {
+			$gid = (int) $gid;
+			if ( $gid === $skip_group_id ) {
+				continue;
+			}
+			$pred = self::find_prediction( $user_id, $match_id, $gid );
+			if ( $pred ) {
+				return array(
+					(int) get_post_meta( (int) $pred->ID, self::META_PRED_HOME_SCORE, true ),
+					(int) get_post_meta( (int) $pred->ID, self::META_PRED_AWAY_SCORE, true ),
+				);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Return a [home, away] score drawn from a realistic football
+	 * distribution. Each team's expected goal output scales with its
+	 * `team_strength()` rating (1..10): two perfect-balanced teams
+	 * average ~1.3 goals each, an Argentina-vs-Tunisia mismatch lands
+	 * closer to ~2.5 vs ~0.5. Scores are sampled independently with a
+	 * Poisson process, clamped at 6, so we never produce nonsense like
+	 * 9-7. Tests that need determinism can `mt_srand(...)` first.
+	 *
+	 * @param int|null $home_strength 1..10, or null for neutral (5).
+	 * @param int|null $away_strength 1..10, or null for neutral (5).
+	 * @return array{0:int,1:int}
+	 */
+	public static function random_realistic_score( ?int $home_strength = null, ?int $away_strength = null ): array {
+		$home_strength = max( 1, min( 10, $home_strength ?? 5 ) );
+		$away_strength = max( 1, min( 10, $away_strength ?? 5 ) );
+
+		// Expected goals tuned so the strength=5/5 baseline produces a
+		// distribution close to a real World Cup (mean ~1.3 goals/side,
+		// most common scoreline 1-1, then 1-0/0-1).
+		$lambda_h = $home_strength * 0.26;
+		$lambda_a = $away_strength * 0.26;
+
+		return array( self::poisson_sample( $lambda_h ), self::poisson_sample( $lambda_a ) );
+	}
+
+	/**
+	 * Knuth's straightforward Poisson sampler. Sufficient for the small
+	 * lambdas (~0.3..2.6) we use here — no need to pull in a stats lib.
+	 * Clamps the result at 6 because anything higher in a single half is
+	 * a freak event that auto-fill shouldn't seed.
+	 */
+	private static function poisson_sample( float $lambda ): int {
+		$l = exp( -$lambda );
+		$k = 0;
+		$p = 1.0;
+		do {
+			$k++;
+			$p *= mt_rand() / mt_getrandmax();
+		} while ( $p > $l );
+		return max( 0, min( 6, $k - 1 ) );
+	}
+
+	/**
+	 * Team strength on a 1..10 scale, hand-curated from late-2025 FIFA
+	 * rankings for the 48 Mundial 2026 sides. Unknown teams fall back to
+	 * 5 (neutral) so auto-fill behaves gracefully for friendlies or
+	 * non-Mundial competitions that may share the fixture system later.
+	 *
+	 * The table is intentionally short — there's no point feeding the
+	 * decimal-precision FIFA points into a Poisson sampler that only
+	 * cares about ballpark gap. If a team moves a tier, edit it here.
+	 *
+	 * Filter `mantia_team_strength` lets a site override per-team or
+	 * supply a different competition (e.g. Libertadores) without
+	 * forking the table.
+	 */
+	public static function team_strength( string $team ): int {
+		static $table = array(
+			// Tier 10 — top contenders.
+			'Argentina' => 10,
+			'Francia' => 10,
+			'España' => 10,
+			'Brasil' => 10,
+			// Tier 9 — strong favourites.
+			'Inglaterra' => 9,
+			'Alemania' => 9,
+			'Portugal' => 9,
+			'Países Bajos' => 9,
+			// Tier 8 — dark horses.
+			'Italia' => 8,
+			'Bélgica' => 8,
+			'Croacia' => 8,
+			'Marruecos' => 8,
+			'Uruguay' => 8,
+			'Colombia' => 8,
+			'México' => 8,
+			// Tier 7 — solid mid-pack.
+			'Suiza' => 7,
+			'Dinamarca' => 7,
+			'Senegal' => 7,
+			'Estados Unidos' => 7,
+			'Japón' => 7,
+			'Corea del Sur' => 7,
+			'Polonia' => 7,
+			'Australia' => 7,
+			'Ecuador' => 7,
+			'Serbia' => 7,
+			// Tier 6 — competitive minnows.
+			'Irán' => 6,
+			'Túnez' => 6,
+			'Canadá' => 6,
+			'Costa de Marfil' => 6,
+			'Egipto' => 6,
+			'Argelia' => 6,
+			'Paraguay' => 6,
+			'Perú' => 6,
+			'Chile' => 6,
+			'Venezuela' => 6,
+			// Tier 5 — guests / qualifiers expected to struggle.
+			'Bolivia' => 5,
+			'Honduras' => 5,
+			'Panamá' => 5,
+			'Jamaica' => 5,
+			'Arabia Saudí' => 5,
+			'Catar' => 5,
+			'Sudáfrica' => 5,
+			// Tier 4 — heavy underdogs.
+			'Nueva Zelanda' => 4,
+			'Curazao' => 4,
+			'El Salvador' => 4,
+			'Haití' => 4,
+		);
+
+		$rating = $table[ $team ] ?? 5;
+		return (int) apply_filters( 'mantia_team_strength', $rating, $team );
 	}
 
 	public static function user_group_ids( int $user_id ): array {
@@ -1196,5 +1410,42 @@ final class Mantia_Repository {
 	private static function team_key( string $team ): string {
 		$team = function_exists( 'remove_accents' ) ? remove_accents( $team ) : $team;
 		return sanitize_title( $team );
+	}
+
+	/**
+	 * Resolve a fuzzy team name to its canonical fixture form, or '' when
+	 * we don't recognise it. Used by the bulk-back-team flow so users can
+	 * type "argentina" / "Argentina!" / "ARG" and we still anchor it to
+	 * the exact label the match CPT stores ("Argentina"), which the
+	 * register_prediction matcher then compares for orientation.
+	 *
+	 * Cached for the request so a "Argentina gana todo" command doesn't
+	 * re-scan all 64 matches once per fixture row.
+	 */
+	public static function team_canonical( string $raw ): string {
+		static $cache = null;
+		if ( null === $cache ) {
+			$cache = array();
+			$posts = get_posts(
+				array(
+					'post_type'      => Mantia_CPTs::MATCH,
+					'posts_per_page' => -1,
+					'post_status'    => 'publish',
+					'fields'         => 'ids',
+				)
+			);
+			foreach ( $posts as $pid ) {
+				foreach ( array( self::META_HOME_TEAM, self::META_AWAY_TEAM ) as $meta_key ) {
+					$name = (string) get_post_meta( (int) $pid, $meta_key, true );
+					if ( '' === $name ) {
+						continue;
+					}
+					$cache[ self::team_key( $name ) ] = $name;
+				}
+			}
+		}
+
+		$key = self::team_key( trim( $raw ) );
+		return $cache[ $key ] ?? '';
 	}
 }

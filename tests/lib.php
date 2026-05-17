@@ -40,6 +40,24 @@ final class Mantia_E2E {
 		// reject with manage_options denied and the test breaks deep
 		// inside an ->execute() with a WP_Error→array cast fatal.
 		self::login_as_admin();
+
+		// Production auto-fills predictions for every match in a penca's
+		// competition when a user joins. That's the right UX default but
+		// most scenarios in this suite want to exercise the manual
+		// prediction flow (tap a match → bot asks for score → user
+		// replies "2-1"). A scenario can opt back in with
+		// `Mantia_E2E::enable_auto_predict()` if it specifically wants to
+		// verify the auto-fill path.
+		add_filter( 'mantia_auto_predict_on_join', '__return_false' );
+	}
+
+	/**
+	 * Re-enable auto-fill for scenarios that specifically test it.
+	 * Defaults off in the suite so we don't have to update every
+	 * existing test that walks the manual-predict flow.
+	 */
+	public static function enable_auto_predict(): void {
+		remove_filter( 'mantia_auto_predict_on_join', '__return_false' );
 	}
 
 	private static function login_as_admin(): void {

@@ -1868,6 +1868,28 @@ JS;
 							<button class="mantia-edit-save" type="submit" aria-label="<?php esc_attr_e( 'Guardar pronóstico', 'mantia' ); ?>">
 								<?php esc_html_e( 'Guardar', 'mantia' ); ?>
 							</button>
+							<div class="mantia-edit-quick" aria-label="<?php esc_attr_e( 'Marcadores rápidos', 'mantia' ); ?>">
+								<?php
+								// Most-common World Cup scorelines, ordered by likelihood —
+								// matches the distribution in random_realistic_score so the
+								// chips feel familiar after auto-fill.
+								$quick = array(
+									array( 1, 0 ),
+									array( 1, 1 ),
+									array( 2, 1 ),
+									array( 2, 0 ),
+									array( 0, 0 ),
+									array( 0, 1 ),
+								);
+								foreach ( $quick as $q ) :
+									?>
+									<button type="button" class="mantia-edit-chip"
+										data-home="<?php echo (int) $q[0]; ?>"
+										data-away="<?php echo (int) $q[1]; ?>"
+										aria-label="<?php echo esc_attr( sprintf( '%d a %d', $q[0], $q[1] ) ); ?>"
+									><?php echo (int) $q[0]; ?>·<?php echo (int) $q[1]; ?></button>
+								<?php endforeach; ?>
+							</div>
 							<div class="mantia-edit-status" hidden></div>
 						</form>
 					<?php endforeach; ?>
@@ -1896,6 +1918,21 @@ JS;
 			var lists = document.querySelectorAll('.mantia-edit-list');
 			lists.forEach(function (list) {
 				var token = list.getAttribute('data-mantia-token') || '';
+
+				// Quick-tap chip: fill the inputs with the chip's score and
+				// trigger submit. One tap = one prediction saved, no typing
+				// or keyboard required.
+				list.addEventListener('click', function (evt) {
+					var chip = evt.target.closest('.mantia-edit-chip');
+					if (!chip) return;
+					var form = chip.closest('.mantia-edit-row');
+					if (!form) return;
+					evt.preventDefault();
+					form.querySelector('input[name="home_score"]').value = chip.getAttribute('data-home') || '0';
+					form.querySelector('input[name="away_score"]').value = chip.getAttribute('data-away') || '0';
+					form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+				});
+
 				list.addEventListener('submit', function (evt) {
 					evt.preventDefault();
 					var form = evt.target.closest('.mantia-edit-row');
@@ -3413,6 +3450,31 @@ body.mantia-body-share {
 }
 .mantia-edit-save:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
 .mantia-edit-save:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+.mantia-edit-quick {
+	grid-column: 1 / -1;
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	padding-top: 6px;
+}
+.mantia-edit-chip {
+	appearance: none;
+	cursor: pointer;
+	height: 30px;
+	padding: 0 10px;
+	border-radius: 999px;
+	border: 2px solid var(--ink);
+	background: var(--surface);
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 13px;
+	letter-spacing: -0.01em;
+	box-shadow: 1px 1px 0 var(--ink);
+	font-variant-numeric: tabular-nums;
+}
+.mantia-edit-chip:hover { transform: translate(1px, 1px); box-shadow: 0 0 0 var(--ink); }
+.mantia-edit-chip:active { background: var(--accent-2); }
 .mantia-edit-status {
 	grid-column: 1 / -1;
 	font-family: var(--font-body);
