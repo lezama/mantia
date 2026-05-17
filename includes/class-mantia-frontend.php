@@ -311,6 +311,19 @@ final class Mantia_Frontend {
 			return self::render_not_found( __( 'Este link no funciona o ya venció.', 'mantia' ) );
 		}
 
+		// Optional `?as=<share_token>` lets the caller (typically the /me/
+		// page linking here) ask the group page to highlight a specific
+		// row. We use the SHARE token (not the view token) so that link
+		// can leak harmlessly — share tokens grant no write access.
+		$me_id = null;
+		$as    = isset( $_GET['as'] ) ? (string) $_GET['as'] : '';
+		if ( '' !== $as ) {
+			$me_post = Mantia_Repository::find_user_by_share_token( $as );
+			if ( $me_post ) {
+				$me_id = (int) $me_post->ID;
+			}
+		}
+
 		$group_id   = (int) $group_post->ID;
 		$group      = Mantia_Repository::group_to_array( $group_id );
 		$rows       = Mantia_Leaderboard::rows( $group_id, 50 );
@@ -361,7 +374,7 @@ final class Mantia_Frontend {
 				<?php if ( empty( $rows ) ) : ?>
 					<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos cargados.', 'mantia' ); ?></p>
 				<?php else : ?>
-					<?php self::render_leaderboard( $rows, 'group' ); ?>
+					<?php self::render_leaderboard( $rows, 'group', $me_id ); ?>
 				<?php endif; ?>
 			</section>
 
@@ -556,8 +569,15 @@ final class Mantia_Frontend {
 							<?php endif; ?>
 						</div>
 
-						<?php if ( $my_row ) : ?>
-							<div class="mantia-me-line">
+						<?php if ( $my_row ) :
+							// Pass `?as=<share_token>` to the group page so it can
+							// highlight this user's row. Share token is read-only,
+							// safe to bake into a URL the user might copy/forward.
+							$group_token   = Mantia_Repository::group_view_token( $group_id );
+							$share_tok     = Mantia_Repository::user_share_token( $user_id );
+							$group_link    = home_url( '/penca/g/' . $group_token . '/?as=' . $share_tok );
+							?>
+							<a class="mantia-me-line" href="<?php echo esc_url( $group_link ); ?>">
 								<span class="mantia-numeral mantia-numeral-m"><?php echo esc_html( self::rank_label( (int) $my_row['rank'] ) ); ?></span>
 								<span class="mantia-me-rank-suffix">
 									<?php
@@ -569,7 +589,8 @@ final class Mantia_Frontend {
 									<span class="mantia-numeral mantia-numeral-m"><?php echo (int) $my_row['points']; ?></span>
 									<span class="mantia-stat-label-inline"><?php esc_html_e( 'pts', 'mantia' ); ?></span>
 								</span>
-							</div>
+								<span class="mantia-me-line-arrow" aria-hidden="true">→</span>
+							</a>
 						<?php endif; ?>
 
 						<?php
@@ -1248,7 +1269,21 @@ SVG;
 				<?php endif; ?>
 			</div>
 
+			<?php
+			// One-tap WhatsApp share: prefill a forwardable message with
+			// the headline ("Vas primero en La Familia · <url>") so the
+			// user doesn't have to type anything in WhatsApp's compose
+			// box after opening it.
+			$wa_text   = '' !== (string) ( $args['leader_name'] ?? '' )
+				? sprintf( '%s · %s', wp_strip_all_tags( (string) ( $args['in_label'] ?? '' ) ?: (string) $args['title'] ), $short_url )
+				: $short_url;
+			$wa_link   = 'https://wa.me/?text=' . rawurlencode( $wa_text );
+			?>
 			<div class="mantia-share-actions">
+				<a class="mantia-share-wa" href="<?php echo esc_url( $wa_link ); ?>" target="_blank" rel="noopener">
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7 0-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.7.1-.1.3-.4.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.2-.7-1.6-.9-2.2-.2-.6-.4-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.3 4.8.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.4.7 3 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>
+					<?php esc_html_e( 'Mandar por WhatsApp', 'mantia' ); ?>
+				</a>
 				<button class="mantia-share-copy" type="button" data-url="<?php echo esc_attr( $share_url ); ?>">
 					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="13" height="13" rx="2"/><path d="M14 6V4.5A1.5 1.5 0 0 0 12.5 3h-7A1.5 1.5 0 0 0 4 4.5v10A1.5 1.5 0 0 0 5.5 16H6"/></svg>
 					<?php esc_html_e( 'Copiar link', 'mantia' ); ?>
@@ -1681,7 +1716,7 @@ JS;
 	 * @param array $rows    Standardized leaderboard rows (rank/name/user_id/points/exacts/predictions[/group_name]).
 	 * @param string $variant 'group' (no group_name column) or 'competition' (with group_name)
 	 */
-	private static function render_leaderboard( array $rows, string $variant = 'group' ): void {
+	private static function render_leaderboard( array $rows, string $variant = 'group', ?int $me_id = null ): void {
 		if ( empty( $rows ) ) {
 			return;
 		}
@@ -1715,13 +1750,18 @@ JS;
 		<div class="mantia-board">
 			<?php
 			foreach ( $rest as $row ) :
-				$rank = (int) $row['rank'];
+				$rank   = (int) $row['rank'];
+				$is_me  = null !== $me_id && (int) $row['user_id'] === $me_id;
+				$row_cls = 'mantia-board-row' . ( $is_me ? ' mantia-board-row-me' : '' );
 				?>
-				<div class="mantia-board-row">
+				<div class="<?php echo esc_attr( $row_cls ); ?>">
 					<span class="mantia-rank" data-rank="<?php echo esc_attr( (string) $rank ); ?>"><?php echo esc_html( self::rank_label( $rank ) ); ?></span>
 					<?php echo self::user_avatar( (int) $row['user_id'], 32 ); ?>
 					<div class="mantia-board-player">
-						<div class="mantia-board-name"><?php echo esc_html( $row['name'] ); ?></div>
+						<div class="mantia-board-name <?php echo $is_me ? 'mantia-board-name-me' : ''; ?>">
+							<?php echo esc_html( $row['name'] ); ?>
+							<?php if ( $is_me ) : ?><span class="mantia-board-name-suffix"><?php esc_html_e( '· vos', 'mantia' ); ?></span><?php endif; ?>
+						</div>
 						<div class="mantia-board-exc">
 							<strong><?php echo (int) $row['exacts']; ?></strong>
 							<span><?php esc_html_e( 'exactos', 'mantia' ); ?></span>
@@ -2954,8 +2994,23 @@ body {
 	align-items: baseline;
 	gap: 10px;
 	line-height: 1.4;
+	text-decoration: none;
 }
+.mantia-me-line:hover { transform: translate(1px, 1px); box-shadow: 4px 4px 0 var(--ink); }
 .mantia-me-line .mantia-numeral { color: var(--accent-2); }
+.mantia-me-line-arrow {
+	margin-left: 4px;
+	color: var(--accent-2);
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+}
+.mantia-board-name-suffix {
+	font-family: var(--font-body);
+	font-weight: 800;
+	color: var(--ink);
+	margin-left: 4px;
+}
 .mantia-me-rank-suffix { color: rgba(255,255,255,0.7); }
 .mantia-me-points-wrap {
 	margin-left: auto;
@@ -3375,6 +3430,33 @@ body.mantia-body-share {
 	width: 100%;
 	max-width: 320px;
 }
+/* Primary share action: opens wa.me with the headline+URL prefilled.
+   WhatsApp green so it reads as "WhatsApp" even before the icon renders.
+   Sits above "Copiar link" because WhatsApp is the dominant share channel
+   for Mantia's audience and a one-tap deeplink beats a clipboard paste. */
+.mantia-share-wa {
+	appearance: none;
+	cursor: pointer;
+	height: 52px;
+	border-radius: 999px;
+	border: 2.5px solid var(--ink);
+	background: #25D366;
+	color: var(--ink);
+	font-family: var(--font-body);
+	font-size: 15px;
+	font-weight: 800;
+	letter-spacing: -0.005em;
+	padding: 0 18px;
+	text-align: center;
+	box-shadow: 4px 4px 0 var(--ink);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	text-decoration: none;
+}
+.mantia-share-wa:hover { transform: translate(1px, 1px); box-shadow: 3px 3px 0 var(--ink); }
+
 .mantia-share-copy {
 	appearance: none;
 	cursor: pointer;
