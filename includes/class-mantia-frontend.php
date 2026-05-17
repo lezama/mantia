@@ -474,11 +474,64 @@ final class Mantia_Frontend {
 				</div>
 			</section>
 
+			<?php if ( $total_preds > 0 ) : ?>
+				<p class="mantia-me-hint">
+					<?php
+					/* translators: %d: number of predictions already saved */
+					printf( esc_html__( '✨ Ya tenés %d pronósticos cargados. Tocá cualquier partido abajo para cambiarlo.', 'mantia' ), (int) $total_preds );
+					?>
+				</p>
+			<?php endif; ?>
+
 			<hr class="mantia-rule">
 
 			<?php if ( empty( $groups ) ) : ?>
 				<p class="mantia-empty"><?php esc_html_e( 'Todavía no estás en ninguna penca.', 'mantia' ); ?></p>
-			<?php else : ?>
+			<?php else :
+				// Collect competitions once across all the user's pencas
+				// so "próximos · editá tu pronóstico" renders ONE time per
+				// competition, not duplicated per penca. Predictions
+				// fan out across pencas in the same competition anyway —
+				// duplicating the same match three times when a user has
+				// three Mundial pencas was UX noise.
+				$competitions = array();
+				foreach ( $groups as $g ) {
+					$cid = Mantia_Repository::group_competition_id( (int) $g['id'] );
+					if ( '' === $cid || isset( $competitions[ $cid ] ) ) {
+						continue;
+					}
+					$competitions[ $cid ] = array(
+						'name'             => (string) ( $g['competition_name'] ?? '' ),
+						'primary_group_id' => (int) $g['id'],
+						'matches'          => Mantia_Repository::upcoming_matches_for_competition( $cid, 24 * 30 ),
+					);
+				}
+				?>
+
+				<?php
+				$competitions_with_matches = array_filter( $competitions, static fn ( $c ) => ! empty( $c['matches'] ) );
+				if ( ! empty( $competitions_with_matches ) ) :
+					?>
+					<section class="mantia-block">
+						<?php foreach ( $competitions_with_matches as $cid => $comp ) : ?>
+							<div class="mantia-subblock-eyebrow"><?php
+								if ( count( $competitions_with_matches ) === 1 ) {
+									esc_html_e( 'próximos · editá tu pronóstico', 'mantia' );
+								} else {
+									/* translators: %s: competition name */
+									printf( esc_html__( 'próximos · %s', 'mantia' ), esc_html( $comp['name'] ) );
+								}
+							?></div>
+							<?php self::render_editable_matches(
+								array_slice( array_values( $comp['matches'] ), 0, 8 ),
+								$user_id,
+								(int) $comp['primary_group_id'],
+								$token
+							); ?>
+						<?php endforeach; ?>
+					</section>
+				<?php endif; ?>
+
 				<?php
 				foreach ( $groups as $g ) :
 					$group_id   = (int) $g['id'];
@@ -490,8 +543,6 @@ final class Mantia_Frontend {
 							break;
 						}
 					}
-					$comp_id  = Mantia_Repository::group_competition_id( $group_id );
-					$upcoming = Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 30 );
 					$is_active = ! empty( $g['is_active'] );
 					?>
 					<section class="mantia-block">
@@ -527,16 +578,6 @@ final class Mantia_Frontend {
 							?>
 							<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'tus pronósticos', 'mantia' ); ?></div>
 							<?php self::render_history_rows( $my_history ); ?>
-						<?php endif; ?>
-
-						<?php
-						if ( ! empty( $upcoming ) ) :
-							// Editable section: every upcoming match in this penca's
-							// competition. We don't filter out already-predicted ones —
-							// the user can change their mind right up until kickoff.
-							?>
-							<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'próximos · editá tu pronóstico', 'mantia' ); ?></div>
-							<?php self::render_editable_matches( array_slice( array_values( $upcoming ), 0, 8 ), $user_id, $group_id, $token ); ?>
 						<?php endif; ?>
 					</section>
 				<?php endforeach; ?>
@@ -1588,12 +1629,12 @@ JS;
 		?>
 		<div class="mantia-topbar">
 			<a class="mantia-topbar-btn" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php esc_attr_e( 'Inicio', 'mantia' ); ?>">
-				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+				<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/><path d="M20 12H8"/></svg>
 			</a>
 			<span class="mantia-wordmark-sm">mantia</span>
 			<?php if ( '' !== $share_url ) : ?>
 				<a class="mantia-topbar-btn mantia-topbar-share" href="<?php echo esc_url( $share_url ); ?>" aria-label="<?php esc_attr_e( 'Compartir', 'mantia' ); ?>">
-					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5h14v-5"/></svg>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M9 7h8v8"/></svg>
 				</a>
 			<?php else : ?>
 				<span class="mantia-topbar-spacer"></span>
@@ -2830,6 +2871,24 @@ body {
 }
 .mantia-hero-user-text { min-width: 0; }
 .mantia-hero-user-text .mantia-h1 { margin-top: 6px; }
+
+/* Friendly one-liner below the stats tiles to tell first-time
+   visitors what they should do here. Renders only when the user has
+   ≥1 prediction so empty-state Mateos don't get a misleading "tap to
+   change" promise before they've even predicted. */
+.mantia-me-hint {
+	margin: 0 0 22px;
+	padding: 12px 14px;
+	background: var(--accent-2);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 2px 2px 0 var(--ink);
+	font-family: var(--font-body);
+	font-size: 13.5px;
+	font-weight: 700;
+	color: var(--ink);
+	line-height: 1.4;
+}
 
 .mantia-stat-grid {
 	display: grid;

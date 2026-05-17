@@ -1236,8 +1236,18 @@ final class Mantia_Whatsapp_Flow {
 		$groups    = Mantia_Repository::user_groups_to_array( $user_id );
 		$active_id = Mantia_Repository::active_group_id_for_user( $user_id );
 		$active    = $active_id > 0 ? Mantia_Repository::group_to_array( $active_id ) : array();
-		$upcoming  = Mantia_Repository::upcoming_matches( 48 );
 		$standings = $active_id > 0 ? Mantia_Leaderboard::rows( $active_id, 3 ) : array();
+
+		// "Próximos partidos" must come from the active penca's competition
+		// — never the global fixture. Otherwise a user in a Mundial penca
+		// sees random LigaUY matches because they happen to be scheduled
+		// in the next 48h. (Bug surfaced 2026-05-17 in a screenshot:
+		// Penca Familia / Mundial 2026 was showing "Miramar Misiones vs
+		// River Plate Montevideo" et al.)
+		$comp_for_upcoming = $active_id > 0 ? Mantia_Repository::group_competition_id( $active_id ) : '';
+		$upcoming          = '' !== $comp_for_upcoming
+			? Mantia_Repository::upcoming_matches_for_competition( $comp_for_upcoming, 48 )
+			: Mantia_Repository::upcoming_matches( 48 );
 
 		$lines = array();
 		if ( ! empty( $active['name'] ) ) {
