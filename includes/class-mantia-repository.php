@@ -1142,6 +1142,85 @@ final class Mantia_Repository {
 		return self::prediction_to_array( $post_id );
 	}
 
+	/**
+	 * Most recently kicked-off matches for a competition, ordered by
+	 * kickoff descending. Used by the consensus command — we want the
+	 * one most likely to be the conversation topic.
+	 */
+	public static function recent_finished_matches_for_competition( string $competition_id, int $limit = 10 ): array {
+		$storage_id = Mantia_Competitions::storage_id( $competition_id );
+		$posts      = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::MATCH,
+				'post_status'    => 'publish',
+				'posts_per_page' => max( 1, $limit ),
+				'meta_key'       => self::META_KICKOFF_TS,
+				'orderby'        => 'meta_value_num',
+				'order'          => 'DESC',
+				'meta_query'     => array(
+					'relation' => 'AND',
+					array( 'key' => Mantia_Competitions::META_KEY, 'value' => $storage_id ),
+					array( 'key' => self::META_KICKOFF_TS, 'value' => time(), 'compare' => '<=', 'type' => 'NUMERIC' ),
+				),
+			)
+		);
+
+		$matches = array();
+		foreach ( $posts as $post ) {
+			$matches[] = self::match_to_array( (int) $post->ID );
+		}
+		return $matches;
+	}
+
+	/**
+	 * Group consensus for a single match: returns a [score_key => count]
+	 * map of how the penca's members predicted that match. Hard guard:
+	 * returns an empty array if the match hasn't kicked off yet — the
+	 * "no one sees another's predictions before kickoff" rule is enforced
+	 * here (callers don't have to remember).
+	 *
+	 * Score keys are formatted "H-A" so the caller can render them flat
+	 * ("2-1: 4 jugadores") without re-parsing.
+	 *
+	 * @return array<string,int>
+	 */
+	public static function group_consensus_for_match( int $group_id, int $match_id ): array {
+		$match = self::match_to_array( $match_id );
+		if ( empty( $match ) ) {
+			return array();
+		}
+		// Privacy guard: predictions are private until kickoff.
+		if ( (int) $match['kickoff_ts'] > time() ) {
+			return array();
+		}
+
+		$predictions = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::PREDICTION,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+				'meta_query'     => array(
+					'relation' => 'AND',
+					array( 'key' => self::META_GROUP_ID, 'value' => $group_id ),
+					array( 'key' => self::META_MATCH_ID, 'value' => $match_id ),
+				),
+			)
+		);
+
+		$consensus = array();
+		foreach ( $predictions as $pred ) {
+			$home = (int) get_post_meta( (int) $pred->ID, self::META_PRED_HOME_SCORE, true );
+			$away = (int) get_post_meta( (int) $pred->ID, self::META_PRED_AWAY_SCORE, true );
+			$key  = sprintf( '%d-%d', $home, $away );
+			$consensus[ $key ] = ( $consensus[ $key ] ?? 0 ) + 1;
+		}
+		// Sort by count desc so the caller can take the head row as the
+		// "majority pick" without resorting.
+		arsort( $consensus );
+		return $consensus;
+	}
+
 	public static function find_prediction( int $user_id, int $match_id, int $group_id ): ?WP_Post {
 		$posts = get_posts(
 			array(

@@ -208,6 +208,14 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_my_groups( $identity );
 		}
 
+		// Group consensus — only renders predictions for matches that
+		// already kicked off, so this command can't be used to peek at
+		// the group's picks before the whistle. The Repository helper
+		// enforces the time guard.
+		if ( preg_match( '/^(?:consenso|consensus|que\s+vot[oó]|qu[eé]\s+puso\s+el\s+grupo)$/iu', $lc ) ) {
+			return self::handle_consensus( $identity );
+		}
+
 		// Bulk-set "Argentina gana todo" / "Brasil gana siempre" / "Marca a
 		// Uruguay como ganador". Maps every upcoming match where the named
 		// team plays to a 2-1 win (most common winning scoreline). Lets
@@ -258,6 +266,69 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Consensus view for the most recently kicked-off match in the user's
+	 * active penca. Only shows once the whistle's blown — predictions
+	 * before kickoff are private, and Repository::group_consensus_for_match
+	 * enforces that guard server-side.
+	 */
+	private static function handle_consensus( array $identity ): array {
+		if ( '' === $identity['phone'] ) {
+			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+		}
+		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		if ( ! $user ) {
+			$noun = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
+			return array( 'reply' => sprintf( 'Primero entrá a una %s con su código.', $noun ), 'completed' => true );
+		}
+		$group_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
+		if ( $group_id <= 0 ) {
+			return array( 'reply' => 'Activá una penca primero (mandame *mis grupos* y tocá una).', 'completed' => true );
+		}
+
+		// Find the most recently kicked-off match in this penca's
+		// competition — that's the one the group naturally wants to
+		// post-mortem.
+		$comp_id   = Mantia_Repository::group_competition_id( $group_id );
+		$now       = time();
+		$candidates = Mantia_Repository::recent_finished_matches_for_competition( $comp_id, 5 );
+		if ( empty( $candidates ) ) {
+			return array(
+				'reply'     => '_Todavía no terminó ningún partido. Volvé después del primer pitazo final._',
+				'completed' => true,
+			);
+		}
+
+		$match     = $candidates[0];
+		$consensus = Mantia_Repository::group_consensus_for_match( $group_id, (int) $match['id'] );
+		if ( empty( $consensus ) ) {
+			return array(
+				'reply'     => sprintf(
+					"*%s vs %s*\n\nNadie del grupo pronosticó este partido.",
+					$match['home_team'],
+					$match['away_team']
+				),
+				'completed' => true,
+			);
+		}
+
+		// Format as a flat readable list, leading with the majority pick.
+		$total = array_sum( $consensus );
+		$lines = array(
+			sprintf( '*%s · %d-%d %s*', $match['home_team'], (int) $match['home_score'], (int) $match['away_score'], $match['away_team'] ),
+			sprintf( '_Cómo votó el grupo (%d jugadores):_', $total ),
+			'',
+		);
+		foreach ( $consensus as $score => $count ) {
+			$lines[] = sprintf( '  *%s* — %d', $score, $count );
+		}
+
+		return array(
+			'reply'     => implode( "\n", $lines ),
+			'completed' => true,
+		);
 	}
 
 	/**
@@ -723,12 +794,24 @@ final class Mantia_Whatsapp_Flow {
 	private static function member_lines( int $group_id, int $current_user_id ): array {
 		$members = Mantia_Repository::group_members( $group_id );
 		if ( count( $members ) <= 1 ) {
-			return array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
+			$lines = array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
+		} else {
+			$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
+			foreach ( $members as $m ) {
+				$marker  = (int) $m['id'] === $current_user_id ? ' _(vos)_' : '';
+				$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
+			}
 		}
-		$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
-		foreach ( $members as $m ) {
-			$marker  = (int) $m['id'] === $current_user_id ? ' _(vos)_' : '';
-			$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
+		// Surface the user's private edit-link in every group-context reply
+		// so they always have a one-tap path to /me/ where editing scores
+		// is a tap, not a typing exercise. No-op if the user post hasn't
+		// been provisioned yet (shouldn't happen post-join).
+		if ( $current_user_id > 0 ) {
+			$me_url = Mantia_Repository::user_view_url( $current_user_id );
+			if ( '' !== $me_url ) {
+				$lines[] = '';
+				$lines[] = sprintf( '📱 Tu link privado: %s', $me_url );
+			}
 		}
 		return $lines;
 	}
