@@ -198,6 +198,19 @@ final class Mantia_Frontend {
 		self::page_header( 'Mantia · Penca por WhatsApp' );
 		?>
 		<main class="mantia-page mantia-home">
+			<?php // PWA install banner. Hidden by default; the inline JS in
+			      // print_pwa_register() reveals it when the browser fires
+			      // beforeinstallprompt. iOS users never see it (Safari
+			      // doesn't fire the event). Once dismissed it stays gone
+			      // for the session via localStorage. ?>
+			<div class="mantia-pwa-install" hidden>
+				<span class="mantia-pwa-text"><?php esc_html_e( 'Agregalo a tu pantalla de inicio para abrirlo en un toque.', 'mantia' ); ?></span>
+				<button class="mantia-pwa-install-btn" type="button">
+					<?php esc_html_e( 'Instalar', 'mantia' ); ?>
+				</button>
+				<button class="mantia-pwa-dismiss" type="button" aria-label="<?php esc_attr_e( 'Cerrar', 'mantia' ); ?>">✕</button>
+			</div>
+
 			<div class="mantia-home-mark">
 				<div class="mantia-home-stickers" aria-hidden="true">
 					<span class="mantia-home-sticker mantia-home-sticker-l"><?php esc_html_e( 'penca', 'mantia' ); ?></span>
@@ -458,6 +471,17 @@ final class Mantia_Frontend {
 		?>
 		<main class="mantia-page">
 			<?php self::render_topbar( $share_url ); ?>
+
+			<?php // Sticky compact bar: appears once the user scrolls past
+			      // the big stat-grid, so they keep their name + pts visible
+			      // while skimming match-by-match. Hidden by default;
+			      // IntersectionObserver on .mantia-stat-grid toggles it. ?>
+			<div class="mantia-me-sticky" hidden>
+				<?php echo self::user_avatar( $user_id, 26 ); ?>
+				<span class="mantia-me-sticky-name"><?php echo esc_html( $display_name ); ?></span>
+				<span class="mantia-me-sticky-stat"><strong><?php echo (int) $total_points; ?></strong> pts</span>
+				<span class="mantia-me-sticky-stat"><strong><?php echo (int) $total_exacts; ?></strong> exc</span>
+			</div>
 
 			<div class="mantia-privacy-badge">
 				<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -2337,6 +2361,55 @@ JS;
 				navigator.serviceWorker.register(<?php echo wp_json_encode( wp_make_link_relative( $sw_url ) ); ?>, { scope: '/' }).catch(function () { /* offline-first is optional; fail silently */ });
 			});
 		}
+
+		// PWA install prompt: when Chrome/Edge/Android fires
+		// beforeinstallprompt (it does once, after our manifest +
+		// service worker have been seen by the page for a while), we
+		// stash the event and reveal a small banner with a one-tap
+		// install button. iOS doesn't fire this event — Safari is
+		// "Add to Home Screen" from the share menu — so we don't
+		// surface a banner there to avoid lying about the action.
+		(function () {
+			var deferredPrompt = null;
+			var banner = document.querySelector('.mantia-pwa-install');
+			if (!banner) return;
+			window.addEventListener('beforeinstallprompt', function (evt) {
+				evt.preventDefault();
+				deferredPrompt = evt;
+				banner.hidden = false;
+			});
+			banner.addEventListener('click', function (evt) {
+				if (evt.target.matches('.mantia-pwa-dismiss')) {
+					banner.hidden = true;
+					try { localStorage.setItem('mantia-pwa-dismissed', '1'); } catch (e) {}
+					return;
+				}
+				if (evt.target.closest('.mantia-pwa-install-btn') && deferredPrompt) {
+					deferredPrompt.prompt();
+					deferredPrompt.userChoice.then(function () {
+						deferredPrompt = null;
+						banner.hidden = true;
+					});
+				}
+			});
+			window.addEventListener('appinstalled', function () { banner.hidden = true; });
+			try {
+				if (localStorage.getItem('mantia-pwa-dismissed') === '1') banner.hidden = true;
+			} catch (e) {}
+		})();
+
+		// Sticky compact stats bar on /me/. When the big stat-grid scrolls
+		// out of view, reveal a slim horizontal bar with name + pts + exc.
+		// IntersectionObserver is supported by every browser >= 2018.
+		(function () {
+			var sticky = document.querySelector('.mantia-me-sticky');
+			var grid   = document.querySelector('.mantia-stat-grid');
+			if (!sticky || !grid || !('IntersectionObserver' in window)) return;
+			var io = new IntersectionObserver(function (entries) {
+				sticky.hidden = entries[0].isIntersecting;
+			}, { rootMargin: '-60px 0px 0px 0px' });
+			io.observe(grid);
+		})();
 		</script>
 		<?php
 	}
@@ -2911,6 +2984,106 @@ body {
 }
 .mantia-hero-user-text { min-width: 0; }
 .mantia-hero-user-text .mantia-h1 { margin-top: 6px; }
+
+/* Sticky compact bar on /me/. Hidden by default; revealed by the
+   IntersectionObserver in print_pwa_register() when the user
+   scrolls past the big stat grid. Keeps the "who am I, how many
+   pts" tether visible while skimming match-by-match below. */
+.mantia-me-sticky {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 14px;
+	background: var(--ink);
+	color: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 999px;
+	box-shadow: 2px 2px 0 var(--accent);
+	margin: -8px 0 12px;
+	font-family: var(--font-body);
+	font-size: 12.5px;
+	font-weight: 700;
+}
+.mantia-me-sticky[hidden] { display: none; }
+.mantia-me-sticky .mantia-avatar { border-color: var(--surface); }
+.mantia-me-sticky-name {
+	font-family: var(--font-display);
+	font-weight: 900;
+	color: var(--surface);
+	font-size: 14px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 50%;
+}
+.mantia-me-sticky-stat {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 3px;
+	color: rgba(255,255,255,0.85);
+}
+.mantia-me-sticky-stat strong {
+	font-family: var(--font-display);
+	font-weight: 900;
+	color: var(--accent-2);
+	font-size: 16px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* PWA install banner on the home page. Hidden until
+   beforeinstallprompt fires; dismiss persists via localStorage. */
+.mantia-pwa-install {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 18px;
+	padding: 12px 14px;
+	background: var(--accent-3);
+	color: #ffffff;
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 3px 3px 0 var(--ink);
+	font-family: var(--font-body);
+	font-size: 13px;
+	font-weight: 700;
+}
+.mantia-pwa-install[hidden] { display: none; }
+.mantia-pwa-text { flex: 1; min-width: 0; }
+.mantia-pwa-install-btn {
+	appearance: none;
+	cursor: pointer;
+	height: 34px;
+	padding: 0 14px;
+	border-radius: 999px;
+	background: var(--accent-2);
+	color: var(--ink);
+	border: 2px solid var(--ink);
+	font-family: var(--font-body);
+	font-weight: 800;
+	font-size: 12px;
+	letter-spacing: 0.02em;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+.mantia-pwa-install-btn:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.mantia-pwa-dismiss {
+	appearance: none;
+	cursor: pointer;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: transparent;
+	color: #ffffff;
+	border: 2px solid #ffffff;
+	font-size: 14px;
+	font-weight: 800;
+	line-height: 0;
+	padding: 0;
+	flex-shrink: 0;
+}
+.mantia-pwa-dismiss:hover { background: rgba(255,255,255,0.15); }
 
 /* Friendly one-liner below the stats tiles to tell first-time
    visitors what they should do here. Renders only when the user has
