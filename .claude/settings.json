@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" == *.php ]] && [[ -x vendor/bin/phpcbf ]]; then for f in $CLAUDE_FILE_PATHS; do if [[ \"$f\" == *.php ]] && [[ -f \"$f\" ]]; then vendor/bin/phpcbf -q \"$f\" >/dev/null 2>&1 || true; fi; done; fi",
+            "description": "Auto-fix PHPCS style violations on every .php edit. PHPCS would otherwise flag the same fixable issues on every CI run; running phpcbf locally first keeps diffs clean."
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" == *.php ]]; then for f in $CLAUDE_FILE_PATHS; do if [[ \"$f\" == *.php ]] && [[ -f \"$f\" ]]; then OUT=$(php -l \"$f\" 2>&1); if echo \"$OUT\" | grep -qi 'parse error'; then echo \"⚠️  Parse error in $f:\"; echo \"$OUT\" | tail -3; fi; fi; done; fi",
+            "description": "Run `php -l` on edited PHP files and surface only Parse errors. Catches syntax issues immediately rather than after a deploy + 500."
+          }
+        ]
+      }
+    ]
+  }
+}
