@@ -382,6 +382,54 @@ final class Mantia_Frontend {
 
 			<hr class="mantia-rule">
 
+			<?php
+			// "Último partido" panel: shows the latest finished match in
+			// this penca's competition + the group's consensus tally
+			// (only renders post-kickoff per the Repository guard, so it
+			// never leaks pre-match picks). Mirrors what the bot's
+			// "consenso" command shows in WhatsApp, but on the web.
+			$recent = Mantia_Repository::recent_finished_matches_for_competition( $comp_id, 1 );
+			if ( ! empty( $recent ) ) :
+				$last_match = $recent[0];
+				$consensus  = Mantia_Repository::group_consensus_for_match( $group_id, (int) $last_match['id'] );
+				if ( ! empty( $consensus ) ) :
+					$total_votes = array_sum( $consensus );
+					$top_score   = array_key_first( $consensus );  // arsort'd already
+					?>
+					<section class="mantia-block mantia-recent-match">
+						<div class="mantia-eyebrow"><?php esc_html_e( 'último partido', 'mantia' ); ?></div>
+						<div class="mantia-recent-card">
+							<div class="mantia-recent-teams">
+								<?php echo esc_html( $last_match['home_team'] ); ?>
+								<strong class="mantia-recent-score">
+									<?php echo (int) $last_match['home_score']; ?>·<?php echo (int) $last_match['away_score']; ?>
+								</strong>
+								<?php echo esc_html( $last_match['away_team'] ); ?>
+							</div>
+							<div class="mantia-recent-consensus">
+								<?php
+								printf(
+									/* translators: 1: count of voters in group, 2: most-voted score, 3: votes for it */
+									esc_html__( 'El grupo votó · mayoría %2$s (%3$d/%1$d):', 'mantia' ),
+									(int) $total_votes,
+									esc_html( $top_score ),
+									(int) $consensus[ $top_score ]
+								);
+								?>
+							</div>
+							<div class="mantia-recent-tally">
+								<?php foreach ( array_slice( $consensus, 0, 6, true ) as $score => $count ) : ?>
+									<span class="mantia-recent-chip <?php echo $score === $top_score ? 'is-top' : ''; ?>">
+										<?php echo esc_html( $score ); ?>
+										<small><?php echo (int) $count; ?></small>
+									</span>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					</section>
+				<?php endif;
+			endif; ?>
+
 			<section class="mantia-block">
 				<div class="mantia-eyebrow"><?php esc_html_e( 'tabla del grupo', 'mantia' ); ?></div>
 				<?php if ( empty( $rows ) ) : ?>
@@ -511,14 +559,29 @@ final class Mantia_Frontend {
 				</div>
 			</section>
 
-			<?php if ( $total_preds > 0 ) : ?>
-				<p class="mantia-me-hint">
-					<?php
-					/* translators: %d: number of predictions already saved */
-					printf( esc_html__( '✨ Ya tenés %d pronósticos cargados. Tocá cualquier partido abajo para cambiarlo.', 'mantia' ), (int) $total_preds );
+			<?php
+			$has_manual = Mantia_Repository::user_has_manual_prediction( $user_id );
+			if ( $total_preds > 0 ) :
+				if ( ! $has_manual ) :
+					// Random-by-default users: explain why they have predictions
+					// they don't remember making, so "wait, I never said 2-1"
+					// becomes "ah, the bot put a guess; I can change it".
 					?>
-				</p>
-			<?php endif; ?>
+					<p class="mantia-me-hint mantia-me-hint-random">
+						<?php
+						/* translators: %d: number of auto-filled predictions */
+						printf( esc_html__( '🎲 Tus %d pronósticos siguen siendo random hasta que los cambies. Tocá cualquier partido abajo.', 'mantia' ), (int) $total_preds );
+						?>
+					</p>
+				<?php else : ?>
+					<p class="mantia-me-hint">
+						<?php
+						/* translators: %d: number of predictions already saved */
+						printf( esc_html__( '✨ Ya tenés %d pronósticos cargados. Tocá cualquier partido abajo para cambiarlo.', 'mantia' ), (int) $total_preds );
+						?>
+					</p>
+				<?php endif;
+			endif; ?>
 
 			<hr class="mantia-rule">
 
@@ -615,6 +678,31 @@ final class Mantia_Frontend {
 								</span>
 								<span class="mantia-me-line-arrow" aria-hidden="true">→</span>
 							</a>
+							<?php
+							// Delta line: how many points did this user earn
+							// from the most recent finished match in this
+							// penca? Surfaces so returning users see what
+							// changed since last time, even when their total
+							// is 0 ("0 pts esta vez" still tells them the
+							// match resolved without their score moving).
+							$delta = Mantia_Repository::last_match_delta( $user_id, $group_id );
+							if ( null !== $delta ) :
+								$dm = $delta['match'];
+								?>
+								<p class="mantia-me-delta">
+									<?php
+									printf(
+										/* translators: 1: home team, 2: home score, 3: away score, 4: away team, 5: signed delta like +5 or 0 */
+										esc_html__( 'Último: %1$s %2$d-%3$d %4$s → %5$s', 'mantia' ),
+										esc_html( $dm['home_team'] ),
+										(int) $dm['home_score'],
+										(int) $dm['away_score'],
+										esc_html( $dm['away_team'] ),
+										$delta['points'] > 0 ? '+' . (int) $delta['points'] . ' pts' : '0 pts' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+									);
+									?>
+								</p>
+							<?php endif; ?>
 						<?php endif; ?>
 
 						<?php
@@ -1745,13 +1833,20 @@ JS;
 			return;
 		}
 		$leader = $rows[0];
-		$rest   = array_slice( $rows, 1 );
+		$rest          = array_slice( $rows, 1 );
+		$me_is_leader  = null !== $me_id && (int) $leader['user_id'] === $me_id;
+		$pedestal_cls  = 'mantia-pedestal' . ( $me_is_leader ? ' mantia-pedestal-me' : '' );
 		?>
-		<div class="mantia-pedestal">
+		<div class="<?php echo esc_attr( $pedestal_cls ); ?>">
 			<?php echo self::user_avatar( (int) $leader['user_id'], 56, 'mantia-avatar-ring' ); ?>
 			<div class="mantia-pedestal-text">
-				<div class="mantia-eyebrow mantia-eyebrow-accent"><?php esc_html_e( 'va ganando', 'mantia' ); ?></div>
-				<div class="mantia-pedestal-name"><?php echo esc_html( $leader['name'] ); ?></div>
+				<div class="mantia-eyebrow mantia-eyebrow-accent"><?php
+					$me_is_leader ? esc_html_e( 'vas ganando', 'mantia' ) : esc_html_e( 'va ganando', 'mantia' );
+				?></div>
+				<div class="mantia-pedestal-name">
+					<?php echo esc_html( $leader['name'] ); ?>
+					<?php if ( $me_is_leader ) : ?><span class="mantia-pedestal-name-suffix"><?php esc_html_e( '· vos', 'mantia' ); ?></span><?php endif; ?>
+				</div>
 				<div class="mantia-pedestal-meta">
 					<?php
 					printf(
@@ -2760,6 +2855,94 @@ body {
 	box-shadow: var(--shadow-stickerL);
 	margin: 4px 0 24px;
 }
+/* Pedestal-as-me variant: when the viewer IS the leader, paint the
+   whole card the highlight yellow + sticker-shadow accent so the
+   "this is you" cue is consistent with how rest-of-table rows mark
+   the viewer. Without this, a #1 viewer didn't get any visual
+   anchor — the row highlight only existed below the pedestal. */
+.mantia-pedestal-me {
+	background: var(--accent-2);
+	box-shadow: 6px 6px 0 var(--accent);
+}
+
+/* "Último partido" panel on /penca/g/<token>/. Shows the most
+   recently kicked-off match's final score + the group's consensus
+   tally. Mirrors the bot's `consenso` command on the web — same
+   pre-kickoff privacy guard applies via group_consensus_for_match. */
+.mantia-recent-card {
+	background: var(--ink);
+	color: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 18px;
+	box-shadow: var(--shadow-stickerL);
+	padding: 16px 18px;
+	margin: 4px 0 22px;
+}
+.mantia-recent-teams {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.02em;
+	color: var(--surface);
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.mantia-recent-score {
+	color: var(--accent-2);
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 22px;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+}
+.mantia-recent-consensus {
+	margin-top: 10px;
+	font-family: var(--font-body);
+	font-size: 12px;
+	font-weight: 700;
+	color: rgba(255,255,255,0.7);
+	letter-spacing: 0.02em;
+}
+.mantia-recent-tally {
+	margin-top: 10px;
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.mantia-recent-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	background: rgba(255,255,255,0.10);
+	color: var(--surface);
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 13px;
+	letter-spacing: -0.01em;
+	font-variant-numeric: tabular-nums;
+}
+.mantia-recent-chip small {
+	font-family: var(--font-body);
+	font-weight: 700;
+	font-size: 11px;
+	color: rgba(255,255,255,0.6);
+}
+.mantia-recent-chip.is-top {
+	background: var(--accent-2);
+	color: var(--ink);
+}
+.mantia-recent-chip.is-top small { color: var(--ink); }
+.mantia-pedestal-name-suffix {
+	font-family: var(--font-body);
+	font-weight: 800;
+	font-size: 14px;
+	color: var(--ink);
+	margin-left: 4px;
+}
 .mantia-pedestal-text { min-width: 0; }
 .mantia-pedestal-name {
 	font-family: var(--font-display);
@@ -3102,6 +3285,12 @@ body {
 	color: var(--ink);
 	line-height: 1.4;
 }
+/* Variant for the "your scores are still random" hint — magenta so it
+   reads as a stronger nudge than the green "tap to change" hint. */
+.mantia-me-hint-random {
+	background: var(--accent);
+	color: #ffffff;
+}
 
 .mantia-stat-grid {
 	display: grid;
@@ -3170,6 +3359,18 @@ body {
 	text-decoration: none;
 }
 .mantia-me-line:hover { transform: translate(1px, 1px); box-shadow: 4px 4px 0 var(--ink); }
+/* Delta line under the rank tile: "Último: Uruguay 2-1 Portugal → +5 pts".
+   Plain copy, no border — the rank tile above already does the heavy
+   visual lifting. */
+.mantia-me-delta {
+	margin: -16px 0 22px;
+	padding: 0 4px;
+	font-family: var(--font-body);
+	font-size: 12.5px;
+	font-weight: 700;
+	color: var(--ink-soft);
+	letter-spacing: 0.01em;
+}
 .mantia-me-line .mantia-numeral { color: var(--accent-2); }
 .mantia-me-line-arrow {
 	margin-left: 4px;
