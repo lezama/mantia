@@ -1749,67 +1749,56 @@ final class Mantia_Whatsapp_Flow {
 
 		$home_name = Mantia_Frontend::normalize_team_name( (string) $match['home_team'] );
 		$away_name = Mantia_Frontend::normalize_team_name( (string) $match['away_team'] );
-		$lines     = array(
-			sprintf( '*%s vs %s*', $home_name, $away_name ),
-			self::format_kickoff( (string) $match['kickoff_gmt'] ),
-		);
-		if ( ! empty( $match['phase'] ) ) {
-			$lines[] = Mantia_Frontend::normalize_phase( (string) $match['phase'] );
-		}
-
-		$status = (string) ( $match['status'] ?? 'scheduled' );
-		if ( 'finished' === $status && null !== $match['home_score'] && null !== $match['away_score'] ) {
-			$lines[] = sprintf( "\nResultado final: *%d-%d*", (int) $match['home_score'], (int) $match['away_score'] );
-		}
+		$status    = (string) ( $match['status'] ?? 'scheduled' );
 
 		$user      = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		$user_id   = $user ? (int) $user->ID : 0;
 
-		// Surface predictions across every penca the user has in this match's
-		// competition — since auto-routing now writes to all of them, the
-		// detail view should reflect that.
+		// First prediction across any of the user's pencas in this competition
+		// — auto-routing writes the same score to all of them, so one read
+		// reflects the full state.
 		$comp_id        = (string) ( $match['competition_id'] ?? '' );
 		$user_group_ids = $user_id > 0 && '' !== $comp_id
 			? Mantia_Repository::user_groups_in_competition( $user_id, $comp_id )
 			: array();
 		$any_prediction = null;
-		$pred_groups    = array();
 		foreach ( $user_group_ids as $gid ) {
 			$p = Mantia_Repository::find_prediction( $user_id, $match_id, (int) $gid );
 			if ( $p ) {
-				$any_prediction = $any_prediction ?? $p;
-				$g              = Mantia_Repository::group_to_array( (int) $gid );
-				if ( ! empty( $g['name'] ) ) {
-					$pred_groups[] = $g['name'];
-				}
+				$any_prediction = $p;
+				break;
 			}
 		}
 
-		if ( $any_prediction ) {
-			$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
-			$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
-			$lines[] = sprintf( "\nTu pronóstico: *%d-%d*", $ph, $pa );
-			if ( ! empty( $pred_groups ) ) {
-				$lines[] = sprintf( 'En: %s', implode( ', ', array_map( static fn ( string $n ): string => '*' . $n . '*', $pred_groups ) ) );
-			}
-			if ( 'scheduled' === $status ) {
-				$lines[] = "\n_Para cambiarlo, mandame un nuevo marcador. Ej: *2-1*._";
-				if ( $user_id > 0 ) {
-					self::stash_pending_match( $identity['phone'], $match_id );
-				}
+		// Compact one-shot panel: title + meta on two lines, current state on
+		// a third, ask for input on the fourth. The previous "panel" repeated
+		// the matchup, restated the prediction, and added a verbose preamble —
+		// when a user clicks then immediately types a new score, that whole
+		// block lands as stale noise next to the "Anotado" confirm. Keeping
+		// it tight so even a delayed-arrival doesn't bury the chat.
+		$meta_bits = array( self::format_kickoff( (string) $match['kickoff_gmt'] ) );
+		if ( ! empty( $match['phase'] ) ) {
+			$meta_bits[] = Mantia_Frontend::normalize_phase( (string) $match['phase'] );
+		}
+		$lines = array(
+			sprintf( '*%s vs %s*', $home_name, $away_name ),
+			implode( ' · ', array_filter( $meta_bits ) ),
+		);
+
+		if ( 'finished' === $status && null !== $match['home_score'] && null !== $match['away_score'] ) {
+			$lines[] = sprintf( 'Final: *%d-%d*', (int) $match['home_score'], (int) $match['away_score'] );
+			if ( $any_prediction ) {
+				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
+				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
+				$lines[] = sprintf( 'Tu pronóstico: *%d-%d*', $ph, $pa );
 			}
 		} elseif ( 'scheduled' === $status ) {
-			$lines[] = "\n¿Cuál es tu pronóstico?";
-			$lines[] = sprintf(
-				'_Respondé con el marcador. Ej:_ *2-1*_, o_ *%s 2 %s 1*',
-				Mantia_Frontend::normalize_team_name( (string) $match['home_team'] ),
-				Mantia_Frontend::normalize_team_name( (string) $match['away_team'] )
-			);
-			if ( ! empty( $user_group_ids ) ) {
-				$names = array_filter( array_map( static fn ( int $gid ): string => (string) ( Mantia_Repository::group_to_array( $gid )['name'] ?? '' ), $user_group_ids ) );
-				if ( ! empty( $names ) ) {
-					$lines[] = sprintf( '_Va a quedar en: %s._', implode( ', ', $names ) );
-				}
+			if ( $any_prediction ) {
+				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
+				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
+				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — mandame uno nuevo (ej *2-1*).', $ph, $pa );
+			} else {
+				$lines[] = 'Mandame el marcador. Ej *2-1*.';
 			}
 			if ( $user_id > 0 ) {
 				self::stash_pending_match( $identity['phone'], $match_id );
