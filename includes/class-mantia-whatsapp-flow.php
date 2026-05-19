@@ -1561,12 +1561,28 @@ final class Mantia_Whatsapp_Flow {
 
 		$sections   = array();
 		$rows_total = 0;
-		$lines      = array( sprintf( 'Te faltan *%d* pronósticos:', $total ), '' );
+		$lines      = array(
+			sprintf(
+				/* translators: %d: pending predictions count */
+				_n( 'Te falta *%d* pronóstico:', 'Te faltan *%d* pronósticos:', $total, 'mantia' ),
+				$total
+			),
+			'',
+		);
 		foreach ( $by_comp as $bucket ) {
 			if ( empty( $bucket['matches'] ) ) {
 				continue;
 			}
-			$lines[] = sprintf( '*%s* — %d partidos', $bucket['label'], count( $bucket['matches'] ) );
+			$bucket_n = count( $bucket['matches'] );
+			$lines[]  = sprintf(
+				'*%s* — %s',
+				$bucket['label'],
+				sprintf(
+					/* translators: %d: matches count in this bucket */
+					_n( '%d partido', '%d partidos', $bucket_n, 'mantia' ),
+					$bucket_n
+				)
+			);
 			$rows = array();
 			foreach ( $bucket['matches'] as $m ) {
 				if ( $rows_total >= 10 ) {
