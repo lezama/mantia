@@ -1028,6 +1028,48 @@ final class Mantia_Whatsapp_Flow {
 			: $s;
 	}
 
+	/**
+	 * Common South-American club abbreviations for narrow display contexts
+	 * (WhatsApp Interactive List row.title caps at 24 chars total, so a
+	 * matchup like "Mineros de Guayana vs Independiente del Valle" would
+	 * clip to "Mineros de Guayana vs In"). Public web views render the
+	 * full name — this map only fires through format_matchup() below.
+	 */
+	private const TEAM_ABBREVIATIONS = array(
+		'Universidad de Chile'    => 'U. Chile',
+		'Universidad Católica'    => 'U. Católica',
+		'Atlético Bucaramanga'    => 'Bucaramanga',
+		'Defensa y Justicia'      => 'Defensa y J.',
+		'Mineros de Guayana'      => 'Mineros',
+		'Independiente del Valle' => 'Indep. del V.',
+		'Vélez Sársfield'         => 'Vélez',
+		'Internacional'           => 'Inter',
+		'River Plate'             => 'River',
+		'Boca Juniors'            => 'Boca',
+		'Independiente Rivadavia' => 'Indep. Riv.',
+		'Independiente Medellín'  => 'Indep. Med.',
+		'Deportivo La Guaira'     => 'La Guaira',
+		'Sporting Cristal'        => 'Sp. Cristal',
+		'Universidad Central'     => 'U. Central',
+	);
+
+	/**
+	 * Format a "Home vs Away" matchup that fits the WhatsApp row.title
+	 * cap. First tries the full names; if they overflow, swaps in the
+	 * curated abbreviation; last resort is a hard ellipsis truncate.
+	 */
+	private static function format_matchup( string $home, string $away, int $max = 24 ): string {
+		$full = $home . ' vs ' . $away;
+		$len  = static fn ( string $s ): int => function_exists( 'mb_strlen' ) ? mb_strlen( $s ) : strlen( $s );
+		if ( $len( $full ) <= $max ) {
+			return $full;
+		}
+		$home_short = self::TEAM_ABBREVIATIONS[ $home ] ?? $home;
+		$away_short = self::TEAM_ABBREVIATIONS[ $away ] ?? $away;
+		$abbreviated = $home_short . ' vs ' . $away_short;
+		return self::truncate_title( $abbreviated, $max );
+	}
+
 	private static function handle_my_groups( array $identity ): array {
 		if ( '' === $identity['phone'] ) {
 			return array(
@@ -1381,7 +1423,7 @@ final class Mantia_Whatsapp_Flow {
 			}
 			$rows[] = array(
 				'id'          => 'mantia:match:' . (int) $m['id'],
-				'title'       => sprintf( '%s vs %s', $m['home_team'], $m['away_team'] ),
+				'title'       => self::format_matchup( (string) $m['home_team'], (string) $m['away_team'] ),
 				'description' => trim( self::format_kickoff( (string) $m['kickoff_gmt'] ) . ( $predicted ? ' • ' . $predicted : '' ) ),
 			);
 		}
@@ -1469,7 +1511,7 @@ final class Mantia_Whatsapp_Flow {
 				}
 				$rows[] = array(
 					'id'          => 'mantia:match:' . (int) $m['id'],
-					'title'       => self::truncate_title( sprintf( '%s vs %s', $m['home_team'], $m['away_team'] ), 24 ),
+					'title'       => self::format_matchup( (string) $m['home_team'], (string) $m['away_team'] ),
 					'description' => self::truncate_title( self::format_kickoff( (string) $m['kickoff_gmt'] ), 72 ),
 				);
 				++$rows_total;
@@ -1664,7 +1706,7 @@ final class Mantia_Whatsapp_Flow {
 			$scored = ! empty( $p['scored'] ) ? sprintf( ' • %d pts', (int) $p['points'] ) : ' • pendiente';
 			$rows[] = array(
 				'id'          => 'mantia:match:' . (int) $m['id'],
-				'title'       => sprintf( '%s vs %s', $m['home_team'], $m['away_team'] ),
+				'title'       => self::format_matchup( (string) $m['home_team'], (string) $m['away_team'] ),
 				'description' => sprintf( '%d-%d%s', (int) $p['home_score'], (int) $p['away_score'], $scored ),
 			);
 		}
