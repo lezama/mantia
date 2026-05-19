@@ -831,7 +831,7 @@ final class Mantia_Whatsapp_Flow {
 	private static function member_lines( int $group_id, int $current_user_id ): array {
 		$members = Mantia_Repository::group_members( $group_id );
 		if ( count( $members ) <= 1 ) {
-			return array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
+			return array( '👥 Solo vos por ahora. Compartí el link con tus amigos para sumarlos.' );
 		}
 		$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
 		foreach ( $members as $m ) {
@@ -881,7 +881,7 @@ final class Mantia_Whatsapp_Flow {
 
 		$noun = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 		return array(
-			'reply'       => sprintf( 'Genial! Empecemos por el torneo de tu %s:', $noun ),
+			'reply'       => sprintf( 'Listo. ¿Para qué torneo es tu %s?', $noun ),
 			'interactive' => array(
 				'type'         => 'list',
 				'header'       => Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
@@ -1311,7 +1311,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
 			return array(
-				'reply'       => "Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\n\n¿Por dónde arrancamos?",
+				'reply'       => "Hola. Soy *Mantia*.\n\nArmás una *penca* (grupo de pronósticos) con tus amigos, cargás los marcadores de cada partido por acá, y gana quien más le pega. Todo por WhatsApp, sin app.\n\n¿Arrancamos?",
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1537,7 +1537,7 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( 0 === $total ) {
 			return array(
-				'reply'       => '✅ Tenés todos los partidos pronosticados. ¡Bien ahí!',
+				'reply'       => '✅ Tenés todos los partidos pronosticados.',
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1862,20 +1862,18 @@ final class Mantia_Whatsapp_Flow {
 				$lines[] = sprintf( 'Tu pronóstico: *%d-%d*', $ph, $pa );
 			}
 		} elseif ( 'scheduled' === $status ) {
-			// Did the user type a bare score earlier without context? If so
-			// they tapped this match to disambiguate — apply the stash now
-			// instead of asking again. Pure UX win: no extra round trip.
-			if ( $user_id > 0 ) {
-				$pending_score = get_transient( self::pending_score_key( $identity['phone'] ) );
-				if ( is_array( $pending_score ) && 2 === count( $pending_score ) ) {
-					delete_transient( self::pending_score_key( $identity['phone'] ) );
-					return self::handle_quick_score( $match_id, (int) $pending_score[0], (int) $pending_score[1], $identity );
-				}
-			}
+			// Surface (but don't auto-apply) a stashed score from a recent
+			// bare-score message. R4 Don Roberto reported that tapping a
+			// match auto-confirmed the score he'd typed minutes earlier —
+			// felt like the bot did something behind his back. Now we tell
+			// him the score is waiting and let him re-send it to confirm.
+			$pending_score = $user_id > 0 ? get_transient( self::pending_score_key( $identity['phone'] ) ) : null;
 			if ( $any_prediction ) {
 				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
 				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
 				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — mandame uno nuevo (ej *2-1*).', $ph, $pa );
+			} elseif ( is_array( $pending_score ) && 2 === count( $pending_score ) ) {
+				$lines[] = sprintf( 'Mandame el marcador (tenés *%d-%d* esperando — re-mandalo si era para este partido).', (int) $pending_score[0], (int) $pending_score[1] );
 			} else {
 				$lines[] = 'Mandame el marcador. Ej *2-1*.';
 			}
@@ -2015,14 +2013,19 @@ final class Mantia_Whatsapp_Flow {
 			return $gmt;
 		}
 		// Display in Uruguay time (UTC-3) for now; future: per-user timezone.
-		// wp_date() honours the WP locale so days come out in Spanish
-		// ("mar 19 may" / "mié 20 may") instead of "Tue 19 May" — keeps
-		// the bot consistent with what the web surface renders.
+		// Hardcode the Spanish tables instead of trusting wp_date() — prod's
+		// WP locale is en_US (mantia3.wpcomstaging.com on wpcom Atomic), so
+		// wp_date would return "Tue 19 May" even after R3 supposedly fixed
+		// this. Don Roberto cited the English days as voz-rota in R4. Mantia
+		// is monolingual Spanish; hardcode and ship.
+		static $days   = array( 'dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb' );
+		static $months = array( 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic' );
 		$local_ts = $ts - 3 * HOUR_IN_SECONDS;
-		if ( function_exists( 'wp_date' ) ) {
-			return (string) wp_date( 'D j M • H:i', $local_ts );
-		}
-		return gmdate( 'D j M • H:i', $local_ts );
+		$dow      = (int) gmdate( 'w', $local_ts );        // 0 = Sunday
+		$d        = (int) gmdate( 'j', $local_ts );
+		$m        = (int) gmdate( 'n', $local_ts ) - 1;
+		$time     = gmdate( 'H:i', $local_ts );
+		return sprintf( '%s %d %s • %s', $days[ $dow ], $d, $months[ $m ], $time );
 	}
 
 	/**
