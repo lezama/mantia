@@ -297,7 +297,7 @@ final class Mantia_Frontend {
 		$comp = Mantia_Competitions::get( $slug );
 		if ( ! $comp ) {
 			status_header( 404 );
-			return self::render_not_found( sprintf( __( 'Competencia "%s" no encontrada', 'mantia' ), $slug ) );
+			return self::render_not_found( __( 'Este link de penca no funciona o ya venció.', 'mantia' ) );
 		}
 
 		$title    = $comp['name'];
