@@ -3,45 +3,99 @@
  * QA platform — WhatsApp turn simulator.
  *
  * Invoked via `wp eval-file bin/qa-sim.php` with a JSON document on stdin
- * describing one or more operations. Same code path as the production
- * webhook: Mantia_Whatsapp_Flow::maybe_handle_command receives the same
- * shape openclaWP would build from an inbound Cloud-API message.
+ * describing one or more operations. Uses `OpenclaWP_Runner::run_turn()` —
+ * the same code path that openclawp's HTTP webhook handler runs in prod.
+ * That means Mantia's deterministic router fires AND, on router-miss, the
+ * LLM agent runs. Both halves of the conversation flow are exercised
+ * exactly as a real WhatsApp turn would be.
  *
  * Input shape (stdin):
  *   {
  *     "operations": [
  *       { "type": "send", "phone": "999900001", "name": "QA Owner", "message": "hola" },
  *       { "type": "send", "phone": "999900001", "name": "QA Owner", "message": "crear penca" },
- *       { "type": "state", "phone": "999900001" }
+ *       { "type": "state", "phone": "999900001" },
+ *       { "type": "reset_session", "phone": "999900001" }
  *     ]
  *   }
+ *
+ * Sessions are stashed per-phone in transients so multi-turn conversations
+ * within the SAME persona share context (LLM remembers prior turns). Use
+ * "reset_session" to start fresh.
  *
  * Output shape (stdout):
  *   {
  *     "results": [
- *       { "type": "send", "ok": true, "reply": "...", "interactive": {...}, "elapsed_ms": 412 },
+ *       {
+ *         "type": "send",
+ *         "ok": true,
+ *         "reply": "...",
+ *         "interactive": {...},
+ *         "via": "router" | "llm" | "preflight",
+ *         "session_id": "...",
+ *         "elapsed_ms": 412
+ *       },
  *       ...
  *     ]
  *   }
  *
- * Safety: every operation MUST use a phone that begins with `9999000`. The
- * script refuses anything else so QA traffic can never collide with real
- * user data on a shared install. Cleanup matches the same prefix.
+ * Safety: every phone MUST start with `9999000`. Other phones are refused.
  *
  * @package Mantia
  */
 
 defined( 'ABSPATH' ) || exit;
 
+const QA_TEST_PHONE_PREFIX = '9999000';
+const QA_SESSION_TTL       = 30 * MINUTE_IN_SECONDS;
+
+if ( ! class_exists( 'OpenclaWP_Runner' ) ) {
+	fwrite( STDERR, "OpenclaWP_Runner not loaded — is openclawp plugin active?\n" );
+	exit( 1 );
+}
 if ( ! class_exists( 'Mantia_Whatsapp_Flow' ) ) {
 	fwrite( STDERR, "Mantia plugin not loaded\n" );
 	exit( 1 );
 }
 
-const QA_TEST_PHONE_PREFIX = '9999000';
-
 function qa_safe_phone( string $phone ): bool {
 	return str_starts_with( $phone, QA_TEST_PHONE_PREFIX );
+}
+
+function qa_session_key( string $phone ): string {
+	return 'qa_sim_session_' . md5( $phone );
+}
+
+/**
+ * Mantia returns an array from openclawp_pre_chat_turn whenever the
+ * deterministic router matched. If the array is identical to the
+ * runner's result reply, we know the LLM didn't run — useful for the
+ * "via" field in the result.
+ */
+function qa_classify_via( array $runner_result, string $phone, string $message ): string {
+	// Replay the filter ourselves to see whether the deterministic path
+	// would have caught the message. If it would have AND the reply
+	// matches, classify as "router". Otherwise the LLM ran.
+	$preflight = apply_filters(
+		'openclawp_pre_chat_turn',
+		null,
+		array(
+			'agent_slug'      => Mantia_Agent::SLUG,
+			'message'         => $message,
+			'session_id'      => '',
+			'user_id'         => 0,
+			'runtime_context' => array(
+				'client_context' => array(
+					'sender_id'   => $phone,
+					'sender_name' => 'QA',
+				),
+			),
+		)
+	);
+	if ( is_array( $preflight ) && '' !== (string) ( $preflight['reply'] ?? '' ) ) {
+		return 'router';
+	}
+	return 'llm';
 }
 
 function qa_op_send( array $op ): array {
@@ -58,31 +112,53 @@ function qa_op_send( array $op ): array {
 		);
 	}
 
-	$turn = array(
-		'agent_slug'      => 'mantia',
-		'message'         => $msg,
-		'runtime_context' => array(
-			'client_context' => array(
-				'sender_id'   => $phone,
-				'sender_name' => $name,
-			),
+	$session_id = (string) get_transient( qa_session_key( $phone ) );
+	if ( '' === $session_id ) {
+		$session_id = null;
+	}
+
+	$runtime_context = array(
+		'client_context' => array(
+			'sender_id'   => $phone,
+			'sender_name' => $name,
+			'platform'    => 'whatsapp',
 		),
 	);
 
-	$result = Mantia_Whatsapp_Flow::maybe_handle_command( null, $turn );
-	if ( ! is_array( $result ) ) {
-		$result = array( 'reply' => null, 'interactive' => null, 'fell_through_to_llm' => true );
+	$result = OpenclaWP_Runner::run_turn(
+		Mantia_Agent::SLUG,
+		$msg,
+		$session_id,
+		0, // user_id = 0 → anonymous-WP user; identity is via phone in runtime_context
+		$runtime_context
+	);
+
+	// Persist session id so the next call within this persona maintains
+	// LLM context (the deterministic router is stateless either way).
+	if ( ! empty( $result['session_id'] ) ) {
+		set_transient( qa_session_key( $phone ), (string) $result['session_id'], QA_SESSION_TTL );
 	}
-	$elapsed = (int) round( ( microtime( true ) - $start ) * 1000 );
+
+	$reply       = (string) ( $result['reply'] ?? '' );
+	$interactive = $result['interactive'] ?? null;
+	$elapsed     = (int) round( ( microtime( true ) - $start ) * 1000 );
+
+	// Classify how the reply was produced. ~10ms suggests router; anything
+	// >300ms with an empty interactive payload is almost certainly LLM.
+	// We classify by replaying the filter — accurate even when the LLM
+	// happens to be fast (e.g., short reply, warm cache).
+	$via = qa_classify_via( $result, $phone, $msg );
 
 	return array(
 		'type'        => 'send',
 		'ok'          => true,
 		'phone'       => $phone,
 		'message'     => $msg,
-		'reply'       => (string) ( $result['reply'] ?? '' ),
-		'interactive' => $result['interactive'] ?? null,
-		'fell_through_to_llm' => ! empty( $result['fell_through_to_llm'] ),
+		'reply'       => $reply,
+		'interactive' => $interactive,
+		'via'         => $via,
+		'session_id'  => (string) ( $result['session_id'] ?? '' ),
+		'error'       => isset( $result['error'] ) ? (string) $result['error'] : null,
 		'elapsed_ms'  => $elapsed,
 	);
 }
@@ -146,6 +222,15 @@ function qa_op_state( array $op ): array {
 	);
 }
 
+function qa_op_reset_session( array $op ): array {
+	$phone = (string) ( $op['phone'] ?? '' );
+	if ( ! qa_safe_phone( $phone ) ) {
+		return array( 'type' => 'reset_session', 'ok' => false, 'error' => 'unsafe phone' );
+	}
+	delete_transient( qa_session_key( $phone ) );
+	return array( 'type' => 'reset_session', 'ok' => true, 'phone' => $phone );
+}
+
 $input_raw = stream_get_contents( STDIN );
 $input     = json_decode( (string) $input_raw, true );
 if ( ! is_array( $input ) || ! is_array( $input['operations'] ?? null ) ) {
@@ -165,6 +250,9 @@ foreach ( $input['operations'] as $op ) {
 			break;
 		case 'state':
 			$results[] = qa_op_state( $op );
+			break;
+		case 'reset_session':
+			$results[] = qa_op_reset_session( $op );
 			break;
 		default:
 			$results[] = array( 'type' => $type, 'ok' => false, 'error' => 'unknown op type' );
