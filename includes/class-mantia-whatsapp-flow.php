@@ -707,7 +707,14 @@ final class Mantia_Whatsapp_Flow {
 		$lines[] = '';
 		$lines[] = '_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._';
 		$lines[] = '';
-		$lines = array_merge( $lines, self::member_lines( $group_id, $me_id ) );
+		// Roster only here (no private link inline) — this reply lives right
+		// next to the forwardable invite card, and any line that looks
+		// link-ish can get copy/pasted by accident. The user's /me/ URL
+		// already exists in the post-join replies and persists in chat
+		// history; reproducing it inside a "forward this" context risks
+		// handing edit-capable access to recipients. Same fix as the
+		// share-link reply (R1) — close the same hole in the create reply.
+		$lines = array_merge( $lines, self::member_lines( $group_id, $me_id, false ) );
 
 		return array(
 			'reply'       => implode( "\n", $lines ),
@@ -808,34 +815,28 @@ final class Mantia_Whatsapp_Flow {
 
 	/**
 	 * Render a group's member list as text lines, marking the current
-	 * user. Shared by post-create, post-switch, and post-join replies so
-	 * the "who's already here?" answer is consistent across surfaces.
+	 * user. Shared by post-create, post-switch, post-join, and share-link
+	 * replies so the "who's already here?" answer is consistent.
 	 *
-	 * `$include_private_link` controls whether the owner's /me/ edit-URL
-	 * appears at the bottom. Default true (post-create, post-join etc. —
-	 * the user needs their own access link). Pass false for any reply
-	 * that's expected to be forwarded (share-link, invite-card body)
-	 * since the /me/ token grants edit-capable access to predictions.
+	 * NEVER includes the user's /me/ private edit-URL inline. R3 caught
+	 * the URL leaking through every "Reenviá esto a tus amigos" context
+	 * because it was rendered in the same bubble as the share text — a
+	 * user copy/pasting the wrong line handed edit access to recipients.
+	 * The owner already has the chat history; /me/ is also exposed via
+	 * topbar / send_invite_card paths. The convenience wasn't worth the
+	 * blast radius.
 	 *
 	 * @return array<int,string>
 	 */
-	private static function member_lines( int $group_id, int $current_user_id, bool $include_private_link = true ): array {
+	private static function member_lines( int $group_id, int $current_user_id ): array {
 		$members = Mantia_Repository::group_members( $group_id );
 		if ( count( $members ) <= 1 ) {
-			$lines = array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
-		} else {
-			$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
-			foreach ( $members as $m ) {
-				$marker  = (int) $m['id'] === $current_user_id ? ' _(vos)_' : '';
-				$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
-			}
+			return array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
 		}
-		if ( $include_private_link && $current_user_id > 0 ) {
-			$me_url = Mantia_Repository::user_view_url( $current_user_id );
-			if ( '' !== $me_url ) {
-				$lines[] = '';
-				$lines[] = sprintf( '📱 Tu link privado: %s', $me_url );
-			}
+		$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
+		foreach ( $members as $m ) {
+			$marker  = (int) $m['id'] === $current_user_id ? ' _(vos)_' : '';
+			$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
 		}
 		return $lines;
 	}
