@@ -2457,10 +2457,12 @@ JS;
 	}
 
 	/**
-	 * Resolve a friendly display name for a user. If they never set one we
-	 * fall back to "Jugador ·1234" (last 4 of phone) — distinguishing in a
-	 * leaderboard is more important than the polite generic, and several
-	 * "jugador" rows on the same board read as broken data.
+	 * Resolve a friendly display name for a user. WhatsApp Cloud API
+	 * delivers profile.name on every inbound and Mantia stores it via
+	 * Mantia_Repository::get_or_create_user(); the fallback below kicks
+	 * in only when the WA name was missing AND the user never set one.
+	 * Falls back to the formatted phone so people can match it to their
+	 * contacts list.
 	 */
 	private static function display_name_for( int $user_id ): string {
 		$title = (string) get_the_title( $user_id );
@@ -2469,7 +2471,7 @@ JS;
 			return $title;
 		}
 		if ( '' !== $phone ) {
-			return sprintf( __( 'Jugador ·%s', 'mantia' ), substr( $phone, -4 ) );
+			return Mantia_Repository::format_phone_for_display( $phone );
 		}
 		return __( 'Jugador', 'mantia' );
 	}

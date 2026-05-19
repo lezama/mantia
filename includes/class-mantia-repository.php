@@ -100,6 +100,31 @@ final class Mantia_Repository {
 		return (int) $post_id;
 	}
 
+	/**
+	 * Format an E.164 phone for human display when the user never told us
+	 * a name. Insert spaces to break up the digits — "+598 99 139 203"
+	 * is more scannable than "59899139203". Falls back to the raw value
+	 * if the number is too short to format meaningfully.
+	 */
+	public static function format_phone_for_display( string $phone ): string {
+		$digits = preg_replace( '/\D+/', '', $phone );
+		if ( '' === $digits ) {
+			return $phone;
+		}
+		$len = strlen( $digits );
+		// Group the trailing digits as 3-3-3 (or 3-3-2) for readability.
+		// Country-code prefix stays as-is on the left.
+		if ( $len <= 8 ) {
+			return '+' . $digits;
+		}
+		// Last 9 digits → " NN NNN NNN" or " NN NNN NN" pattern.
+		$tail_len = min( 9, $len - 2 ); // keep at least the country code on the left
+		$head     = substr( $digits, 0, $len - $tail_len );
+		$tail     = substr( $digits, -$tail_len );
+		$grouped  = trim( preg_replace( '/(\d{3})(?=\d)/', '$1 ', $tail ) );
+		return '+' . $head . ' ' . $grouped;
+	}
+
 	public static function find_user_by_phone( string $phone ): ?WP_Post {
 		$normalized = self::normalize_phone( $phone );
 		if ( '' === $normalized ) {
@@ -432,14 +457,17 @@ final class Mantia_Repository {
 			$title   = (string) get_the_title( (int) $u->ID );
 			$phone   = (string) get_post_meta( (int) $u->ID, self::META_PHONE, true );
 			$has_name = '' !== $title && $title !== $phone;
-			// Surface the phone's last 4 digits as a soft identifier when
-			// the user never told the bot their name — three "sin nombre"
-			// rows on a leaderboard read as broken data; "Jugador ·9203"
-			// at least lets people guess which line is whose.
+			// WhatsApp Cloud API delivers profile.name on every inbound
+			// message and Mantia stores it as post_title via
+			// get_or_create_user(). If we still don't have a name (user
+			// joined before the capture was wired, or the WA profile
+			// privacy hides it), fall back to the formatted phone instead
+			// of a generic "Jugador" — the number is something humans can
+			// match against their contacts.
 			if ( $has_name ) {
 				$display = $title;
 			} elseif ( '' !== $phone ) {
-				$display = sprintf( __( 'Jugador ·%s', 'mantia' ), substr( $phone, -4 ) );
+				$display = self::format_phone_for_display( $phone );
 			} else {
 				$display = __( 'Jugador', 'mantia' );
 			}
