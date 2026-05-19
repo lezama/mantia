@@ -191,13 +191,24 @@ final class Mantia_Whatsapp_Flow {
 
 		// User tapped a match in /partidos or /pendientes and we asked for a
 		// score. Accept every natural form a Spanish speaker reaches for:
-		// "2-1", "2 1", "2:1", "2x1", "2 a 1". Falls through if it doesn't
-		// look like a score so the LLM can still handle full "Team A 2 Team B 1".
+		// "2-1", "2 1", "2:1", "2x1", "2 a 1". Falls through to the LLM
+		// only when the input doesn't even look like a bare score.
 		if ( '' !== $identity['phone'] && preg_match( '/^\s*(\d{1,2})\s*(?:\s+a\s+|[-:x\s])\s*(\d{1,2})\s*$/iu', $plain, $sc ) ) {
 			$pending_match = (int) get_transient( self::pending_match_key( $identity['phone'] ) );
 			if ( $pending_match > 0 ) {
 				return self::handle_quick_score( $pending_match, (int) $sc[1], (int) $sc[2], $identity );
 			}
+			// Regex matched but there's no pending-match transient — the user
+			// typed a score without tapping a match first. Don't silently
+			// fall through to the LLM (which can't disambiguate without a
+			// tool call): re-use handle_pending() so the user sees their
+			// next un-predicted matches as taps. Stash the score so the
+			// next tap applies it immediately.
+			set_transient( self::pending_score_key( $identity['phone'] ), array( (int) $sc[1], (int) $sc[2] ), 5 * MINUTE_IN_SECONDS );
+			$pending = self::handle_pending( $identity );
+			$prefix  = sprintf( "Recibí *%d-%d* pero no sé para qué partido. Tocá uno y lo anoto.\n\n", (int) $sc[1], (int) $sc[2] );
+			$pending['reply'] = $prefix . (string) ( $pending['reply'] ?? '' );
+			return $pending;
 		}
 
 		if ( preg_match( '/^(?:me\s+llamo|mi\s+nombre\s+es|llamame|llamame|decime)\s+(.+)$/iu', $plain, $m ) ) {
@@ -285,7 +296,7 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$group_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
 		if ( $group_id <= 0 ) {
-			return array( 'reply' => 'Activá una penca primero (mandame *mis grupos* y tocá una).', 'completed' => true );
+			return array( 'reply' => 'Activá una penca primero (mandame *mis pencas* y tocá una).', 'completed' => true );
 		}
 
 		// Find the most recently kicked-off match in this penca's
@@ -481,7 +492,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
 			return array(
-				'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+				'reply' => sprintf( 'Todavía no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
 				'completed' => true,
 			);
 		}
@@ -699,7 +710,7 @@ final class Mantia_Whatsapp_Flow {
 				'buttons' => array(
 					array(
 						'id' => 'mantia:cmd:share-link',
-						'title' => '📤 Re-enviar',
+						'title' => '📤 Compartir',
 					),
 					array(
 						'id' => 'mantia:cmd:matches',
@@ -791,13 +802,18 @@ final class Mantia_Whatsapp_Flow {
 
 	/**
 	 * Render a group's member list as text lines, marking the current
-	 * user. Shared by share-link, post-create, post-switch, and post-join
-	 * replies so the "who's already here?" answer is consistent across
-	 * surfaces.
+	 * user. Shared by post-create, post-switch, and post-join replies so
+	 * the "who's already here?" answer is consistent across surfaces.
+	 *
+	 * `$include_private_link` controls whether the owner's /me/ edit-URL
+	 * appears at the bottom. Default true (post-create, post-join etc. —
+	 * the user needs their own access link). Pass false for any reply
+	 * that's expected to be forwarded (share-link, invite-card body)
+	 * since the /me/ token grants edit-capable access to predictions.
 	 *
 	 * @return array<int,string>
 	 */
-	private static function member_lines( int $group_id, int $current_user_id ): array {
+	private static function member_lines( int $group_id, int $current_user_id, bool $include_private_link = true ): array {
 		$members = Mantia_Repository::group_members( $group_id );
 		if ( count( $members ) <= 1 ) {
 			$lines = array( '👥 Solo vos por ahora. Pegale el link a alguien!' );
@@ -808,11 +824,7 @@ final class Mantia_Whatsapp_Flow {
 				$lines[] = sprintf( '  • %s%s', $m['display_name'], $marker );
 			}
 		}
-		// Surface the user's private edit-link in every group-context reply
-		// so they always have a one-tap path to /me/ where editing scores
-		// is a tap, not a typing exercise. No-op if the user post hasn't
-		// been provisioned yet (shouldn't happen post-join).
-		if ( $current_user_id > 0 ) {
+		if ( $include_private_link && $current_user_id > 0 ) {
 			$me_url = Mantia_Repository::user_view_url( $current_user_id );
 			if ( '' !== $me_url ) {
 				$lines[] = '';
@@ -1084,7 +1096,7 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		$empty_msg = sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
+		$empty_msg = sprintf( 'Todavía no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
 
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
@@ -1203,7 +1215,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
 			return array(
-				'reply'     => sprintf( 'Todavia no tenés %1$s. Creá %2$s con *%3$s %4$s <nombre>* o entrá con un código.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'article_indef', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'new_adj', $identity['phone'] ?? '' ), $noun ),
+				'reply'     => sprintf( 'Todavía no tenés %1$s. Creá %2$s con *%3$s %4$s <nombre>* o entrá con un código.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'article_indef', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'new_adj', $identity['phone'] ?? '' ), $noun ),
 				'completed' => true,
 			);
 		}
@@ -1219,20 +1231,25 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$group = Mantia_Repository::group_to_array( $active );
 		$share = (string) ( $group['share_url'] ?? '' );
-		$view  = (string) ( $group['view_url'] ?? '' );
 
 		// Push a fresh invitation card the user can long-press → Forward.
 		// Lives in its own bubble (above the bot's reply with buttons) so a
 		// forward carries only the card, not the bot context.
 		self::send_invite_card( $identity['recipient'], $group );
 
+		// Reply intentionally compact: a one-line context + the wa.me
+		// share URL. Don't include `📱 Tu link privado:` here (that's the
+		// owner's /me/ edit-token URL — the QA cycle flagged 3 personas
+		// copying the wrong line and forwarding edit-capable access).
+		// Don't include `🌐 Ver standings en la web:` either — the wa.me
+		// link is the one-tap join, and Standings can live on the group
+		// page once recipients join.
 		$lines = array(
 			'_↑ Reenviá la tarjeta de arriba a tus amigos._',
 			'',
 			sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
+			sprintf( '👥 %d en la penca', count( Mantia_Repository::group_members( $active ) ) ),
 		);
-		$lines[] = '';
-		$lines   = array_merge( $lines, self::member_lines( $active, (int) $user->ID ) );
 
 		if ( '' !== $share ) {
 			$lines[] = '';
@@ -1240,12 +1257,7 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = $share;
 		} else {
 			$lines[] = '';
-			$lines[] = sprintf( 'Codigo: *%s*', $group['invite_code'] );
-		}
-		if ( '' !== $view ) {
-			$lines[] = '';
-			$lines[] = '🌐 Ver standings en la web:';
-			$lines[] = $view;
+			$lines[] = sprintf( 'Código: *%s*', $group['invite_code'] );
 		}
 
 		return array(
@@ -1258,7 +1270,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
 			return array(
-				'reply'       => "Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.\n\n¿Por dónde arrancamos?",
+				'reply'       => "Hola! Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\n\n¿Por dónde arrancamos?",
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1302,11 +1314,11 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = sprintf( 'Activa: *%s*', $active['name'] );
 			$lines[] = sprintf( '%s • codigo `%s`', $active['competition_name'] ?? '', $active['invite_code'] );
 		} else {
-			$lines[] = sprintf( 'Todavia no tenes %s %s.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) );
+			$lines[] = sprintf( 'Todavía no tenes %s %s.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) );
 		}
 
 		if ( count( $groups ) > 1 ) {
-			$lines[] = sprintf( 'Tenés %d %s en total. Escribí *mis grupos* para verlas.', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
+			$lines[] = sprintf( 'Tenés %d %s en total. Escribí *mis pencas* para verlas.', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
 		}
 
 		if ( ! empty( $standings ) ) {
@@ -1319,7 +1331,7 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( ! empty( $upcoming ) ) {
 			$lines[] = '';
-			$lines[] = 'Proximos partidos (48h):';
+			$lines[] = 'Próximos partidos (48h):';
 			foreach ( array_slice( $upcoming, 0, 3 ) as $m ) {
 				$kickoff = ! empty( $m['kickoff_gmt'] ) ? ' — ' . $m['kickoff_gmt'] . ' GMT' : '';
 				$lines[] = sprintf(
@@ -1376,19 +1388,19 @@ final class Mantia_Whatsapp_Flow {
 			: ucfirst( $plural );
 
 		$lines = array(
-			'*Mantia* — pronósticos mundialistas por WhatsApp.',
+			'*Mantia* — pronósticos de fútbol por WhatsApp.',
 			'',
 			'*' . $plural_cap . '*',
 			sprintf( '• *%1$s %2$s <nombre>* — crear y obtener link', $new_adj, $noun ),
 			sprintf( '• <código> — sumate a %s %s (ej: `FAMILIA2026`)', $indef, $noun ),
-			sprintf( '• *mis grupos* — lista tus %s', $plural ),
+			sprintf( '• *mis pencas* — lista tus %s', $plural ),
 			sprintf( '• *link* — compartir tu %s %s', $noun, $active_adj ),
 			'',
 			'*Partidos*',
-			'• *partidos* — ver fixture con tu pronostico al lado',
-			'• *pendientes* — partidos sin pronostico',
-			'• *mis pronosticos* — historial tuyo',
-			'• `Uruguay 2 Portugal 1` — registrar pronostico (con IA)',
+			'• *partidos* — ver fixture con tu pronóstico al lado',
+			'• *pendientes* — partidos sin pronóstico',
+			'• *mis pronósticos* — historial tuyo',
+			'• `Boca 2 River 1` — registrar pronóstico (con IA)',
 			'',
 			'*Otros*',
 			sprintf( '• *tabla* — ranking de tu %s', $noun ),
@@ -1429,7 +1441,7 @@ final class Mantia_Whatsapp_Flow {
 					$pa = (int) get_post_meta( (int) $p->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
 					$predicted = sprintf( '✓ %d-%d', $ph, $pa );
 				} else {
-					$predicted = '○ sin pronostico';
+					$predicted = '○ sin pronóstico';
 				}
 			}
 			$rows[] = array(
@@ -1444,14 +1456,14 @@ final class Mantia_Whatsapp_Flow {
 			: 'Fixture';
 
 		return array(
-			'reply'       => 'Tocá un partido para ver detalle o cargar pronostico:',
+			'reply'       => 'Tocá un partido para ver detalle o cargar pronóstico:',
 			'interactive' => array(
 				'type'         => 'list',
 				'header'       => $header,
 				'button_label' => 'Ver partidos',
 				'sections'     => array(
 					array(
-						'title' => 'Proximos partidos',
+						'title' => 'Próximos partidos',
 						'rows' => $rows,
 					),
 				),
@@ -1643,7 +1655,7 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( empty( $rows ) ) {
 			return array(
-				'reply'     => sprintf( "*%s*\n\nTodavia no hay puntos. Despues de que se resuelvan los primeros partidos, aparecen acá.", $group['name'] ),
+				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.", $group['name'] ),
 				'completed' => true,
 			);
 		}
@@ -1689,7 +1701,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
 		if ( ! $user ) {
 			return array(
-				'reply' => sprintf( 'Todavia no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+				'reply' => sprintf( 'Todavía no tenés %s.', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
 				'completed' => true,
 			);
 		}
@@ -1703,7 +1715,7 @@ final class Mantia_Whatsapp_Flow {
 		$history = Mantia_Repository::user_history( (int) $user->ID, $active_id );
 		if ( empty( $history ) ) {
 			return array(
-				'reply'     => 'Todavia no cargaste pronosticos. Escribi *partidos* y elegí uno.',
+				'reply'     => 'Todavía no cargaste pronósticos. Escribi *partidos* y elegí uno.',
 				'completed' => true,
 			);
 		}
@@ -1723,13 +1735,13 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		return array(
-			'reply'       => 'Tus pronosticos:',
+			'reply'       => 'Tus pronósticos:',
 			'interactive' => array(
 				'type'         => 'list',
 				'button_label' => 'Ver',
 				'sections'     => array(
 					array(
-						'title' => 'Mis pronosticos',
+						'title' => 'Mis pronósticos',
 						'rows' => $rows,
 					),
 				),
@@ -1793,6 +1805,16 @@ final class Mantia_Whatsapp_Flow {
 				$lines[] = sprintf( 'Tu pronóstico: *%d-%d*', $ph, $pa );
 			}
 		} elseif ( 'scheduled' === $status ) {
+			// Did the user type a bare score earlier without context? If so
+			// they tapped this match to disambiguate — apply the stash now
+			// instead of asking again. Pure UX win: no extra round trip.
+			if ( $user_id > 0 ) {
+				$pending_score = get_transient( self::pending_score_key( $identity['phone'] ) );
+				if ( is_array( $pending_score ) && 2 === count( $pending_score ) ) {
+					delete_transient( self::pending_score_key( $identity['phone'] ) );
+					return self::handle_quick_score( $match_id, (int) $pending_score[0], (int) $pending_score[1], $identity );
+				}
+			}
 			if ( $any_prediction ) {
 				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
 				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
@@ -1832,6 +1854,16 @@ final class Mantia_Whatsapp_Flow {
 		return 'mantia_pending_match_' . md5( $phone );
 	}
 
+	/**
+	 * Score the user typed before any match was in context. We park it
+	 * here for ~5 min and apply it automatically the next time they tap
+	 * a match — closes the "bare score then no idea which match" gap
+	 * that the QA cycle flagged as a silent-fail blocker.
+	 */
+	private static function pending_score_key( string $phone ): string {
+		return 'mantia_pending_score_' . md5( $phone );
+	}
+
 	private static function stash_pending_match( string $phone, int $match_id ): void {
 		if ( '' === $phone || $match_id <= 0 ) {
 			return;
@@ -1847,6 +1879,26 @@ final class Mantia_Whatsapp_Flow {
 	 */
 	private static function handle_quick_score( int $match_id, int $home, int $away, array $identity ): array {
 		delete_transient( self::pending_match_key( $identity['phone'] ) );
+
+		// Reject edits on a match that's already kicked off. Reading the
+		// kickoff once is cheaper than letting register_prediction race
+		// the live state. Same one-line check production-quality bots
+		// reach for; we'd rather a 1-line "ya arrancó" than a stealthy
+		// rewrite of a prediction during the match.
+		$match = Mantia_Repository::match_to_array( $match_id );
+		if ( ! empty( $match['kickoff_gmt'] ) ) {
+			$kickoff_ts = strtotime( (string) $match['kickoff_gmt'] . ( str_ends_with( (string) $match['kickoff_gmt'], 'Z' ) ? '' : ' UTC' ) );
+			if ( false !== $kickoff_ts && $kickoff_ts <= time() ) {
+				return array(
+					'reply'     => sprintf(
+						'⏱️ *%s vs %s* ya arrancó — no podés cambiar el pronóstico.',
+						Mantia_Frontend::normalize_team_name( (string) ( $match['home_team'] ?? '' ) ),
+						Mantia_Frontend::normalize_team_name( (string) ( $match['away_team'] ?? '' ) )
+					),
+					'completed' => true,
+				);
+			}
+		}
 
 		$args = array(
 			'user_phone'         => $identity['phone'],
@@ -1906,7 +1958,14 @@ final class Mantia_Whatsapp_Flow {
 			return $gmt;
 		}
 		// Display in Uruguay time (UTC-3) for now; future: per-user timezone.
-		return gmdate( 'D j M • H:i', $ts - 3 * HOUR_IN_SECONDS );
+		// wp_date() honours the WP locale so days come out in Spanish
+		// ("mar 19 may" / "mié 20 may") instead of "Tue 19 May" — keeps
+		// the bot consistent with what the web surface renders.
+		$local_ts = $ts - 3 * HOUR_IN_SECONDS;
+		if ( function_exists( 'wp_date' ) ) {
+			return (string) wp_date( 'D j M • H:i', $local_ts );
+		}
+		return gmdate( 'D j M • H:i', $local_ts );
 	}
 
 	/**
