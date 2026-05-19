@@ -36,19 +36,11 @@ final class Mantia_Competitions {
 	public static function default_seed(): array {
 		return array(
 			array(
-				'slug'        => 'mundial-2026',
-				'name'        => 'Mundial 2026',
-				'emoji'       => '🏆',
-				'description' => 'Copa del Mundo FIFA',
-				'is_default'  => true,
-				'sort'        => 10,
-				'aliases'     => array( 'mundial', 'world cup', 'copa del mundo', 'fifa' ),
-			),
-			array(
 				'slug'        => 'libertadores-2026',
 				'name'        => 'Libertadores 2026',
 				'emoji'       => '🥇',
 				'description' => 'Copa Libertadores — torneo completo',
+				'is_default'  => true,
 				'sort'        => 20,
 				'aliases'     => array( 'libertadores', 'copa libertadores', 'libertadores completa' ),
 			),
@@ -62,40 +54,21 @@ final class Mantia_Competitions {
 				'sort'        => 21,
 				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores — esta semana' ),
 			),
-			array(
-				'slug'        => 'esta-semana',
-				'name'        => 'Esta semana',
-				'emoji'       => '⚡',
-				'description' => 'Mini-penca de cuatro días — partidazos mié → vie',
-				'sort'        => 5,
-				'aliases'     => array( 'semana', 'mini', 'corta' ),
-			),
-			array(
-				'slug'        => 'sudamericana-2026',
-				'name'        => 'Sudamericana 2026',
-				'emoji'       => '🥈',
-				'description' => 'Copa Sudamericana — torneo completo',
-				'sort'        => 30,
-				'aliases'     => array( 'sudamericana', 'copa sudamericana' ),
-			),
-			array(
-				'slug'        => 'liga-uy-2026',
-				'name'        => 'LigaUY 2026',
-				'emoji'       => '🇺🇾',
-				'description' => 'Campeonato Uruguayo',
-				'sort'        => 40,
-				'aliases'     => array( 'liga uy', 'liga uruguaya', 'liga uruguay', 'campeonato uruguayo', 'auf' ),
-			),
-			array(
-				'slug'        => 'custom',
-				'name'        => 'Otra / Personalizada',
-				'emoji'       => '⚽',
-				'description' => 'Sin fixture preestablecido — cargás los partidos a mano',
-				'sort'        => 100,
-				'aliases'     => array(),
-			),
 		);
 	}
+
+	/**
+	 * Slugs of competitions removed from the seed in past releases. The
+	 * upgrade runner (v4) deletes them + their matches from existing
+	 * installs so the bot picker doesn't surface dead options.
+	 */
+	public const REMOVED_COMPETITION_SLUGS = array(
+		'mundial-2026',
+		'esta-semana',
+		'sudamericana-2026',
+		'liga-uy-2026',
+		'custom',
+	);
 
 	/**
 	 * @return array<string, array{

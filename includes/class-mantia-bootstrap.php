@@ -48,7 +48,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 3;
+	private const DB_VERSION        = 4;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -74,6 +74,34 @@ final class Mantia_Bootstrap {
 						'post_title' => 'Libertadores semanal',
 					)
 				);
+			}
+		}
+
+		// v4: drop competitions removed from default_seed() (Mundial,
+		// Sudamericana, LigaUY, Esta semana, Otra/Personalizada) plus the
+		// match posts that referenced them. Bot pickers were surfacing
+		// dead options.
+		if ( $current < 4 ) {
+			foreach ( Mantia_Competitions::REMOVED_COMPETITION_SLUGS as $slug ) {
+				$comp = Mantia_Competitions::find_post( $slug );
+				if ( ! $comp ) {
+					continue;
+				}
+				$match_ids = get_posts(
+					array(
+						'post_type'      => Mantia_CPTs::MATCH,
+						'post_status'    => 'any',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+						'no_found_rows'  => true,
+						'meta_key'       => Mantia_Competitions::META_KEY,
+						'meta_value'     => $slug,
+					)
+				);
+				foreach ( $match_ids as $mid ) {
+					wp_delete_post( (int) $mid, true );
+				}
+				wp_delete_post( (int) $comp->ID, true );
 			}
 		}
 
