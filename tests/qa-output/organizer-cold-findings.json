@@ -1,0 +1,210 @@
+{
+  "persona": "organizer-cold",
+  "ran_at": "2026-05-19T19:30:03Z",
+  "flows_run": ["onboarding-cold", "crear-penca", "pronostico-text", "listar-pencas", "share-link"],
+  "findings": [
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "primer reply al 'hola'",
+      "what": "Bot se describe como 'la app de pronósticos mundialistas por WhatsApp' pero el Mundial ya no es un torneo activo (sólo quedan Libertadores 2026 y Libertadores semanal en el seed). Para un usuario frío en mayo 2026 esto suena raro.",
+      "fix_hint": "Buscar 'mundialistas' en class-mantia-whatsapp-flow.php y reemplazar por 'de fútbol' o 'de tus partidos'. Aparece al menos 2 veces (reply de 'hola' y reply de 'ayuda').",
+      "evidence": "reply al hola: 'Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "reply a 'ayuda' / 'mantia:cmd:help'",
+      "what": "El ejemplo de pronóstico que muestra la ayuda es 'Uruguay 2 Portugal 1' — ese es contexto de Mundial. Para Libertadores debería ser un clásico como 'Boca 2 River 1' o 'Peñarol 2 Nacional 1'.",
+      "fix_hint": "Cambiar el ejemplo en el bloque 'Partidos' del help text a un partido de Libertadores actual.",
+      "evidence": "ayuda: '• `Uruguay 2 Portugal 1` — registrar pronostico (con IA)'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "ia",
+      "flow": "onboarding-cold",
+      "where": "botones del primer reply vs. el help text",
+      "what": "El botón del home dice 'Crear penca' pero el help text usa 'nueva penca <nombre>' como comando. El usuario que mira el help text intenta 'nueva penca …' aunque vio 'Crear penca' en el botón. Vocabulario inconsistente.",
+      "fix_hint": "Unificar a 'crear penca' (que es el que funcionó como matcher) y actualizar el help text.",
+      "evidence": "boton: 'title':'➕ Crear penca'; ayuda: '*nueva penca <nombre>* — crear y obtener link'"
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "crear-penca",
+      "where": "picker de torneo al mandar 'crear penca Los del 92'",
+      "what": "El picker muestra EXACTAMENTE los 2 torneos vigentes — '🥇 Libertadores 2026' y '📆 Libertadores semanal'. Ningún torneo huérfano (no Mundial, no Sudamericana, no LigaUY). La migración v4 limpió bien.",
+      "evidence": "rows: [{id: mantia:competition:libertadores-2026, title: '🥇 Libertadores 2026'}, {id: mantia:competition:libertadores-semana, title: '📆 Libertadores semanal'}] — exactamente 2 rows."
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "crear-penca",
+      "where": "después de tapear 'Libertadores semanal'",
+      "what": "El bot creó la penca, auto-cargó 8 pronósticos default (verificado por state query: predictions=8), generó un código de invitación (LOSDEL923TFN6) y respondió en <1.2s. Flujo de 3 mensajes total (hola → crear penca X → tap torneo → confirmación). Excelente para una persona cold.",
+      "evidence": "state: groups[0].competition=libertadores-semana, predictions=8. reply: '✅ Creaste *Los del 92* para 📆 Libertadores semanal.'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "crear-penca",
+      "where": "confirmación de penca creada",
+      "what": "El reply dice '_Reenviá la tarjeta de arriba ↑ a cualquier grupo…_' pero en el contexto de WhatsApp no hay ninguna tarjeta arriba (acabamos de mandar 'mantia:competition:libertadores-semana' como respuesta a un picker — el siguiente mensaje es el confirm). La referencia a 'la tarjeta de arriba' asume un share-card que el simulador no muestra; si no se está enviando un mensaje-tarjeta real antes de este texto, la copy queda colgada.",
+      "fix_hint": "Confirmar que el handler de creación está realmente enviando el share-card (image + meta preview) ANTES del texto. Si no, sacar la frase 'Reenviá la tarjeta de arriba ↑'.",
+      "evidence": "reply tras tap del torneo: 'Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos.' (sin tarjeta visible en stream)"
+    },
+    {
+      "severity": "blocker",
+      "lens": "security",
+      "flow": "crear-penca",
+      "where": "confirmación de penca creada",
+      "what": "El bot le manda al usuario su 'link privado' (`/penca/me/<view_token>`) en el mismo mensaje donde lo invita a 'reenviar la tarjeta a cualquier grupo de WhatsApp'. Es exactamente el link que NO debe compartirse — visitarlo permite editar sus pronósticos. El share-token separado (commit 67f69f3) existe en arquitectura pero el bot no lo usa para invitar; lo único que sale es el view_token de edición.",
+      "fix_hint": "En el reply de confirmación, no incluir 'Tu link privado'. Mostrar solo el wa.me 1-tap o el código de invitación. Si se quiere dar acceso a una vista privada, debería usar el share_token, no el view_token. Buscar 'Tu link privado' en class-mantia-whatsapp-flow.php.",
+      "evidence": "reply: '📱 Tu link privado: https://mantia3.wpcomstaging.com/penca/me/d7b808066db06b48781d7386'. Inmediatamente antes, el mismo mensaje dice 'Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp'. State query confirma view_token=d7b808066db06b48781d7386 es el token de edición (carga la página con botones de 'Guardar' pronóstico)."
+    },
+    {
+      "severity": "blocker",
+      "lens": "flow",
+      "flow": "pronostico-text",
+      "where": "score suelto sin tap previo",
+      "what": "Cuando el usuario manda '2-1', '2 a 1', o 'Boca 3 River 1' como mensaje suelto (sin haber tapeado un partido), el bot devuelve reply vacío y cae al LLM fallback (fell_through_to_llm: true). La persona esperaba 'Anotado en *X*: Home 2 - 1 Away' deduciendo el partido más próximo sin pronóstico. En la práctica el usuario no recibe respuesta — peor que un error explícito.",
+      "fix_hint": "El router determinístico necesita: (a) regex para 'X-Y' / 'X a Y' / 'X:Y' y (b) buscar próximo partido sin pronóstico en la penca activa. Si hay ambigüedad (>1 partido en ventana), pedir cuál con un picker. También considerar devolver al menos un texto cuando cae al LLM para que no quede en silencio total.",
+      "evidence": "request: '2-1' → reply: '' (vacío), fell_through_to_llm: true. Idem '2 a 1' y 'Boca 3 River 1' y '20-19'. State predictions=8 sin cambios después de los 4 intentos."
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "pronostico-text",
+      "where": "score después de tap de partido",
+      "what": "Cuando el usuario tapea un partido (mantia:match:6382) y luego manda '2-1', el bot responde correctamente con '✅ Anotado en *Los del 92*: Bolívar 2 - 1 Cerro Porteño' + 3 botones de continuación. La copy incluye nombres de equipos (no solo scores), que era lo deseado.",
+      "evidence": "reply: '✅ Anotado en *Los del 92*: Bolívar 2 - 1 Cerro Porteño', botones: [Más pendientes, Otros partidos, Resumen]"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "pronostico-text",
+      "where": "fechas en list de partidos (mantia:cmd:matches)",
+      "what": "Los días de la semana están en inglés ('Tue 19 May', 'Wed 20 May', 'Thu 21 May') mientras el resto del bot está en español rioplatense. En la página /me/ las fechas SÍ están en español ('MAR 19 MAY', 'MIé 20 MAY', 'JUE 21 MAY'). Inconsistencia entre bot y web.",
+      "fix_hint": "Usar setlocale es_UY o wp_date() con formato español en la generación de la lista de partidos. Buscar la función que formatea las descriptions del Interactive List.",
+      "evidence": "row description: 'Tue 19 May • 19:00 • ✓ 2-1' (8 rows todas con día en inglés)"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "pronostico-text",
+      "where": "varias replies del bot",
+      "what": "Acentos faltan en varios strings: 'pronostico actual', 'mandame uno nuevo (ej *2-1*)', 'Proximos partidos' (header del list), 'Tocá un partido para ver detalle o cargar pronostico'. Mezclado con strings bien acentuados ('próximos', 'Pronóstico actual').",
+      "fix_hint": "Buscar 'pronostico', 'Proximos', 'detalle o cargar pronostico' en el código y agregar tildes. Hacer un sweep general.",
+      "evidence": "section title: 'Proximos partidos'; reply de match tap: 'Pronóstico actual: *1-0* — mandame uno nuevo'; reply de matches: 'cargar pronostico'."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "reply a 'mis pencas' / 'pencas' / 'mis grupos'",
+      "what": "Devuelve un texto plano 'Tu penca: *Los del 92* (código `LOSDEL923TFN6`).' con buttons, NO un Interactive List. La flow espera List con title (nombre) + description (torneo + 'N jugadores · M pronósticos'). Con 1 sola penca esto funciona, pero con 2+ pencas habría que tapear botones — y solo hay 3 botones max. Además la copy no muestra estado (jugadores, pronósticos), solo el código.",
+      "fix_hint": "Cuando user tiene 1 penca, mostrar 'Tu penca: X · 📆 torneo · N jugadores · M pronósticos' al menos. Cuando tiene N≥2 pencas, usar Interactive List con cada penca como row. Considerar también que el código `LOSDEL923TFN6` aparece sin contexto — un usuario cold no sabe qué hacer con eso.",
+      "evidence": "reply: 'Tu penca: *Los del 92* (código `LOSDEL923TFN6`).' — interactive es type:button no type:list. No menciona '1 jugador' ni '8 pronósticos'."
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "aliases del comando",
+      "what": "Las tres variantes 'mis pencas', 'pencas', 'mis grupos' producen exactamente el mismo reply. Bueno — el usuario no se queda sin respuesta por elegir la palabra 'incorrecta'.",
+      "evidence": "tres requests distintos, mismo reply: 'Tu penca: *Los del 92* (código `LOSDEL923TFN6`).'"
+    },
+    {
+      "severity": "works",
+      "lens": "security",
+      "flow": "share-link",
+      "where": "infraestructura de tokens",
+      "what": "El share_token (poster público) ES distinto del view_token (edición privada). Confirmado por state query: view_token=d7b808066db06b48781d7386, share_token=bd8f041f683b20385483ba02. Visitar `/penca/me/share/<share_token>/` renderiza una vista de share sin botones de edición. El share_token se genera lazy al visitar /me/. La arquitectura del commit 67f69f3 está bien implementada.",
+      "evidence": "state.view_token != state.share_token; GET /penca/me/share/bd8f041f683b20385483ba02/ → 200 (página de share); GET /penca/me/share/d7b808066db06b48781d7386/ → 404 (no se acepta el view_token en la ruta de share)."
+    },
+    {
+      "severity": "works",
+      "lens": "visual",
+      "flow": "share-link",
+      "where": "/penca/g/<token>/sumate/ OG tags",
+      "what": "La página de invite tiene OG tags completos: og:title='Sumate a Los del 92', og:description='📆 Libertadores semanal · 1 jugador', og:image='/penca/g/.../og/' (1200x630), twitter:card='summary_large_image', og:locale='es_UY'. La imagen OG existe (200 OK, 33KB PNG). Cuando se pega el link en WhatsApp, el preview va a verse profesional.",
+      "evidence": "curl /penca/g/644941cb46d62647cb25d66e/sumate/ → meta og:image=https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e/og/; HEAD /og/ → 200, content-type: image/png, content-length: 33462."
+    },
+    {
+      "severity": "blocker",
+      "lens": "security",
+      "flow": "share-link",
+      "where": "reply de 'compartir' / mantia:cmd:share-link",
+      "what": "El comando 'compartir' (cuya intención del usuario es compartir con amigos) devuelve 3 links en el mismo mensaje, y uno de ellos es '📱 Tu link privado' apuntando al view_token de edición. Combinado con 'Reenviá la tarjeta de arriba' y '🤝 Invitar amigos (1 toque)' en el mismo mensaje, es muy fácil para el usuario copiar y reenviar el link incorrecto.",
+      "fix_hint": "En 'compartir', remover el 'Tu link privado'. Mostrar SOLO el wa.me 1-tap (lo que la persona realmente quiere). Quitar tambien el link directo a /penca/g/<token> de la web — la wa.me ya lleva al receptor por el camino correcto. Si se quiere dar al owner una vista 'standings publica', usar el share_token, no el view_token del grupo (group.view_token tambien se compartio en plain text).",
+      "evidence": "reply de 'compartir': contiene literal 'https://mantia3.wpcomstaging.com/penca/me/d7b808066db06b48781d7386' (user's edit token) + 'https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e' (group's view token, expuesto). Mismo bug en mantia:cmd:share-link."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "ia",
+      "flow": "share-link",
+      "where": "URL que el bot le da al usuario para compartir",
+      "what": "El bot da `/penca/g/<token>` (sin sufijo /sumate/) como 'Ver standings'. Cuando un visitante curioso lo abre, llega a una página pública del grupo, no a la página optimizada para invite (que está en /sumate/). El /sumate/ tiene 'Sumate por WhatsApp' como acción principal — es la landing correcta para un cold visitor.",
+      "fix_hint": "Cambiar 'Ver standings en la web' por el URL /sumate/ que ya existe y funciona, o eliminar ese link y dejar solo el wa.me. El visitante de mobile no sabe distinguir 'standings' vs 'invite'.",
+      "evidence": "reply de compartir: '🌐 Ver standings en la web: https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e' (sin /sumate/, sin /tabla/). curl /sumate/ → 200 con CTA 'Sumate por WhatsApp'."
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "share-link",
+      "where": "/penca/g/<token>/sumate/ contenido visible",
+      "what": "La página de sumate auto-abre wa.me y muestra solo 'Abriendo WhatsApp… Tocá si no abre solo'. No hay un hero con el nombre grande de la penca antes del auto-redirect — un visitante con auto-redirect bloqueado o JS deshabilitado solo ve 4 palabras. Sería mejor mostrar el hero (nombre penca + jugadores + competition) primero, con el CTA 'Sumate por WhatsApp' como acción principal, y NO auto-redirigir.",
+      "fix_hint": "Quitar el auto-redirect window.location y mostrar el hero con CTA explícito. El auto-redirect además puede ser confuso si el browser ya está en WhatsApp Web — vuelve a abrir un chat.",
+      "evidence": "GET /sumate/ → texto visible (sin scripts): 'Sumate a Los del 92 — Mantia 📆 Libertadores semanal · Los del 92 · 1 jugador Abriendo WhatsApp… Tocá si no abre solo Redirigiendo a WhatsApp… tocá acá'"
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "crear-penca",
+      "where": "confirmación de penca creada",
+      "what": "El reply usa 'Re-enviar' como label del botón de share (con guion: '📤 Re-enviar'). Es ambiguo — ¿reenviar qué? El help text usa 'compartir' y 'link', y la persona piensa en términos de 'compartir' o 'invitar'. 'Invitar' (que ya se usa en mis-pencas) sería más claro.",
+      "fix_hint": "Renombrar el botón a 'Compartir' o 'Invitar' para alinear con el resto del vocabulario.",
+      "evidence": "buttons tras crear penca: [{title: '📤 Re-enviar'}, {title: '📅 Partidos'}, {title: '❓ Ayuda'}]"
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "primer reply al 'hola'",
+      "what": "Empieza con 'Hola!' con signo de exclamación final pero sin signo de apertura. En español rioplatense escrito (que es el tono del resto del bot), o se omite el '!' o se ponen los dos signos. Algo como 'Hola, soy Mantia' (sin exclamación, más casual) calza mejor con el tono voseo del resto.",
+      "fix_hint": "Cambiar 'Hola!' por 'Hola,' o 'Buenas,' — más alineado con la voz del bot.",
+      "evidence": "reply: 'Hola! Soy *Mantia*…'"
+    },
+    {
+      "severity": "works",
+      "lens": "performance",
+      "flow": "crear-penca",
+      "where": "latencia de creación de penca",
+      "what": "Crear la penca (que también auto-cargó 8 pronósticos) tomó 1123ms. Las otras respuestas determinísticas <50ms (ej. tabla=10ms, partidos=26ms, mis pencas=6ms). El compartir text generation tomó 444ms (probablemente carga code). Ningún timeout, ningún 5xx.",
+      "evidence": "elapsed_ms desde sim-wa: crear-penca=4ms (picker), pickcomp=1123ms (creación real), compartir=444ms, partidos=26ms, mis-pencas=6ms, tabla=10ms, match-tap=12ms, score-en-context=96ms."
+    }
+  ],
+  "screenshots": [
+    "/tmp/qa-organizer-cold-01-hola.json",
+    "/tmp/qa-organizer-cold-02-help.json",
+    "/tmp/qa-organizer-cold-03-crear.json",
+    "/tmp/qa-organizer-cold-04-pickcomp.json",
+    "/tmp/qa-organizer-cold-05-score.json",
+    "/tmp/qa-organizer-cold-06-score2.json",
+    "/tmp/qa-organizer-cold-07-named.json",
+    "/tmp/qa-organizer-cold-08-outofrange.json",
+    "/tmp/qa-organizer-cold-09-mispencas.json",
+    "/tmp/qa-organizer-cold-10-pencas.json",
+    "/tmp/qa-organizer-cold-11-grupos.json",
+    "/tmp/qa-organizer-cold-12-compartir.json",
+    "/tmp/qa-organizer-cold-13-matches.json",
+    "/tmp/qa-organizer-cold-14-tabla.json",
+    "/tmp/qa-organizer-cold-15-match.json",
+    "/tmp/qa-organizer-cold-16-score-after-match.json",
+    "/tmp/qa-organizer-cold-17-named.json",
+    "/tmp/qa-organizer-cold-18-sharebutton.json",
+    "/tmp/qa-organizer-cold-19-partidos.json"
+  ]
+}

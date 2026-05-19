@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mantia · primetime-readiness dashboard</title>
+<style>
+:root { --ink:#0a0a0a; --bg:#c5f24e; --pink:#ff3d8e; --yellow:#ffe54a; --blue:#2a7bff; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 32px 20px; line-height: 1.4; }
+h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em; }
+.sub { color: #555; margin-bottom: 24px; }
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; max-width: 600px; }
+.tile { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 14px; box-shadow: 3px 3px 0 var(--ink); }
+.tile .n { font-size: 36px; font-weight: 900; line-height: 1; }
+.tile .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; margin-top: 4px; color: #555; }
+.tile.blocker { background: var(--pink); color: #fff; }
+.tile.blocker .l { color: #fff; }
+.tile.paper-cut { background: var(--yellow); }
+.tile.polish { background: #fff; }
+.tile.works { background: #e1ffd6; }
+.personas { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 16px 20px; margin-bottom: 24px; max-width: 900px; }
+.personas table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.personas th, .personas td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; }
+.personas th { font-weight: 700; color: #555; font-size: 11px; text-transform: uppercase; }
+.findings { max-width: 900px; }
+.finding { background: #fff; border: 2px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; box-shadow: 2px 2px 0 var(--ink); }
+.finding .head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.badge { display: inline-block; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; border: 1.5px solid var(--ink); }
+.badge.blocker { background: var(--pink); color: #fff; border-color: var(--pink); }
+.badge.paper-cut { background: var(--yellow); }
+.badge.polish { background: #f0f0f0; }
+.badge.works { background: #c5f5a4; }
+.lens { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.06em; }
+.persona-tag { font-size: 11px; color: #888; }
+.where { font-weight: 700; font-size: 14px; }
+.what { font-size: 14px; margin: 4px 0 0; }
+.evidence, .fix { font-size: 12px; color: #444; margin-top: 6px; background: #f6f6f6; border-radius: 6px; padding: 6px 10px; font-family: ui-monospace, Menlo, monospace; }
+.fix { background: #e1f5d6; }
+.empty { text-align: center; padding: 80px 20px; color: #666; }
+</style>
+</head>
+<body>
+
+<h1>Mantia · primetime-readiness</h1>
+<div class="sub">
+  Generated 2026-05-19 20:21 UTC &middot;
+  5 personas &middot;
+  68 findings total
+</div>
+
+<div class="summary">
+  <div class="tile blocker"><div class="n">9</div><div class="l">Blockers</div></div>
+  <div class="tile paper-cut"><div class="n">22</div><div class="l">Paper-cuts</div></div>
+  <div class="tile polish"><div class="n">11</div><div class="l">Polish</div></div>
+  <div class="tile works"><div class="n">26</div><div class="l">Works ✓</div></div>
+</div>
+
+<div class="personas">
+  <table>
+    <thead>
+      <tr><th>Persona</th><th>Ran at</th><th>Flows run</th><th>Findings</th></tr>
+    </thead>
+    <tbody>
+          <tr>
+        <td>lurker-web-only</td>
+        <td>2026-05-19T19:45:00Z</td>
+        <td>lurker-web, competition-page, group-page-public</td>
+        <td>12</td>
+      </tr>
+          <tr>
+        <td>member-invited</td>
+        <td>2026-05-19T19:55:00Z</td>
+        <td>share-link, onboarding-cold, pronostico-tap, group-page-public</td>
+        <td>12</td>
+      </tr>
+          <tr>
+        <td>multi-penca</td>
+        <td>2026-05-19T18:42:00Z</td>
+        <td>crear-penca, crear-penca, crear-penca, auto-routing-multipenca, listar-pencas</td>
+        <td>11</td>
+      </tr>
+          <tr>
+        <td>organizer-cold</td>
+        <td>2026-05-19T19:30:03Z</td>
+        <td>onboarding-cold, crear-penca, pronostico-text, listar-pencas, share-link</td>
+        <td>21</td>
+      </tr>
+          <tr>
+        <td>organizer-returning</td>
+        <td>2026-05-19T19:33:09Z</td>
+        <td>listar-pencas, editar-pronostico, share-link, fallback-llm</td>
+        <td>12</td>
+      </tr>
+        </tbody>
+  </table>
+</div>
+
+<div class="findings">
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Home page · second CTA button (mobile + desktop)</div>
+      <div class="what">CTA says &apos;Ver el ranking del Mundial&apos; but Mundial was removed from the product. The link correctly points to /penca/libertadores-2026 but the visible label is stale and undermines trust in 5 seconds. The flow spec calls for &apos;Ver Libertadores&apos;.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/01-home-mobile.png · DOM: a[href=&apos;https://mantia3.wpcomstaging.com/penca/libertadores-2026&apos;] textContent=&apos;Ver el ranking del Mundial&apos;</div>
+                    <div class="fix">fix: Grep the codebase for &apos;Ver el ranking del Mundial&apos; or &apos;ranking del Mundial&apos; — likely in the home template (mantia-home shortcode / template-home.php). Change to &apos;Ver Libertadores&apos; or &apos;Ver el ranking · Libertadores 2026&apos;.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Themed 404 page · primary recovery CTA (3 paths: /penca/no-existe/, /penca/g/bogus/, /penca/me/share/bogus/)</div>
+      <div class="what">Every themed 404 page surfaces a pink primary CTA &apos;Ver Mundial 2026&apos; linking to /penca/libertadores-2026. Same stale &apos;Mundial&apos; string. Worse here than the home because the 404 is the moment we recover the visitor — handing them an out-of-date competition reference is high-friction.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · accessibility snapshot uid=7_7 / uid=8_7 / uid=9_7 all read &apos;Ver Mundial 2026&apos;</div>
+                    <div class="fix">fix: In the themed 404 template (probably class-mantia-404.php or a not-found template part), change &apos;Ver Mundial 2026&apos; to &apos;Ver Libertadores 2026&apos;. Same source line likely powers all 3 paths.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-returning · flow onboarding-cold</span>
+      </div>
+      <div class="where">first &apos;hola&apos; reply, &apos;ayuda&apos; reply, and home placeholder</div>
+      <div class="what">Bot still says &apos;Mantia, la app de pronósticos *mundialistas* por WhatsApp.&apos; in multiple places. There is no Mundial in scope — the actual competitions on the picker are Libertadores 2026 and Libertadores semanal. This is the same stale-copy issue from the cold-organizer persona. It misrepresents what the product does and confuses returning users (Florencia just created a Libertadores penca and is told it&apos;s for the Mundial).</div>
+              <div class="evidence">evidence: reply to &apos;hola&apos;: &apos;Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.&apos;. reply to &apos;ayuda&apos;: &apos;*Mantia* — pronósticos mundialistas por WhatsApp.&apos;. Confirmed at flow.php:1261.</div>
+                    <div class="fix">fix: Grep for &apos;mundialistas&apos; in includes/class-mantia-whatsapp-flow.php — change to &apos;pronósticos de fútbol&apos; (generic) or &apos;pronósticos por WhatsApp&apos; (drop the noun).</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
+      </div>
+      <div class="where">bare score with no match context</div>
+      <div class="what">Sending &apos;2-1&apos; (or &apos;2 1&apos;, &apos;2-1 Bolivar&apos;) with NO pending-match transient returns an EMPTY reply (falls through to LLM which returns null). The persona explicitly asks &apos;cuando manda un score sin tapear un partido, el bot pregunta cuál partido o asume el más próximo?&apos; — current answer is &apos;neither, silent fail&apos;. Three identical attempts all returned reply:&apos;&apos;, interactive:null, fell_through_to_llm:true.</div>
+              <div class="evidence">evidence: bin/sim-wa.sh &apos;+999900004&apos; ... &apos;2-1&apos; → {reply:&apos;&apos;, interactive:null, fell_through_to_llm:true}. Same for &apos;2 1&apos; and &apos;2-1 Bolivar&apos;.</div>
+                    <div class="fix">fix: In class-mantia-whatsapp-flow.php:196-201 the score regex matches but if pending_match transient is empty/expired the handler silently falls through. Either (a) auto-target the next pending match for the active penca&apos;s competition and confirm &apos;asumiendo Bolívar vs Cerro Porteño — mandá el id si era otro&apos;, or (b) reply with a list of pending matches asking which one. Empty reply is the worst option.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-cold · flow pronostico-text</span>
+      </div>
+      <div class="where">score suelto sin tap previo</div>
+      <div class="what">Cuando el usuario manda &apos;2-1&apos;, &apos;2 a 1&apos;, o &apos;Boca 3 River 1&apos; como mensaje suelto (sin haber tapeado un partido), el bot devuelve reply vacío y cae al LLM fallback (fell_through_to_llm: true). La persona esperaba &apos;Anotado en *X*: Home 2 - 1 Away&apos; deduciendo el partido más próximo sin pronóstico. En la práctica el usuario no recibe respuesta — peor que un error explícito.</div>
+              <div class="evidence">evidence: request: &apos;2-1&apos; → reply: &apos;&apos; (vacío), fell_through_to_llm: true. Idem &apos;2 a 1&apos; y &apos;Boca 3 River 1&apos; y &apos;20-19&apos;. State predictions=8 sin cambios después de los 4 intentos.</div>
+                    <div class="fix">fix: El router determinístico necesita: (a) regex para &apos;X-Y&apos; / &apos;X a Y&apos; / &apos;X:Y&apos; y (b) buscar próximo partido sin pronóstico en la penca activa. Si hay ambigüedad (&gt;1 partido en ventana), pedir cuál con un picker. También considerar devolver al menos un texto cuando cae al LLM para que no quede en silencio total.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-returning · flow fallback-llm</span>
+      </div>
+      <div class="where">any non-matching message</div>
+      <div class="what">QA simulator (bin/qa-sim.php) calls Mantia_Whatsapp_Flow::maybe_handle_command directly and returns reply=&apos;&apos; when the deterministic router returns null. The LLM fallback is never invoked from the sim — so I cannot test whether the production LLM responds usefully to &apos;qué hago ahora&apos;, &apos;explícame bien qué es esto&apos;, &apos;bro a qué hora juega Boca&apos;, or &apos;2-2 Estudiantes vs Sao Paulo&apos;. ALL four returned reply=&apos;&apos;, interactive=null, fell_through_to_llm=true in 3-7ms (no LLM round-trip). This blocks the entire fallback-llm flow from being QA-able via the simulator harness.</div>
+              <div class="evidence">evidence: Four representative inputs all return {reply:&apos;&apos;, interactive:null, fell_through_to_llm:true, elapsed_ms:3-7}. bin/qa-sim.php:72 calls only Mantia_Whatsapp_Flow::maybe_handle_command and treats null as terminal. Production wires the flow via &apos;openclawp_pre_chat_turn&apos; filter — returning null there lets the LLM handle the turn, which the sim never exercises.</div>
+                    <div class="fix">fix: Extend bin/qa-sim.php to invoke the LLM agent (Mantia_Agent::respond or equivalent) when maybe_handle_command returns null, mirroring the production webhook path. Add a &apos;mock_llm&apos; switch so CI runs are deterministic. Without this, the LLM path has zero automated coverage.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">confirmación de penca creada</div>
+      <div class="what">El bot le manda al usuario su &apos;link privado&apos; (`/penca/me/&lt;view_token&gt;`) en el mismo mensaje donde lo invita a &apos;reenviar la tarjeta a cualquier grupo de WhatsApp&apos;. Es exactamente el link que NO debe compartirse — visitarlo permite editar sus pronósticos. El share-token separado (commit 67f69f3) existe en arquitectura pero el bot no lo usa para invitar; lo único que sale es el view_token de edición.</div>
+              <div class="evidence">evidence: reply: &apos;📱 Tu link privado: https://mantia3.wpcomstaging.com/penca/me/d7b808066db06b48781d7386&apos;. Inmediatamente antes, el mismo mensaje dice &apos;Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp&apos;. State query confirma view_token=d7b808066db06b48781d7386 es el token de edición (carga la página con botones de &apos;Guardar&apos; pronóstico).</div>
+                    <div class="fix">fix: En el reply de confirmación, no incluir &apos;Tu link privado&apos;. Mostrar solo el wa.me 1-tap o el código de invitación. Si se quiere dar acceso a una vista privada, debería usar el share_token, no el view_token. Buscar &apos;Tu link privado&apos; en class-mantia-whatsapp-flow.php.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· organizer-cold · flow share-link</span>
+      </div>
+      <div class="where">reply de &apos;compartir&apos; / mantia:cmd:share-link</div>
+      <div class="what">El comando &apos;compartir&apos; (cuya intención del usuario es compartir con amigos) devuelve 3 links en el mismo mensaje, y uno de ellos es &apos;📱 Tu link privado&apos; apuntando al view_token de edición. Combinado con &apos;Reenviá la tarjeta de arriba&apos; y &apos;🤝 Invitar amigos (1 toque)&apos; en el mismo mensaje, es muy fácil para el usuario copiar y reenviar el link incorrecto.</div>
+              <div class="evidence">evidence: reply de &apos;compartir&apos;: contiene literal &apos;https://mantia3.wpcomstaging.com/penca/me/d7b808066db06b48781d7386&apos; (user&apos;s edit token) + &apos;https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e&apos; (group&apos;s view token, expuesto). Mismo bug en mantia:cmd:share-link.</div>
+                    <div class="fix">fix: En &apos;compartir&apos;, remover el &apos;Tu link privado&apos;. Mostrar SOLO el wa.me 1-tap (lo que la persona realmente quiere). Quitar tambien el link directo a /penca/g/&lt;token&gt; de la web — la wa.me ya lleva al receptor por el camino correcto. Si se quiere dar al owner una vista &apos;standings publica&apos;, usar el share_token, no el view_token del grupo (group.view_token tambien se compartio en plain text).</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge blocker">blocker</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· organizer-returning · flow share-link</span>
+      </div>
+      <div class="where">&apos;compartir&apos; / &apos;mantia:cmd:share-link&apos; reply</div>
+      <div class="what">The &apos;compartir&apos; reply hands out &apos;🌐 Ver standings en la web: https://mantia3.wpcomstaging.com/penca/g/&lt;view_token&gt;&apos; which is the SAME view_token used internally for the private group standings page. Anyone with this link can see the standings without joining. The flow spec (share-link.md) explicitly requires: &apos;El token en el link es DIFERENTE del view_token de la group page privada (security: share-only token)&apos;. The recent commit 67f69f3 (&apos;Privacy fix: split share-poster token from private edit token&apos;) added a share_token field but state shows share_token=&apos;&apos; for this user, and the share reply still reuses view_token. The /sumate/ landing page is also at /penca/g/&lt;view_token&gt;/sumate/, so anyone with the sumate URL can strip /sumate/ and land on standings.</div>
+              <div class="evidence">evidence: &apos;compartir&apos; reply: &apos;🌐 Ver standings en la web:\nhttps://mantia3.wpcomstaging.com/penca/g/0ab4a7ff7812176ef70979bc&apos;. State query: groups[0].view_token=&apos;0ab4a7ff7812176ef70979bc&apos;, share_token=&apos;&apos;. Curl HEAD on /penca/g/0ab4a7ff7812176ef70979bc/ returns 301→200 with the standings page. The view_token in the group state IS the public share link.</div>
+                    <div class="fix">fix: In handle_share_link / build_share_reply, when emitting the &apos;Ver standings en la web&apos; link, use a separate share_token (already added per commit 67f69f3) — backfill share_token on existing groups in a migration. Or remove the standings URL from the share reply entirely; the sumate page is enough for invitees. Also gate build_join_landing_url to use share_token not view_url.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· member-invited · flow onboarding-cold</span>
+      </div>
+      <div class="where">cold &apos;hola&apos; reply on a brand-new phone</div>
+      <div class="what">Bot still self-describes as &apos;la app de pronósticos mundialistas por WhatsApp&apos; even though Mundial was eliminated from the seed (Libertadores is the current tournament). This stale wording is the same regression flagged in tests/qa-flows/onboarding-cold.md.</div>
+              <div class="evidence">evidence: sim-wa +999900098 &apos;hola&apos; reply: &apos;Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.\n\n¿Por dónde arrancamos?&apos; Grep also finds &apos;pronósticos mundialistas&apos; in the /help footer string at line 1379.</div>
+                    <div class="fix">fix: In includes/class-mantia-whatsapp-flow.php replace both occurrences of &apos;mundialistas&apos; (lines 1261 and 1379) with &apos;de fútbol&apos; or &apos;de Libertadores&apos;. The /help reply on line 1379 is also stale.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· member-invited · flow pronostico-tap</span>
+      </div>
+      <div class="where">match list rows and detail panel — day-of-week label</div>
+      <div class="what">Day-of-week labels in the bot&apos;s match list and detail panel come back in English (&apos;Tue 19 May&apos;, &apos;Wed 20 May&apos;, &apos;Thu 21 May&apos;) even though the rest of the copy is Spanish/voseo. The public group page is correctly Spanish (&apos;MAR 19 MAY&apos;, &apos;MIÉ 20 MAY&apos;, &apos;JUE 21 MAY&apos;), so the bot looks inconsistent vs the web surface.</div>
+              <div class="evidence">evidence: match list rows return &apos;Tue 19 May • 19:00 • ✓ 0-0&apos; / &apos;Wed 20 May • 19:00 • ✓ 0-2&apos;; group page DOM strings are &apos;MAR 19 MAY&apos; / &apos;MIÉ 20 MAY&apos; — inconsistency comes from gmdate vs wp_date.</div>
+                    <div class="fix">fix: In includes/class-mantia-whatsapp-flow.php::format_kickoff (line 1909) swap `gmdate(&apos;D j M • H:i&apos;, $ts - 3*HOUR_IN_SECONDS)` for `wp_date(&apos;D j M • H:i&apos;, $ts - 3*HOUR_IN_SECONDS)` or `date_i18n(...)` so the day-of-week respects WP locale. gmdate is locale-insensitive English by definition.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
+      </div>
+      <div class="where">/home reply text</div>
+      <div class="what">Home text says &apos;Escribí *mis grupos* para verlas&apos; but the product calls them &apos;pencas&apos; everywhere else (header, picker, /me/ UI). Both &apos;mis grupos&apos; and &apos;mis pencas&apos; work as commands, but the surfaced suggestion uses the wrong noun.</div>
+              <div class="evidence">evidence: reply to mantia:cmd:home: &apos;Tenés 3 pencas en total. Escribí *mis grupos* para verlas.&apos;</div>
+                    <div class="fix">fix: Change the home-screen text to &apos;Escribí *mis pencas* para verlas&apos;. The regex at flow.php:207 already accepts both forms — only the displayed suggestion needs updating.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· multi-penca · flow crear-penca</span>
+      </div>
+      <div class="where">first &apos;hola&apos; reply</div>
+      <div class="what">Bot still says &apos;la app de pronósticos mundialistas por WhatsApp&apos; but Mundial was removed from the available competitions (only Libertadores 2026 / Libertadores semanal in the picker). Diego is creating Libertadores pencas — the welcome copy promises Mundial.</div>
+              <div class="evidence">evidence: reply to &apos;hola&apos;: &apos;Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.&apos;</div>
+                    <div class="fix">fix: Replace &apos;pronósticos mundialistas&apos; with &apos;pronósticos de fútbol&apos; or &apos;pronósticos para la Libertadores&apos; in the cold-hola reply.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow onboarding-cold</span>
+      </div>
+      <div class="where">primer reply al &apos;hola&apos;</div>
+      <div class="what">Bot se describe como &apos;la app de pronósticos mundialistas por WhatsApp&apos; pero el Mundial ya no es un torneo activo (sólo quedan Libertadores 2026 y Libertadores semanal en el seed). Para un usuario frío en mayo 2026 esto suena raro.</div>
+              <div class="evidence">evidence: reply al hola: &apos;Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.&apos;</div>
+                    <div class="fix">fix: Buscar &apos;mundialistas&apos; en class-mantia-whatsapp-flow.php y reemplazar por &apos;de fútbol&apos; o &apos;de tus partidos&apos;. Aparece al menos 2 veces (reply de &apos;hola&apos; y reply de &apos;ayuda&apos;).</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow onboarding-cold</span>
+      </div>
+      <div class="where">reply a &apos;ayuda&apos; / &apos;mantia:cmd:help&apos;</div>
+      <div class="what">El ejemplo de pronóstico que muestra la ayuda es &apos;Uruguay 2 Portugal 1&apos; — ese es contexto de Mundial. Para Libertadores debería ser un clásico como &apos;Boca 2 River 1&apos; o &apos;Peñarol 2 Nacional 1&apos;.</div>
+              <div class="evidence">evidence: ayuda: &apos;• `Uruguay 2 Portugal 1` — registrar pronostico (con IA)&apos;</div>
+                    <div class="fix">fix: Cambiar el ejemplo en el bloque &apos;Partidos&apos; del help text a un partido de Libertadores actual.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">confirmación de penca creada</div>
+      <div class="what">El reply dice &apos;_Reenviá la tarjeta de arriba ↑ a cualquier grupo…_&apos; pero en el contexto de WhatsApp no hay ninguna tarjeta arriba (acabamos de mandar &apos;mantia:competition:libertadores-semana&apos; como respuesta a un picker — el siguiente mensaje es el confirm). La referencia a &apos;la tarjeta de arriba&apos; asume un share-card que el simulador no muestra; si no se está enviando un mensaje-tarjeta real antes de este texto, la copy queda colgada.</div>
+              <div class="evidence">evidence: reply tras tap del torneo: &apos;Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos.&apos; (sin tarjeta visible en stream)</div>
+                    <div class="fix">fix: Confirmar que el handler de creación está realmente enviando el share-card (image + meta preview) ANTES del texto. Si no, sacar la frase &apos;Reenviá la tarjeta de arriba ↑&apos;.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow pronostico-text</span>
+      </div>
+      <div class="where">fechas en list de partidos (mantia:cmd:matches)</div>
+      <div class="what">Los días de la semana están en inglés (&apos;Tue 19 May&apos;, &apos;Wed 20 May&apos;, &apos;Thu 21 May&apos;) mientras el resto del bot está en español rioplatense. En la página /me/ las fechas SÍ están en español (&apos;MAR 19 MAY&apos;, &apos;MIé 20 MAY&apos;, &apos;JUE 21 MAY&apos;). Inconsistencia entre bot y web.</div>
+              <div class="evidence">evidence: row description: &apos;Tue 19 May • 19:00 • ✓ 2-1&apos; (8 rows todas con día en inglés)</div>
+                    <div class="fix">fix: Usar setlocale es_UY o wp_date() con formato español en la generación de la lista de partidos. Buscar la función que formatea las descriptions del Interactive List.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow pronostico-text</span>
+      </div>
+      <div class="where">varias replies del bot</div>
+      <div class="what">Acentos faltan en varios strings: &apos;pronostico actual&apos;, &apos;mandame uno nuevo (ej *2-1*)&apos;, &apos;Proximos partidos&apos; (header del list), &apos;Tocá un partido para ver detalle o cargar pronostico&apos;. Mezclado con strings bien acentuados (&apos;próximos&apos;, &apos;Pronóstico actual&apos;).</div>
+              <div class="evidence">evidence: section title: &apos;Proximos partidos&apos;; reply de match tap: &apos;Pronóstico actual: *1-0* — mandame uno nuevo&apos;; reply de matches: &apos;cargar pronostico&apos;.</div>
+                    <div class="fix">fix: Buscar &apos;pronostico&apos;, &apos;Proximos&apos;, &apos;detalle o cargar pronostico&apos; en el código y agregar tildes. Hacer un sweep general.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-returning · flow listar-pencas</span>
+      </div>
+      <div class="where">command vocabulary mismatch</div>
+      <div class="what">Help reply documents &apos;*mis grupos* — lista tus pencas&apos; but the persona/spec uses &apos;mis pencas&apos; / &apos;pencas&apos;. Both work (both fire the same handler) but the help text exposes only the &apos;mis grupos&apos; alias while UX-facing buttons say &apos;Mis pencas&apos;. Confusing for a user who scrolls help, then taps &apos;Mis pencas&apos; button — the noun jumps.</div>
+              <div class="evidence">evidence: ayuda reply: &apos;• *mis grupos* — lista tus pencas&apos;. Button label in onboarding ack: title &apos;Mis pencas&apos;. Group bullet uses &apos;pencas&apos; but the canonical command listed is &apos;mis grupos&apos;.</div>
+                    <div class="fix">fix: In ayuda template, swap &apos;*mis grupos*&apos; for &apos;*mis pencas*&apos; (or list both: &apos;mis pencas / mis grupos&apos;).</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-returning · flow listar-pencas</span>
+      </div>
+      <div class="where">ranking and help replies — missing accents</div>
+      <div class="what">Spanish copy missing accents in multiple replies: &apos;Todavia no hay puntos&apos; (should be &apos;Todavía&apos;), &apos;fixture con tu pronostico al lado&apos; (pronóstico × 3 in ayuda), &apos;mis pronosticos&apos;, &apos;partidos sin pronostico&apos;. The same template uses correct &apos;*Pronóstico*&apos; elsewhere — inconsistency adds up to &apos;unfinished&apos; feel.</div>
+              <div class="evidence">evidence: reply to &apos;ranking&apos;: &apos;*Los Pibes del 92*\n\nTodavia no hay puntos. Despues de que se resuelvan los primeros partidos, aparecen acá.&apos; Note &apos;Todavia&apos; + &apos;Despues&apos; both missing accents. reply to &apos;ayuda&apos; contains &apos;pronostico&apos; in 3 bullets.</div>
+                    <div class="fix">fix: Find and replace: &apos;pronostico&apos; → &apos;pronóstico&apos;, &apos;Todavia&apos; → &apos;Todavía&apos; in flow.php strings.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Share-poster page (/penca/me/share/&lt;token&gt;/) · &apos;Mandar por WhatsApp&apos; button + card footer</div>
+      <div class="what">The share-poster&apos;s &apos;Mandar por WhatsApp&apos; wa.me href is &apos;https://wa.me/?text=mantia3.wpcomstaging.com%2F&apos; — just the root domain, no specific path. The card footer also shows only &apos;mantia3.wpcomstaging.com/&apos;. Recipients of the share won&apos;t know what&apos;s being shared until they click. Defeats the recipient-friendly intent of the share-poster.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/07-share-poster-desktop.png · DOM: a[href=&apos;https://wa.me/?text=mantia3.wpcomstaging.com%2F&apos;]</div>
+                    <div class="fix">fix: Include the sharer&apos;s /penca/me/&lt;edit_token&gt;/ or /penca/g/&lt;group_view_token&gt;/ in the wa.me text body and in the card footer. Look in template-share.php / class-mantia-share for the wa.me URL builder.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· member-invited · flow group-page-public</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/ — TABLA DEL GRUPO section when no points yet</div>
+      <div class="what">After joining Pablo + 3 other members, the group page hero says &apos;4 jugadores&apos; but the table renders only &apos;Todavía no hay puntos cargados.&apos; — Pablo does not see his name anywhere on the page. From his POV he has no visual proof he is in the group. There is no roster list, no pedestal placeholder showing him in slot 1 with 0 pts, nothing.</div>
+              <div class="evidence">evidence: Snapshot 02-group-page-snapshot.txt line 12-13: &apos;TABLA DEL GRUPO&apos; followed only by &apos;Todavía no hay puntos cargados.&apos;; no &apos;Pablo&apos; anywhere in the rendered &lt;main&gt;. Hero meta says &apos;4 jugadores&apos; but the list is empty.</div>
+                    <div class="fix">fix: When no scoring rows exist, fall back to a simple &apos;jugadores que se sumaron&apos; list using user display names (already exposed via the bot reply with &apos;👥 Quiénes están (4)&apos;). Or render pedestal slots with 0-pt rows so the user gets immediate &apos;I&apos;m in there&apos; feedback. Owner of the recent commit &apos;Highlight viewer&apos;s row on group page&apos; would know the right entry point.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-returning · flow listar-pencas</span>
+      </div>
+      <div class="where">&apos;mis pencas&apos; / &apos;pencas&apos; with N=1 vs N≥2</div>
+      <div class="what">Behavior diverges by count in a way the flow spec doesn&apos;t sanction: with 1 penca the reply is plain text + buttons (&apos;Tu penca: *Los Pibes del 92* (código `LOSPIBESDEL928FPZW`).&apos; + Invitar/Resumen/Crear otra). With 2 pencas it returns an Interactive List (&apos;Estás en 2 pencas: ...&apos;). The flow spec says EVERY listar-pencas response should be a tappable list so &apos;each row is tapeable&apos;. With 1 penca the user has no list to tap — they have to remember &apos;partidos&apos; or use Resumen. Minor: same row description for both pencas only shows the torneo emoji+name; spec wants &apos;torneo + 4 jugadores · 8 pronósticos&apos;.</div>
+              <div class="evidence">evidence: N=1: reply &apos;Tu penca: *Los Pibes del 92* (código `LOSPIBESDEL928FPZW`).&apos;, interactive.type=&apos;button&apos;. N=2: reply &apos;Estás en 2 pencas:...&apos;, interactive.type=&apos;list&apos; with rows. Row description for Los Pibes del 92 is &apos;📆 Libertadores semanal&apos; (no player/prediction count).</div>
+                    <div class="fix">fix: In handle_my_groups, return an Interactive List even for N=1 (single row with the penca). Add &apos;X jugador · Y pronóstico&apos; to row.description.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-returning · flow editar-pronostico</span>
+      </div>
+      <div class="where">kickoff-passed guard</div>
+      <div class="what">Could not verify the spec requirement &apos;Si el match ya empezó (kickoff &lt; now), el bot DEBE rechazar la edición&apos;. Match Bolívar vs Cerro Porteño shows &apos;Tue 19 May • 19:00&apos; and current UTC is 19:31. Bot accepted &apos;3-2&apos; without complaint and re-tapping the match still offered to overwrite. Either the kickoff is in a later timezone (so not actually started yet) or the guard is missing. Worth a direct DB check.</div>
+              <div class="evidence">evidence: reply at 19:31 UTC to mantia:match:6382 (Bolívar vs Cerro Porteño Tue 19 May 19:00): &apos;Pronóstico actual: *3-2* — mandame uno nuevo (ej *2-1*).&apos; No &apos;ya arrancó&apos; rejection.</div>
+                    <div class="fix">fix: Add a unit test that seeds a match with kickoff_utc = now - 5min and asserts that handle_score_pending / handle_match_detail responds with &apos;El partido ya arrancó&apos;. Or, if the guard exists but the seed data puts kickoffs in the future, document the test fixture timezone.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
+      </div>
+      <div class="where">Interactive List rows for &apos;mis pencas&apos;</div>
+      <div class="what">Flow spec asks for description with &apos;torneo + estado (4 jugadores · 8 pronósticos)&apos; so user knows where they have predictions pending. Actual description shows only the torneo emoji+name. Diego&apos;s persona explicitly evaluates &apos;cada penca muestra cuántos pronósticos tiene cargados / cuántos van? Útil para saber dónde le falta.&apos;</div>
+              <div class="evidence">evidence: row: {title:&apos;Los del Trabajo&apos;, description:&apos;📆 Libertadores semanal&apos;} — no player or prediction count.</div>
+                    <div class="fix">fix: Append &apos; · N pronósticos&apos; (and maybe &apos; · M jugadores&apos; if cheap) to the row description in the my-pencas list handler.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· multi-penca · flow crear-penca</span>
+      </div>
+      <div class="where">post-create confirmation buttons</div>
+      <div class="what">After creating each penca the reply offers &apos;Re-enviar / Partidos / Ayuda&apos; buttons. The &apos;Re-enviar&apos; button references &apos;la tarjeta de arriba ↑&apos; but the simulator output doesn&apos;t show a tarjeta — and the test path didn&apos;t render a shareable card before the create. Real WhatsApp may render it, but the copy &apos;Reenviá la tarjeta de arriba&apos; is referring to a media message that may or may not be visible depending on render order.</div>
+              <div class="evidence">evidence: reply: &apos;Reenviá la tarjeta de arriba ↑ a cualquier grupo... 👥 Solo vos por ahora.&apos; with button &apos;Re-enviar&apos;.</div>
+                    <div class="fix">fix: Either send the share card AS the parent of this reply (so &apos;arriba&apos; is true), or change copy to &apos;Tocá *Re-enviar* para mandar la tarjeta a tus amigos&apos;.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-cold · flow onboarding-cold</span>
+      </div>
+      <div class="where">botones del primer reply vs. el help text</div>
+      <div class="what">El botón del home dice &apos;Crear penca&apos; pero el help text usa &apos;nueva penca &lt;nombre&gt;&apos; como comando. El usuario que mira el help text intenta &apos;nueva penca …&apos; aunque vio &apos;Crear penca&apos; en el botón. Vocabulario inconsistente.</div>
+              <div class="evidence">evidence: boton: &apos;title&apos;:&apos;➕ Crear penca&apos;; ayuda: &apos;*nueva penca &lt;nombre&gt;* — crear y obtener link&apos;</div>
+                    <div class="fix">fix: Unificar a &apos;crear penca&apos; (que es el que funcionó como matcher) y actualizar el help text.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-cold · flow listar-pencas</span>
+      </div>
+      <div class="where">reply a &apos;mis pencas&apos; / &apos;pencas&apos; / &apos;mis grupos&apos;</div>
+      <div class="what">Devuelve un texto plano &apos;Tu penca: *Los del 92* (código `LOSDEL923TFN6`).&apos; con buttons, NO un Interactive List. La flow espera List con title (nombre) + description (torneo + &apos;N jugadores · M pronósticos&apos;). Con 1 sola penca esto funciona, pero con 2+ pencas habría que tapear botones — y solo hay 3 botones max. Además la copy no muestra estado (jugadores, pronósticos), solo el código.</div>
+              <div class="evidence">evidence: reply: &apos;Tu penca: *Los del 92* (código `LOSDEL923TFN6`).&apos; — interactive es type:button no type:list. No menciona &apos;1 jugador&apos; ni &apos;8 pronósticos&apos;.</div>
+                    <div class="fix">fix: Cuando user tiene 1 penca, mostrar &apos;Tu penca: X · 📆 torneo · N jugadores · M pronósticos&apos; al menos. Cuando tiene N≥2 pencas, usar Interactive List con cada penca como row. Considerar también que el código `LOSDEL923TFN6` aparece sin contexto — un usuario cold no sabe qué hacer con eso.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-cold · flow share-link</span>
+      </div>
+      <div class="where">URL que el bot le da al usuario para compartir</div>
+      <div class="what">El bot da `/penca/g/&lt;token&gt;` (sin sufijo /sumate/) como &apos;Ver standings&apos;. Cuando un visitante curioso lo abre, llega a una página pública del grupo, no a la página optimizada para invite (que está en /sumate/). El /sumate/ tiene &apos;Sumate por WhatsApp&apos; como acción principal — es la landing correcta para un cold visitor.</div>
+              <div class="evidence">evidence: reply de compartir: &apos;🌐 Ver standings en la web: https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e&apos; (sin /sumate/, sin /tabla/). curl /sumate/ → 200 con CTA &apos;Sumate por WhatsApp&apos;.</div>
+                    <div class="fix">fix: Cambiar &apos;Ver standings en la web&apos; por el URL /sumate/ que ya existe y funciona, o eliminar ese link y dejar solo el wa.me. El visitante de mobile no sabe distinguir &apos;standings&apos; vs &apos;invite&apos;.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">performance</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">PWA assets · /service-worker.js and /manifest.json (no trailing slash)</div>
+      <div class="what">Both /service-worker.js and /manifest.json return nginx 404 at canonical paths. They only work at /service-worker.js/ and /manifest.json/ (trailing slash). The page itself registers &apos;/service-worker.js/&apos; so PWA actually works, but anything probing canonical paths (PWA Builder, Lighthouse, third-party crawlers, social previews) will mark Mantia as broken.</div>
+              <div class="evidence">evidence: fetch(&apos;/service-worker.js&apos;) → 404 nginx HTML; fetch(&apos;/service-worker.js/&apos;) → 200 application/javascript, 2612 bytes starting &apos;Mantia · Service Worker&apos;. fetch(&apos;/manifest.json&apos;) → 200 (this one works without slash). Page DOM: `register(&apos;\/service-worker.js\/&apos;)`.</div>
+                    <div class="fix">fix: Add rewrite rules so canonical paths (no trailing slash) resolve. Either via .htaccess or via the rewrite rule that produces the trailing-slash version — drop the trailing slash, or add an additional rewrite for the non-slash variant.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge paper-cut">paper-cut</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· lurker-web-only · flow group-page-public</span>
+      </div>
+      <div class="where">REST API · /wp-json/wp/v2/mantia_prediction (and /mantia_user, /mantia_group, /mantia_match)</div>
+      <div class="what">All Mantia CPTs have show_in_rest enabled and are publicly listable by anonymous users. /wp-json/wp/v2/mantia_prediction exposes 10 prediction records titled with player display name + match score (e.g. &apos;Florencia QA Returning: River Plate 0-1 Boca Juniors&apos;). Anyone can scrape who-predicted-what without ever needing a view_token. View_tokens themselves do NOT leak in meta (private meta is gated), but the listing alone is a privacy paper-cut — predictions are meant to be private until /me/ reveal.</div>
+              <div class="evidence">evidence: /wp-json/wp/v2/mantia_prediction returns 200 with 10 entries. Sample title: &apos;Florencia QA Returning: River Plate 0-1 Boca Juniors&apos;. /wp-json/wp/v2/mantia_user returns 6 player names (&apos;Florencia QA Returning&apos; etc). /wp-json/wp/v2/mantia_group returns 7 group titles (&apos;Los Pibes del 92&apos;, &apos;Pibes del 5&apos;, &apos;Penca del Barrio&apos;...).</div>
+                    <div class="fix">fix: Set show_in_rest=false on mantia_prediction, mantia_user, mantia_group, mantia_match CPT registrations, OR add a rest_authentication filter that returns empty for unauthenticated callers. Predictions and player names should never be enumerable anonymously.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· lurker-web-only · flow competition-page</span>
+      </div>
+      <div class="where">/penca/libertadores-semana/ and /penca/libertadores-2026/ · subtitle date range</div>
+      <div class="what">Subtitle reads &apos;mar 19 may – jue 21 may · 8 partidos&apos; using en-dash &apos;–&apos;. The flow spec expects arrow &apos;→&apos; between dates. Visually, &apos;–&apos; between two day-abbrevs is harder to scan than &apos;→&apos;. Polish-only — both are valid Spanish typography.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/03-lib-semana-mobile.png · uid=5_6 &apos;mar 19 may – jue 21 may · 8 partidos&apos;</div>
+                    <div class="fix">fix: If the flow spec is the source of truth, replace en-dash with U+2192 RIGHTWARDS ARROW in the competition-page template&apos;s date range builder.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">404 page H1 for /penca/no-existe/</div>
+      <div class="what">When the bad slug is a competition (/penca/&lt;slug&gt;), the H1 is descriptive: &apos;Competencia &quot;no-existe&quot; no encontrada&apos;. For /penca/g/&lt;bad-token&gt; and /penca/me/share/&lt;bad-token&gt; the H1 is the friendlier &apos;Este link de penca no funciona o ya venció.&apos; The competition-not-found message echoing the literal slug back to the user feels technical and could be reflected XSS bait — the slug is HTML-escaped in title text but still feels off-tone vs the friendlier sibling.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · h1 &apos;Competencia &quot;no-existe&quot; no encontrada&apos; vs /09-404-bogus-group-mobile.png h1 &apos;Este link de penca no funciona o ya venció.&apos;</div>
+                    <div class="fix">fix: Unify both 404 messages to the friendlier &apos;Este link no funciona o ya venció.&apos; regardless of /penca/* subpath. Skip echoing the user-supplied slug.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· member-invited · flow onboarding-cold</span>
+      </div>
+      <div class="where">cold &apos;hola&apos; opener — &apos;Hola!&apos; with trailing exclamation</div>
+      <div class="what">Persona brief flags initial &apos;¡Hola!&apos; as a smell (over-enthusiastic). Current reply uses &apos;Hola!&apos; (final-only exclamation). It&apos;s milder but still leans cheerful in a voseo voice that should feel more deadpan/cool. Considered polish because it&apos;s borderline, not a clear violation.</div>
+              <div class="evidence">evidence: sim-wa +999900098 &apos;hola&apos; first line: &apos;Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.&apos;</div>
+                    <div class="fix">fix: Try &apos;Hola — soy *Mantia*, pronósticos de fútbol por WhatsApp.&apos; or &apos;Bienvenido. Soy *Mantia*…&apos; to match the rest of the bot&apos;s flatter tone.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow share-link</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/sumate/ contenido visible</div>
+      <div class="what">La página de sumate auto-abre wa.me y muestra solo &apos;Abriendo WhatsApp… Tocá si no abre solo&apos;. No hay un hero con el nombre grande de la penca antes del auto-redirect — un visitante con auto-redirect bloqueado o JS deshabilitado solo ve 4 palabras. Sería mejor mostrar el hero (nombre penca + jugadores + competition) primero, con el CTA &apos;Sumate por WhatsApp&apos; como acción principal, y NO auto-redirigir.</div>
+              <div class="evidence">evidence: GET /sumate/ → texto visible (sin scripts): &apos;Sumate a Los del 92 — Mantia 📆 Libertadores semanal · Los del 92 · 1 jugador Abriendo WhatsApp… Tocá si no abre solo Redirigiendo a WhatsApp… tocá acá&apos;</div>
+                    <div class="fix">fix: Quitar el auto-redirect window.location y mostrar el hero con CTA explícito. El auto-redirect además puede ser confuso si el browser ya está en WhatsApp Web — vuelve a abrir un chat.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">confirmación de penca creada</div>
+      <div class="what">El reply usa &apos;Re-enviar&apos; como label del botón de share (con guion: &apos;📤 Re-enviar&apos;). Es ambiguo — ¿reenviar qué? El help text usa &apos;compartir&apos; y &apos;link&apos;, y la persona piensa en términos de &apos;compartir&apos; o &apos;invitar&apos;. &apos;Invitar&apos; (que ya se usa en mis-pencas) sería más claro.</div>
+              <div class="evidence">evidence: buttons tras crear penca: [{title: &apos;📤 Re-enviar&apos;}, {title: &apos;📅 Partidos&apos;}, {title: &apos;❓ Ayuda&apos;}]</div>
+                    <div class="fix">fix: Renombrar el botón a &apos;Compartir&apos; o &apos;Invitar&apos; para alinear con el resto del vocabulario.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· organizer-cold · flow onboarding-cold</span>
+      </div>
+      <div class="where">primer reply al &apos;hola&apos;</div>
+      <div class="what">Empieza con &apos;Hola!&apos; con signo de exclamación final pero sin signo de apertura. En español rioplatense escrito (que es el tono del resto del bot), o se omite el &apos;!&apos; o se ponen los dos signos. Algo como &apos;Hola, soy Mantia&apos; (sin exclamación, más casual) calza mejor con el tono voseo del resto.</div>
+              <div class="evidence">evidence: reply: &apos;Hola! Soy *Mantia*…&apos;</div>
+                    <div class="fix">fix: Cambiar &apos;Hola!&apos; por &apos;Hola,&apos; o &apos;Buenas,&apos; — más alineado con la voz del bot.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· member-invited · flow group-page-public</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/ topbar — &apos;Compartir&apos; link visible to non-owner</div>
+      <div class="what">Non-owner Pablo sees a &apos;Compartir&apos; link in the topbar pointing to /compartir/. The /compartir/ page itself is non-sensitive (just a poster + share buttons, no edit-capable tokens), but the affordance is identical to what an owner sees — there is no signal that &apos;this is your penca&apos; vs &apos;you joined someone else&apos;s&apos;. Not a security issue, just identity affordance.</div>
+              <div class="evidence">evidence: Group page snapshot 02 line 5: &apos;/penca/g/9e66d19b9e194158f0e139e9/compartir/&apos; visible for Pablo (a joined member, not owner). /compartir/ snapshot 03 confirms no member-private data leaks.</div>
+                    <div class="fix">fix: Either hide the topbar share for non-owners (since they have their own /me/share/ poster) or rename it &apos;Compartir la penca&apos; so the intent is clearer and not confused with personal share.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
+      </div>
+      <div class="where">active penca indicator</div>
+      <div class="what">Active penca (Pibes del 5, the most recently created) gets a green ✅ in the text block but a smaller ✓ prefix in the list-row title. The body emoji and the row-title prefix don&apos;t match; both are different from the ▫️ used for inactive ones. Minor visual inconsistency.</div>
+              <div class="evidence">evidence: reply text: &apos;✅ *Pibes del 5*&apos;; row.title: &apos;✓ Pibes del 5&apos;. Inactive: &apos;▫️ *Los del Trabajo*&apos; (body), &apos;Los del Trabajo&apos; (row, no prefix).</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-returning · flow listar-pencas</span>
+      </div>
+      <div class="where">mantia:switch:&lt;id&gt; reply</div>
+      <div class="what">When tapping a row in &apos;mis pencas&apos;, the reply is &apos;Listo, penca activa: *Los Pibes del 92*&apos; + share/home/my-groups buttons. There is no jump-to-detail (ranking + partidos), so the persona&apos;s stated intent (&apos;saltar a cualquier penca&apos;) requires a second tap on &apos;🏠 Resumen&apos; or &apos;📅 Partidos&apos;. The spec for listar-pencas step 4 says: &apos;Tapear una penca → debe llevar a la detail de esa penca con ranking.&apos;</div>
+              <div class="evidence">evidence: reply to &apos;mantia:switch:6586&apos;: &apos;Listo, penca activa: *Los Pibes del 92*.\n\n👥 Solo vos por ahora. Pegale el link a alguien!\n\n📱 Tu link privado: ...&apos;. No ranking, no partidos summary inline.</div>
+                    <div class="fix">fix: After switch, append the &apos;home/resumen&apos; content (top 3 ranking + next match) inline so the user lands on detail in one tap. Or change the primary button below to a clearer &apos;Ver ranking&apos; instead of &apos;Resumen&apos;.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">performance</span>
+        <span class="persona-tag">· organizer-returning · flow share-link</span>
+      </div>
+      <div class="where">&apos;compartir&apos; / &apos;mantia:cmd:share-link&apos; button tap</div>
+      <div class="what">Share reply takes 465-519ms across 2 calls, with no LLM involvement (it&apos;s a templated string with member lookup). Other deterministic replies in the same session (mis pencas: 7-11ms, slim detail: 11-16ms, score commit: 67ms) are ~50× faster. Suggests an N+1 or external lookup (OG render? share_token mint?) on the share path. Not a blocker but noticeable on a single-tap button.</div>
+              <div class="evidence">evidence: elapsed_ms for &apos;compartir&apos;: 465. elapsed_ms for &apos;mantia:cmd:share-link&apos;: 519. elapsed_ms for &apos;mis pencas&apos;: 11. elapsed_ms for slim detail tap: 11-16. elapsed_ms for score commit &apos;3-2&apos;: 67.</div>
+                    <div class="fix">fix: Profile handle_share_link — likely culprits: (1) syncing the share token lazily on first use, (2) re-rendering the OG image, (3) refetching member roster from remote. Cache the share string per group with a short TTL.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge polish">polish</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· member-invited · flow share-link</span>
+      </div>
+      <div class="where">OG image (/penca/g/&lt;token&gt;/og/) — left-side circle</div>
+      <div class="what">OG image has a large empty white circle on the left where presumably a soccer ball / penca avatar / initial should go. Currently it renders as a blank flat circle, which feels unfinished against the otherwise polished card.</div>
+              <div class="evidence">evidence: Screenshot /var/folders/9s/.../qa-member-invited/07-og-image.png — circle visible left of title, contents empty.</div>
+                    <div class="fix">fix: Either fill the circle with the group&apos;s initial in Archivo Black (&apos;F&apos; for Familia 2026 — would match the hash-coloured avatars used elsewhere), drop in a soccer ball glyph, or remove the circle and re-balance the layout.</div>
+          </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">copy</span>
+        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
+      </div>
+      <div class="where">Anotado reply formatting</div>
+      <div class="what">Penca names are wrapped in WhatsApp asterisks and joined with commas in a stable order (matches creation order). Code at class-mantia-whatsapp-flow.php:1873-1875 uses implode(&apos;, &apos;, map(fn $n =&gt; &apos;*&apos;.$n.&apos;*&apos;, $names)) — degenerate 1-penca case still produces &apos;Anotado en *X*&apos;.</div>
+              <div class="evidence">evidence: class-mantia-whatsapp-flow.php:1875 implementation; reply matches exactly the persona&apos;s expected format &apos;Anotado en *X*, *Y*, *Z*&apos;.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· member-invited · flow share-link</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/sumate/ shim</div>
+      <div class="what">The /sumate/ URL is a thin redirect-shim: meta-refresh + JS replace push the visitor straight into wa.me with pre-armed &apos;Hola, me quiero sumar a Familia 2026 · FAMILIA2026G2GYH&apos;. OG/Twitter meta tags are present so WhatsApp&apos;s link preview renders nicely BEFORE the recipient even taps. This is the right pattern — no extra friction page, but rich link-preview.</div>
+              <div class="evidence">evidence: Initial nav landed on https://api.whatsapp.com/send/?phone=59891513284&amp;text=Hola%2C+me+quiero+sumar+a+Familia+2026+%C2%B7+FAMILIA2026G2GYH; HTML head has og:title=&apos;Sumate a Familia 2026&apos;, og:description=&apos;🥇 Libertadores 2026 · 1 jugador&apos;, og:image=/penca/g/&lt;token&gt;/og/.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· member-invited · flow onboarding-cold</span>
+      </div>
+      <div class="where">first message from a phone that arrived via /sumate/ (pre-armed text)</div>
+      <div class="what">Bot recognises the full WhatsApp pre-armed message &apos;Hola, me quiero sumar a Familia 2026 · FAMILIA2026G2GYH&apos; on first contact and joins the user in ONE message — no name/phone/code prompts, sets penca active, auto-seeds 10 predictions, returns members list + private /me/ link + an invite link to forward. This is the ideal cold-to-joined path.</div>
+              <div class="evidence">evidence: sim-wa.sh +999900003 reply: &apos;Listo, te sume a *Familia 2026*. Esa queda como tu penca activa. _Ya te puse pronósticos para los 10 partidos. Mandame el marcador o tocá un partido para cambiarlos._&apos; Same single-message join works for bare code &apos;FAMILIA2026G2GYH&apos; and for &apos;código FAMILIA2026G2GYH&apos; (tested phones 999900097 and 999900096).</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
+      </div>
+      <div class="where">bare-score reply after tapping match 6382</div>
+      <div class="what">Auto-routing writes to all 3 pencas in a single operation. DB confirms predictions 6534/6559/6572 (one per penca) all updated to the new score, with no duplicates on overwrite.</div>
+              <div class="evidence">evidence: reply: &apos;✅ Anotado en *Los del Trabajo*, *Penca del Barrio*, *Pibes del 5*: Bolívar 2 - 1 Cerro Porteño&apos;. DB query: 3 prediction posts for user 6533 / match 6382, group_ids 6532/6558/6571.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
+      </div>
+      <div class="where">second score for same match</div>
+      <div class="what">Overwrite of an existing prediction is in-place (same post IDs). After sending 0-0 the three prediction posts kept their IDs but title flipped from &apos;2-1&apos; to &apos;0-0&apos;. No duplication, prediction count stays at 24 (3 pencas × 8 matches).</div>
+              <div class="evidence">evidence: Both before-and-after queries return the same IDs 6534/6559/6572 with updated titles &apos;Bolívar 0-0 Cerro Porteño&apos;. state.predictions = 24 before and after.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· multi-penca · flow crear-penca</span>
+      </div>
+      <div class="where">3 pencas created back-to-back, no rate-limit</div>
+      <div class="what">Diego&apos;s persona worries about rate-limits blocking the legitimate organizer of 3 groups. Three pencas were created in &lt;30s with no throttling, picker selection, or LLM detour. Each landed cleanly with its own group_id (6532, 6558, 6571) and 8 default predictions each.</div>
+              <div class="evidence">evidence: state.groups list shows all 3; state.predictions = 24 (3×8). No rate-limit/error reply during the sequence.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">después de tapear &apos;Libertadores semanal&apos;</div>
+      <div class="what">El bot creó la penca, auto-cargó 8 pronósticos default (verificado por state query: predictions=8), generó un código de invitación (LOSDEL923TFN6) y respondió en &lt;1.2s. Flujo de 3 mensajes total (hola → crear penca X → tap torneo → confirmación). Excelente para una persona cold.</div>
+              <div class="evidence">evidence: state: groups[0].competition=libertadores-semana, predictions=8. reply: &apos;✅ Creaste *Los del 92* para 📆 Libertadores semanal.&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-cold · flow pronostico-text</span>
+      </div>
+      <div class="where">score después de tap de partido</div>
+      <div class="what">Cuando el usuario tapea un partido (mantia:match:6382) y luego manda &apos;2-1&apos;, el bot responde correctamente con &apos;✅ Anotado en *Los del 92*: Bolívar 2 - 1 Cerro Porteño&apos; + 3 botones de continuación. La copy incluye nombres de equipos (no solo scores), que era lo deseado.</div>
+              <div class="evidence">evidence: reply: &apos;✅ Anotado en *Los del 92*: Bolívar 2 - 1 Cerro Porteño&apos;, botones: [Más pendientes, Otros partidos, Resumen]</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-returning · flow editar-pronostico</span>
+      </div>
+      <div class="where">slim match detail after tap (mantia:match:6382)</div>
+      <div class="what">The recently refactored slim detail panel is exactly right: 3 lines (title, datetime + stage, &apos;Pronóstico actual: *X-Y* — mandame uno nuevo (ej *2-1*)&apos;). No &apos;En: &lt;penca&gt;&apos; line, no preamble. Feels like a one-shot prompt; the inline ask &apos;Pronóstico actual: 3-2 — mandame uno nuevo&apos; is concise and unambiguous. Protect this from regression.</div>
+              <div class="evidence">evidence: reply: &apos;*Bolívar vs Cerro Porteño*\nTue 19 May • 19:00 · Fase de grupos · Fecha 5\nPronóstico actual: *0-4* — mandame uno nuevo (ej *2-1*).&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">flow</span>
+        <span class="persona-tag">· organizer-returning · flow editar-pronostico</span>
+      </div>
+      <div class="where">edit persistence (no double-post)</div>
+      <div class="what">Sending &apos;3-2&apos; overwrote the existing 0-4 prediction. State stayed at predictions=8 (not 9). Re-tapping the same match showed &apos;Pronóstico actual: *3-2*&apos; (updated). Edit round-trip is clean.</div>
+              <div class="evidence">evidence: state query before: predictions=8. After 3-2 send + confirm &apos;Anotado en *Los Pibes del 92*: Bolívar 3 - 2 Cerro Porteño&apos;, state query after: predictions=8. Re-tap mantia:match:6382 shows &apos;Pronóstico actual: *3-2*&apos;.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· lurker-web-only · flow competition-page</span>
+      </div>
+      <div class="where">/penca/libertadores-2026/ + /penca/libertadores-semana/</div>
+      <div class="what">Competition pages are clean and correct: exactly 2 pills (Libertadores 2026 + Libertadores semanal — no Mundial, no Sudamericana, no LigaUY, no &apos;Esta semana&apos; orphans). Phase header hoists per day (&apos;MAR 19 MAY · FASE DE GRUPOS · FECHA 5&apos;). Fecha 5 vs Fecha 6 hoisted correctly on the parent. Team and country names all in Spanish (São Paulo, Vélez Sársfield, Universidad Católica, Atlético Bucaramanga). Empty ranking state &apos;Todavía no hay puntos cargados.&apos; renders gracefully.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/03-lib-semana-mobile.png · /04-lib-semana-desktop.png · /05-lib-2026-mobile.png · /06-lib-2026-desktop.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· member-invited · flow pronostico-tap</span>
+      </div>
+      <div class="where">match detail panel after tapping a row from &apos;Ver partidos&apos;</div>
+      <div class="what">Detail panel is exactly 3 lines (matchup / kickoff · phase / current prediction + ask) with no &apos;En: &lt;penca&gt;&apos; bleed-in. Phase shows in Spanish (&apos;Fase de grupos · Fecha 5&apos;). Confirm message after sending a score is a fresh line (&apos;✅ Anotado en *Familia 2026*: Bolívar 1 - 1 Cerro Porteño&apos;) with 3 useful next-step buttons.</div>
+              <div class="evidence">evidence: sim-wa +999900003 &apos;mantia:match:6382&apos; → &apos;*Bolívar vs Cerro Porteño*\nTue 19 May • 19:00 · Fase de grupos · Fecha 5\nPronóstico actual: *0-0* — mandame uno nuevo (ej *2-1*).&apos;; then &apos;1-1&apos; → &apos;✅ Anotado en *Familia 2026*: Bolívar 1 - 1 Cerro Porteño&apos;.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· multi-penca · flow crear-penca</span>
+      </div>
+      <div class="where">competition picker</div>
+      <div class="what">Picker has EXACTLY 2 rows (Libertadores 2026 + Libertadores semanal) as the flow expects — no orphan slugs from a stale migration. Both titles fit ≤24 chars.</div>
+              <div class="evidence">evidence: picker rows: [&apos;🥇 Libertadores 2026&apos;, &apos;📆 Libertadores semanal&apos;] — 2 rows, no extras.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">picker de torneo al mandar &apos;crear penca Los del 92&apos;</div>
+      <div class="what">El picker muestra EXACTAMENTE los 2 torneos vigentes — &apos;🥇 Libertadores 2026&apos; y &apos;📆 Libertadores semanal&apos;. Ningún torneo huérfano (no Mundial, no Sudamericana, no LigaUY). La migración v4 limpió bien.</div>
+              <div class="evidence">evidence: rows: [{id: mantia:competition:libertadores-2026, title: &apos;🥇 Libertadores 2026&apos;}, {id: mantia:competition:libertadores-semana, title: &apos;📆 Libertadores semanal&apos;}] — exactamente 2 rows.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-cold · flow listar-pencas</span>
+      </div>
+      <div class="where">aliases del comando</div>
+      <div class="what">Las tres variantes &apos;mis pencas&apos;, &apos;pencas&apos;, &apos;mis grupos&apos; producen exactamente el mismo reply. Bueno — el usuario no se queda sin respuesta por elegir la palabra &apos;incorrecta&apos;.</div>
+              <div class="evidence">evidence: tres requests distintos, mismo reply: &apos;Tu penca: *Los del 92* (código `LOSDEL923TFN6`).&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">ia</span>
+        <span class="persona-tag">· organizer-returning · flow listar-pencas</span>
+      </div>
+      <div class="where">active-penca visual indicator with N=2</div>
+      <div class="what">The list with 2 pencas uses ▫️ for inactive and ✅ for active in the body text, and prefixes the active row title with &apos;✓&apos;. This satisfies the spec&apos;s &apos;Una penca activa tiene un checkmark ✓ o algo que la distinga&apos;. Distinct, glanceable, voseo-consistent.</div>
+              <div class="evidence">evidence: reply to &apos;mis pencas&apos; with 2 pencas: &apos;▫️ *Los Pibes del 92* · 📆 Libertadores semanal\n✅ *Familia 2026* · 🥇 Libertadores 2026&apos;. Row title for active: &apos;✓ Familia 2026&apos;.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">performance</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Home page and competition page initial paint</div>
+      <div class="what">Performance is excellent. Home + competition pages: DOMContentLoaded ~740ms, transferSize ~48KB. No render-blocking external CSS bundles, fonts inlined, QR code lazy via 3rd-party API but doesn&apos;t block paint. Well under the &lt;500ms budget for everything-but-network.</div>
+              <div class="evidence">evidence: performance.getEntriesByType(&apos;navigation&apos;)[0]: domContentLoadedEventEnd=739, loadEventEnd=739, transferSize=48KB. /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/04-lib-semana-desktop.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">performance</span>
+        <span class="persona-tag">· organizer-cold · flow crear-penca</span>
+      </div>
+      <div class="where">latencia de creación de penca</div>
+      <div class="what">Crear la penca (que también auto-cargó 8 pronósticos) tomó 1123ms. Las otras respuestas determinísticas &lt;50ms (ej. tabla=10ms, partidos=26ms, mis pencas=6ms). El compartir text generation tomó 444ms (probablemente carga code). Ningún timeout, ningún 5xx.</div>
+              <div class="evidence">evidence: elapsed_ms desde sim-wa: crear-penca=4ms (picker), pickcomp=1123ms (creación real), compartir=444ms, partidos=26ms, mis-pencas=6ms, tabla=10ms, match-tap=12ms, score-en-context=96ms.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· member-invited · flow group-page-public</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/ as a non-owner member</div>
+      <div class="what">Public group page renders cleanly for a member who is NOT the owner. No edit affordances, no member phones, no other members&apos; view_tokens, no other members&apos; share_tokens are exposed in the HTML. Only the group&apos;s own view_token (which the caller already has in the URL) and the bot&apos;s contact phone are present.</div>
+              <div class="evidence">evidence: evaluate_script regex over outerHTML: only [a-f0-9]{24} match is the group view_token; only phone present is bot 59891513284 in wa.me links. No 999900xxx user phones, no per-user tokens leaked.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· member-invited · flow share-link</span>
+      </div>
+      <div class="where">/me/ private link vs /me/share/ share token separation</div>
+      <div class="what">The private /me/&lt;view_token&gt;/ uses a different token (16e1532a2cd2c8bf72beac52) than the shareable poster /me/share/&lt;share_token&gt;/ (b9980c2cba3d49fe93787b58). Bot reply correctly hands the private one to the user and the share-token one to anything intended for forwarding. This matches the recent privacy fix (commit 67f69f3) and means forwarding the share-poster does not leak edit-capable access.</div>
+              <div class="evidence">evidence: Pablo&apos;s /me/ snapshot shows &apos;Compartir&apos; link → /penca/me/share/b9980c2cba3d49fe93787b58/ which differs from the URL token 16e1532a2cd2c8bf72beac52.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">security</span>
+        <span class="persona-tag">· organizer-cold · flow share-link</span>
+      </div>
+      <div class="where">infraestructura de tokens</div>
+      <div class="what">El share_token (poster público) ES distinto del view_token (edición privada). Confirmado por state query: view_token=d7b808066db06b48781d7386, share_token=bd8f041f683b20385483ba02. Visitar `/penca/me/share/&lt;share_token&gt;/` renderiza una vista de share sin botones de edición. El share_token se genera lazy al visitar /me/. La arquitectura del commit 67f69f3 está bien implementada.</div>
+              <div class="evidence">evidence: state.view_token != state.share_token; GET /penca/me/share/bd8f041f683b20385483ba02/ → 200 (página de share); GET /penca/me/share/d7b808066db06b48781d7386/ → 404 (no se acepta el view_token en la ruta de share).</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Themed 404 across all 3 paths (/penca/no-existe/, /penca/g/bogus/, /penca/me/share/bogus/)</div>
+      <div class="what">Critical primetime check passes: NO Lorem-ipsum / Assembler fallthrough on any /penca/* path. All three return HTTP 404 with the themed Mantia design (cancha green, Archivo Black, ear-pill back arrow, recovery CTAs). The hard-routed themed 404 is well-engineered.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · /09-404-bogus-group-mobile.png · /10-404-bogus-share-mobile.png · all fetch() returns HTTP 404 status with themed body</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">PWA install banner (mobile only)</div>
+      <div class="what">Install banner correctly appears on mobile (390px wide, viewport &lt;768) with friendly Spanish copy &apos;Agregalo a tu pantalla de inicio para abrirlo en un toque. · Instalar · ✕&apos;. Hidden on desktop (1280px). Dismissal persists via localStorage key &apos;mantia-pwa-dismissed&apos; so it doesn&apos;t nag repeat visitors. Polished UX.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/13-home-install-banner.png shows banner present on 390px after clearing localStorage. On 1280px viewport the banner has computed display:none.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· lurker-web-only · flow lurker-web</span>
+      </div>
+      <div class="where">Home page · ear-pills (PENCA · X WHATSAPP) at 320px/390px/desktop</div>
+      <div class="what">Ear-pill stickers (&apos;PENCA&apos; and &apos;X WHATSAPP&apos;) flank the wordmark and never clip — survived 320px iPhone-SE test without overflow. The Archivo Black wordmark + cancha-green canvas + sticker-shadow CTAs land the &apos;juvenil cancha&apos; identity hard in &lt;3 seconds.</div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/01-home-mobile.png · /02-home-desktop.png · /11-home-320.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· member-invited · flow share-link</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/og/</div>
+      <div class="what">OG image renders as a 1200×630 PNG with green &apos;cancha&apos; lime background, MANTIA wordmark, large &apos;SUMATE A Familia 2026&apos; title, subtitle &apos;Penca abierta — sumate antes que arranque&apos;, &apos;4 jugadores&apos;. WhatsApp/Twitter/Slack link previews will look high-quality.</div>
+              <div class="evidence">evidence: Screenshot /var/folders/9s/.../qa-member-invited/07-og-image.png — visible OG card with Libertadores 2026 pill, Mantia branding.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">visual</span>
+        <span class="persona-tag">· organizer-cold · flow share-link</span>
+      </div>
+      <div class="where">/penca/g/&lt;token&gt;/sumate/ OG tags</div>
+      <div class="what">La página de invite tiene OG tags completos: og:title=&apos;Sumate a Los del 92&apos;, og:description=&apos;📆 Libertadores semanal · 1 jugador&apos;, og:image=&apos;/penca/g/.../og/&apos; (1200x630), twitter:card=&apos;summary_large_image&apos;, og:locale=&apos;es_UY&apos;. La imagen OG existe (200 OK, 33KB PNG). Cuando se pega el link en WhatsApp, el preview va a verse profesional.</div>
+              <div class="evidence">evidence: curl /penca/g/644941cb46d62647cb25d66e/sumate/ → meta og:image=https://mantia3.wpcomstaging.com/penca/g/644941cb46d62647cb25d66e/og/; HEAD /og/ → 200, content-type: image/png, content-length: 33462.</div>
+                </div>
+  </div>
+
+</body>
+</html>

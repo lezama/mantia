@@ -1,0 +1,116 @@
+{
+  "persona": "organizer-returning",
+  "ran_at": "2026-05-19T19:33:09Z",
+  "flows_run": ["listar-pencas", "editar-pronostico", "share-link", "fallback-llm"],
+  "findings": [
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "editar-pronostico",
+      "where": "slim match detail after tap (mantia:match:6382)",
+      "what": "The recently refactored slim detail panel is exactly right: 3 lines (title, datetime + stage, 'Pronóstico actual: *X-Y* — mandame uno nuevo (ej *2-1*)'). No 'En: <penca>' line, no preamble. Feels like a one-shot prompt; the inline ask 'Pronóstico actual: 3-2 — mandame uno nuevo' is concise and unambiguous. Protect this from regression.",
+      "fix_hint": "",
+      "evidence": "reply: '*Bolívar vs Cerro Porteño*\\nTue 19 May • 19:00 · Fase de grupos · Fecha 5\\nPronóstico actual: *0-4* — mandame uno nuevo (ej *2-1*).'"
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "editar-pronostico",
+      "where": "edit persistence (no double-post)",
+      "what": "Sending '3-2' overwrote the existing 0-4 prediction. State stayed at predictions=8 (not 9). Re-tapping the same match showed 'Pronóstico actual: *3-2*' (updated). Edit round-trip is clean.",
+      "fix_hint": "",
+      "evidence": "state query before: predictions=8. After 3-2 send + confirm 'Anotado en *Los Pibes del 92*: Bolívar 3 - 2 Cerro Porteño', state query after: predictions=8. Re-tap mantia:match:6382 shows 'Pronóstico actual: *3-2*'."
+    },
+    {
+      "severity": "blocker",
+      "lens": "security",
+      "flow": "share-link",
+      "where": "'compartir' / 'mantia:cmd:share-link' reply",
+      "what": "The 'compartir' reply hands out '🌐 Ver standings en la web: https://mantia3.wpcomstaging.com/penca/g/<view_token>' which is the SAME view_token used internally for the private group standings page. Anyone with this link can see the standings without joining. The flow spec (share-link.md) explicitly requires: 'El token en el link es DIFERENTE del view_token de la group page privada (security: share-only token)'. The recent commit 67f69f3 ('Privacy fix: split share-poster token from private edit token') added a share_token field but state shows share_token='' for this user, and the share reply still reuses view_token. The /sumate/ landing page is also at /penca/g/<view_token>/sumate/, so anyone with the sumate URL can strip /sumate/ and land on standings.",
+      "fix_hint": "In handle_share_link / build_share_reply, when emitting the 'Ver standings en la web' link, use a separate share_token (already added per commit 67f69f3) — backfill share_token on existing groups in a migration. Or remove the standings URL from the share reply entirely; the sumate page is enough for invitees. Also gate build_join_landing_url to use share_token not view_url.",
+      "evidence": "'compartir' reply: '🌐 Ver standings en la web:\\nhttps://mantia3.wpcomstaging.com/penca/g/0ab4a7ff7812176ef70979bc'. State query: groups[0].view_token='0ab4a7ff7812176ef70979bc', share_token=''. Curl HEAD on /penca/g/0ab4a7ff7812176ef70979bc/ returns 301→200 with the standings page. The view_token in the group state IS the public share link."
+    },
+    {
+      "severity": "blocker",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "first 'hola' reply, 'ayuda' reply, and home placeholder",
+      "what": "Bot still says 'Mantia, la app de pronósticos *mundialistas* por WhatsApp.' in multiple places. There is no Mundial in scope — the actual competitions on the picker are Libertadores 2026 and Libertadores semanal. This is the same stale-copy issue from the cold-organizer persona. It misrepresents what the product does and confuses returning users (Florencia just created a Libertadores penca and is told it's for the Mundial).",
+      "fix_hint": "Grep for 'mundialistas' in includes/class-mantia-whatsapp-flow.php — change to 'pronósticos de fútbol' (generic) or 'pronósticos por WhatsApp' (drop the noun).",
+      "evidence": "reply to 'hola': 'Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.'. reply to 'ayuda': '*Mantia* — pronósticos mundialistas por WhatsApp.'. Confirmed at flow.php:1261."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "flow",
+      "flow": "listar-pencas",
+      "where": "'mis pencas' / 'pencas' with N=1 vs N≥2",
+      "what": "Behavior diverges by count in a way the flow spec doesn't sanction: with 1 penca the reply is plain text + buttons ('Tu penca: *Los Pibes del 92* (código `LOSPIBESDEL928FPZW`).' + Invitar/Resumen/Crear otra). With 2 pencas it returns an Interactive List ('Estás en 2 pencas: ...'). The flow spec says EVERY listar-pencas response should be a tappable list so 'each row is tapeable'. With 1 penca the user has no list to tap — they have to remember 'partidos' or use Resumen. Minor: same row description for both pencas only shows the torneo emoji+name; spec wants 'torneo + 4 jugadores · 8 pronósticos'.",
+      "fix_hint": "In handle_my_groups, return an Interactive List even for N=1 (single row with the penca). Add 'X jugador · Y pronóstico' to row.description.",
+      "evidence": "N=1: reply 'Tu penca: *Los Pibes del 92* (código `LOSPIBESDEL928FPZW`).', interactive.type='button'. N=2: reply 'Estás en 2 pencas:...', interactive.type='list' with rows. Row description for Los Pibes del 92 is '📆 Libertadores semanal' (no player/prediction count)."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "listar-pencas",
+      "where": "command vocabulary mismatch",
+      "what": "Help reply documents '*mis grupos* — lista tus pencas' but the persona/spec uses 'mis pencas' / 'pencas'. Both work (both fire the same handler) but the help text exposes only the 'mis grupos' alias while UX-facing buttons say 'Mis pencas'. Confusing for a user who scrolls help, then taps 'Mis pencas' button — the noun jumps.",
+      "fix_hint": "In ayuda template, swap '*mis grupos*' for '*mis pencas*' (or list both: 'mis pencas / mis grupos').",
+      "evidence": "ayuda reply: '• *mis grupos* — lista tus pencas'. Button label in onboarding ack: title 'Mis pencas'. Group bullet uses 'pencas' but the canonical command listed is 'mis grupos'."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "listar-pencas",
+      "where": "ranking and help replies — missing accents",
+      "what": "Spanish copy missing accents in multiple replies: 'Todavia no hay puntos' (should be 'Todavía'), 'fixture con tu pronostico al lado' (pronóstico × 3 in ayuda), 'mis pronosticos', 'partidos sin pronostico'. The same template uses correct '*Pronóstico*' elsewhere — inconsistency adds up to 'unfinished' feel.",
+      "fix_hint": "Find and replace: 'pronostico' → 'pronóstico', 'Todavia' → 'Todavía' in flow.php strings.",
+      "evidence": "reply to 'ranking': '*Los Pibes del 92*\\n\\nTodavia no hay puntos. Despues de que se resuelvan los primeros partidos, aparecen acá.' Note 'Todavia' + 'Despues' both missing accents. reply to 'ayuda' contains 'pronostico' in 3 bullets."
+    },
+    {
+      "severity": "blocker",
+      "lens": "ia",
+      "flow": "fallback-llm",
+      "where": "any non-matching message",
+      "what": "QA simulator (bin/qa-sim.php) calls Mantia_Whatsapp_Flow::maybe_handle_command directly and returns reply='' when the deterministic router returns null. The LLM fallback is never invoked from the sim — so I cannot test whether the production LLM responds usefully to 'qué hago ahora', 'explícame bien qué es esto', 'bro a qué hora juega Boca', or '2-2 Estudiantes vs Sao Paulo'. ALL four returned reply='', interactive=null, fell_through_to_llm=true in 3-7ms (no LLM round-trip). This blocks the entire fallback-llm flow from being QA-able via the simulator harness.",
+      "fix_hint": "Extend bin/qa-sim.php to invoke the LLM agent (Mantia_Agent::respond or equivalent) when maybe_handle_command returns null, mirroring the production webhook path. Add a 'mock_llm' switch so CI runs are deterministic. Without this, the LLM path has zero automated coverage.",
+      "evidence": "Four representative inputs all return {reply:'', interactive:null, fell_through_to_llm:true, elapsed_ms:3-7}. bin/qa-sim.php:72 calls only Mantia_Whatsapp_Flow::maybe_handle_command and treats null as terminal. Production wires the flow via 'openclawp_pre_chat_turn' filter — returning null there lets the LLM handle the turn, which the sim never exercises."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "flow",
+      "flow": "editar-pronostico",
+      "where": "kickoff-passed guard",
+      "what": "Could not verify the spec requirement 'Si el match ya empezó (kickoff < now), el bot DEBE rechazar la edición'. Match Bolívar vs Cerro Porteño shows 'Tue 19 May • 19:00' and current UTC is 19:31. Bot accepted '3-2' without complaint and re-tapping the match still offered to overwrite. Either the kickoff is in a later timezone (so not actually started yet) or the guard is missing. Worth a direct DB check.",
+      "fix_hint": "Add a unit test that seeds a match with kickoff_utc = now - 5min and asserts that handle_score_pending / handle_match_detail responds with 'El partido ya arrancó'. Or, if the guard exists but the seed data puts kickoffs in the future, document the test fixture timezone.",
+      "evidence": "reply at 19:31 UTC to mantia:match:6382 (Bolívar vs Cerro Porteño Tue 19 May 19:00): 'Pronóstico actual: *3-2* — mandame uno nuevo (ej *2-1*).' No 'ya arrancó' rejection."
+    },
+    {
+      "severity": "polish",
+      "lens": "performance",
+      "flow": "share-link",
+      "where": "'compartir' / 'mantia:cmd:share-link' button tap",
+      "what": "Share reply takes 465-519ms across 2 calls, with no LLM involvement (it's a templated string with member lookup). Other deterministic replies in the same session (mis pencas: 7-11ms, slim detail: 11-16ms, score commit: 67ms) are ~50× faster. Suggests an N+1 or external lookup (OG render? share_token mint?) on the share path. Not a blocker but noticeable on a single-tap button.",
+      "fix_hint": "Profile handle_share_link — likely culprits: (1) syncing the share token lazily on first use, (2) re-rendering the OG image, (3) refetching member roster from remote. Cache the share string per group with a short TTL.",
+      "evidence": "elapsed_ms for 'compartir': 465. elapsed_ms for 'mantia:cmd:share-link': 519. elapsed_ms for 'mis pencas': 11. elapsed_ms for slim detail tap: 11-16. elapsed_ms for score commit '3-2': 67."
+    },
+    {
+      "severity": "polish",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "mantia:switch:<id> reply",
+      "what": "When tapping a row in 'mis pencas', the reply is 'Listo, penca activa: *Los Pibes del 92*' + share/home/my-groups buttons. There is no jump-to-detail (ranking + partidos), so the persona's stated intent ('saltar a cualquier penca') requires a second tap on '🏠 Resumen' or '📅 Partidos'. The spec for listar-pencas step 4 says: 'Tapear una penca → debe llevar a la detail de esa penca con ranking.'",
+      "fix_hint": "After switch, append the 'home/resumen' content (top 3 ranking + next match) inline so the user lands on detail in one tap. Or change the primary button below to a clearer 'Ver ranking' instead of 'Resumen'.",
+      "evidence": "reply to 'mantia:switch:6586': 'Listo, penca activa: *Los Pibes del 92*.\\n\\n👥 Solo vos por ahora. Pegale el link a alguien!\\n\\n📱 Tu link privado: ...'. No ranking, no partidos summary inline."
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "active-penca visual indicator with N=2",
+      "what": "The list with 2 pencas uses ▫️ for inactive and ✅ for active in the body text, and prefixes the active row title with '✓'. This satisfies the spec's 'Una penca activa tiene un checkmark ✓ o algo que la distinga'. Distinct, glanceable, voseo-consistent.",
+      "fix_hint": "",
+      "evidence": "reply to 'mis pencas' with 2 pencas: '▫️ *Los Pibes del 92* · 📆 Libertadores semanal\\n✅ *Familia 2026* · 🥇 Libertadores 2026'. Row title for active: '✓ Familia 2026'."
+    }
+  ],
+  "screenshots": []
+}

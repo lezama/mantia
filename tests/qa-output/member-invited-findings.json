@@ -1,0 +1,137 @@
+{
+  "persona": "member-invited",
+  "ran_at": "2026-05-19T19:55:00Z",
+  "flows_run": ["share-link", "onboarding-cold", "pronostico-tap", "group-page-public"],
+  "scenario_setup": {
+    "group_id": 6628,
+    "group_name": "Familia 2026",
+    "group_view_token": "9e66d19b9e194158f0e139e9",
+    "group_invite_code": "FAMILIA2026G2GYH",
+    "share_landing_url": "https://mantia3.wpcomstaging.com/penca/g/9e66d19b9e194158f0e139e9/sumate/",
+    "tester_phone_pablo": "999900003",
+    "tester_phones_fresh": ["999900096", "999900097", "999900098"]
+  },
+  "findings": [
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "share-link",
+      "where": "/penca/g/<token>/sumate/ shim",
+      "what": "The /sumate/ URL is a thin redirect-shim: meta-refresh + JS replace push the visitor straight into wa.me with pre-armed 'Hola, me quiero sumar a Familia 2026 · FAMILIA2026G2GYH'. OG/Twitter meta tags are present so WhatsApp's link preview renders nicely BEFORE the recipient even taps. This is the right pattern — no extra friction page, but rich link-preview.",
+      "fix_hint": null,
+      "evidence": "Initial nav landed on https://api.whatsapp.com/send/?phone=59891513284&text=Hola%2C+me+quiero+sumar+a+Familia+2026+%C2%B7+FAMILIA2026G2GYH; HTML head has og:title='Sumate a Familia 2026', og:description='🥇 Libertadores 2026 · 1 jugador', og:image=/penca/g/<token>/og/."
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "onboarding-cold",
+      "where": "first message from a phone that arrived via /sumate/ (pre-armed text)",
+      "what": "Bot recognises the full WhatsApp pre-armed message 'Hola, me quiero sumar a Familia 2026 · FAMILIA2026G2GYH' on first contact and joins the user in ONE message — no name/phone/code prompts, sets penca active, auto-seeds 10 predictions, returns members list + private /me/ link + an invite link to forward. This is the ideal cold-to-joined path.",
+      "fix_hint": null,
+      "evidence": "sim-wa.sh +999900003 reply: 'Listo, te sume a *Familia 2026*. Esa queda como tu penca activa. _Ya te puse pronósticos para los 10 partidos. Mandame el marcador o tocá un partido para cambiarlos._' Same single-message join works for bare code 'FAMILIA2026G2GYH' and for 'código FAMILIA2026G2GYH' (tested phones 999900097 and 999900096)."
+    },
+    {
+      "severity": "works",
+      "lens": "security",
+      "flow": "group-page-public",
+      "where": "/penca/g/<token>/ as a non-owner member",
+      "what": "Public group page renders cleanly for a member who is NOT the owner. No edit affordances, no member phones, no other members' view_tokens, no other members' share_tokens are exposed in the HTML. Only the group's own view_token (which the caller already has in the URL) and the bot's contact phone are present.",
+      "fix_hint": null,
+      "evidence": "evaluate_script regex over outerHTML: only [a-f0-9]{24} match is the group view_token; only phone present is bot 59891513284 in wa.me links. No 999900xxx user phones, no per-user tokens leaked."
+    },
+    {
+      "severity": "works",
+      "lens": "security",
+      "flow": "share-link",
+      "where": "/me/ private link vs /me/share/ share token separation",
+      "what": "The private /me/<view_token>/ uses a different token (16e1532a2cd2c8bf72beac52) than the shareable poster /me/share/<share_token>/ (b9980c2cba3d49fe93787b58). Bot reply correctly hands the private one to the user and the share-token one to anything intended for forwarding. This matches the recent privacy fix (commit 67f69f3) and means forwarding the share-poster does not leak edit-capable access.",
+      "fix_hint": null,
+      "evidence": "Pablo's /me/ snapshot shows 'Compartir' link → /penca/me/share/b9980c2cba3d49fe93787b58/ which differs from the URL token 16e1532a2cd2c8bf72beac52."
+    },
+    {
+      "severity": "works",
+      "lens": "visual",
+      "flow": "share-link",
+      "where": "/penca/g/<token>/og/",
+      "what": "OG image renders as a 1200×630 PNG with green 'cancha' lime background, MANTIA wordmark, large 'SUMATE A Familia 2026' title, subtitle 'Penca abierta — sumate antes que arranque', '4 jugadores'. WhatsApp/Twitter/Slack link previews will look high-quality.",
+      "fix_hint": null,
+      "evidence": "Screenshot /var/folders/9s/.../qa-member-invited/07-og-image.png — visible OG card with Libertadores 2026 pill, Mantia branding."
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "pronostico-tap",
+      "where": "match detail panel after tapping a row from 'Ver partidos'",
+      "what": "Detail panel is exactly 3 lines (matchup / kickoff · phase / current prediction + ask) with no 'En: <penca>' bleed-in. Phase shows in Spanish ('Fase de grupos · Fecha 5'). Confirm message after sending a score is a fresh line ('✅ Anotado en *Familia 2026*: Bolívar 1 - 1 Cerro Porteño') with 3 useful next-step buttons.",
+      "fix_hint": null,
+      "evidence": "sim-wa +999900003 'mantia:match:6382' → '*Bolívar vs Cerro Porteño*\\nTue 19 May • 19:00 · Fase de grupos · Fecha 5\\nPronóstico actual: *0-0* — mandame uno nuevo (ej *2-1*).'; then '1-1' → '✅ Anotado en *Familia 2026*: Bolívar 1 - 1 Cerro Porteño'."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "cold 'hola' reply on a brand-new phone",
+      "what": "Bot still self-describes as 'la app de pronósticos mundialistas por WhatsApp' even though Mundial was eliminated from the seed (Libertadores is the current tournament). This stale wording is the same regression flagged in tests/qa-flows/onboarding-cold.md.",
+      "fix_hint": "In includes/class-mantia-whatsapp-flow.php replace both occurrences of 'mundialistas' (lines 1261 and 1379) with 'de fútbol' or 'de Libertadores'. The /help reply on line 1379 is also stale.",
+      "evidence": "sim-wa +999900098 'hola' reply: 'Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.\\n\\n¿Por dónde arrancamos?' Grep also finds 'pronósticos mundialistas' in the /help footer string at line 1379."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "pronostico-tap",
+      "where": "match list rows and detail panel — day-of-week label",
+      "what": "Day-of-week labels in the bot's match list and detail panel come back in English ('Tue 19 May', 'Wed 20 May', 'Thu 21 May') even though the rest of the copy is Spanish/voseo. The public group page is correctly Spanish ('MAR 19 MAY', 'MIÉ 20 MAY', 'JUE 21 MAY'), so the bot looks inconsistent vs the web surface.",
+      "fix_hint": "In includes/class-mantia-whatsapp-flow.php::format_kickoff (line 1909) swap `gmdate('D j M • H:i', $ts - 3*HOUR_IN_SECONDS)` for `wp_date('D j M • H:i', $ts - 3*HOUR_IN_SECONDS)` or `date_i18n(...)` so the day-of-week respects WP locale. gmdate is locale-insensitive English by definition.",
+      "evidence": "match list rows return 'Tue 19 May • 19:00 • ✓ 0-0' / 'Wed 20 May • 19:00 • ✓ 0-2'; group page DOM strings are 'MAR 19 MAY' / 'MIÉ 20 MAY' — inconsistency comes from gmdate vs wp_date."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "flow",
+      "flow": "group-page-public",
+      "where": "/penca/g/<token>/ — TABLA DEL GRUPO section when no points yet",
+      "what": "After joining Pablo + 3 other members, the group page hero says '4 jugadores' but the table renders only 'Todavía no hay puntos cargados.' — Pablo does not see his name anywhere on the page. From his POV he has no visual proof he is in the group. There is no roster list, no pedestal placeholder showing him in slot 1 with 0 pts, nothing.",
+      "fix_hint": "When no scoring rows exist, fall back to a simple 'jugadores que se sumaron' list using user display names (already exposed via the bot reply with '👥 Quiénes están (4)'). Or render pedestal slots with 0-pt rows so the user gets immediate 'I'm in there' feedback. Owner of the recent commit 'Highlight viewer's row on group page' would know the right entry point.",
+      "evidence": "Snapshot 02-group-page-snapshot.txt line 12-13: 'TABLA DEL GRUPO' followed only by 'Todavía no hay puntos cargados.'; no 'Pablo' anywhere in the rendered <main>. Hero meta says '4 jugadores' but the list is empty."
+    },
+    {
+      "severity": "polish",
+      "lens": "visual",
+      "flow": "share-link",
+      "where": "OG image (/penca/g/<token>/og/) — left-side circle",
+      "what": "OG image has a large empty white circle on the left where presumably a soccer ball / penca avatar / initial should go. Currently it renders as a blank flat circle, which feels unfinished against the otherwise polished card.",
+      "fix_hint": "Either fill the circle with the group's initial in Archivo Black ('F' for Familia 2026 — would match the hash-coloured avatars used elsewhere), drop in a soccer ball glyph, or remove the circle and re-balance the layout.",
+      "evidence": "Screenshot /var/folders/9s/.../qa-member-invited/07-og-image.png — circle visible left of title, contents empty."
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "onboarding-cold",
+      "where": "cold 'hola' opener — 'Hola!' with trailing exclamation",
+      "what": "Persona brief flags initial '¡Hola!' as a smell (over-enthusiastic). Current reply uses 'Hola!' (final-only exclamation). It's milder but still leans cheerful in a voseo voice that should feel more deadpan/cool. Considered polish because it's borderline, not a clear violation.",
+      "fix_hint": "Try 'Hola — soy *Mantia*, pronósticos de fútbol por WhatsApp.' or 'Bienvenido. Soy *Mantia*…' to match the rest of the bot's flatter tone.",
+      "evidence": "sim-wa +999900098 'hola' first line: 'Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.'"
+    },
+    {
+      "severity": "polish",
+      "lens": "ia",
+      "flow": "group-page-public",
+      "where": "/penca/g/<token>/ topbar — 'Compartir' link visible to non-owner",
+      "what": "Non-owner Pablo sees a 'Compartir' link in the topbar pointing to /compartir/. The /compartir/ page itself is non-sensitive (just a poster + share buttons, no edit-capable tokens), but the affordance is identical to what an owner sees — there is no signal that 'this is your penca' vs 'you joined someone else's'. Not a security issue, just identity affordance.",
+      "fix_hint": "Either hide the topbar share for non-owners (since they have their own /me/share/ poster) or rename it 'Compartir la penca' so the intent is clearer and not confused with personal share.",
+      "evidence": "Group page snapshot 02 line 5: '/penca/g/9e66d19b9e194158f0e139e9/compartir/' visible for Pablo (a joined member, not owner). /compartir/ snapshot 03 confirms no member-private data leaks."
+    }
+  ],
+  "screenshots": [
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/01-redirected-to-wa.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/02-group-page-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/02-group-page-snapshot.txt",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/03-compartir-page.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/03-compartir-snapshot.txt",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/04-me-page.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/04-me-snapshot.txt",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/05-as-sharetoken.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/06-as-viewtoken.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/07-og-image.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-member-invited/08-share-poster.png"
+  ]
+}
