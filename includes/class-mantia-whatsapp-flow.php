@@ -206,7 +206,13 @@ final class Mantia_Whatsapp_Flow {
 			// next tap applies it immediately.
 			set_transient( self::pending_score_key( $identity['phone'] ), array( (int) $sc[1], (int) $sc[2] ), 5 * MINUTE_IN_SECONDS );
 			$pending = self::handle_pending( $identity );
-			$prefix  = sprintf( "Recibí *%d-%d* pero no sé para qué partido. Tocá uno y lo anoto.\n\n", (int) $sc[1], (int) $sc[2] );
+			// If the user has already predicted every match, handle_pending()
+			// returns no rows — "Tocá uno y lo anoto" would contradict the
+			// empty list. Suggest editing an existing prediction instead.
+			$has_rows = ! empty( $pending['interactive']['sections'][0]['rows'] );
+			$prefix   = $has_rows
+				? sprintf( "Recibí *%d-%d* pero no sé para qué partido. Tocá uno y lo anoto.\n\n", (int) $sc[1], (int) $sc[2] )
+				: sprintf( "Recibí *%d-%d* — pero ya pronosticaste todos los pendientes. Mandá el partido por nombre (ej *Boca 2 River 1*) o tocá *partidos* para cambiar uno.\n\n", (int) $sc[1], (int) $sc[2] );
 			$pending['reply'] = $prefix . (string) ( $pending['reply'] ?? '' );
 			return $pending;
 		}
@@ -1167,16 +1173,24 @@ final class Mantia_Whatsapp_Flow {
 			$lines[]      = sprintf( '%s *%s*%s', $marker, $g['name'], $comp_part );
 
 			// Per-row counts: members + this-user predictions in this penca.
+			// Pluralize each half independently — sharing a single _n() with
+			// max() of the two yielded "1 jugadores · 8 pronósticos" when
+			// member_count=1 and pred_count=8.
 			$member_count = count( Mantia_Repository::group_members( $gid ) );
 			$pred_count   = self::count_user_predictions_in_group( (int) $user->ID, $gid );
+			$members_str  = sprintf(
+				/* translators: %d: members count */
+				_n( '%d jugador', '%d jugadores', $member_count, 'mantia' ),
+				$member_count
+			);
+			$preds_str    = sprintf(
+				/* translators: %d: predictions count */
+				_n( '%d pronóstico', '%d pronósticos', $pred_count, 'mantia' ),
+				$pred_count
+			);
 			$desc_parts   = array_filter( array(
 				(string) ( $g['competition_name'] ?? '' ),
-				sprintf(
-					/* translators: 1: members count, 2: predictions count */
-					_n( '%1$d jugador · %2$d pronóstico', '%1$d jugadores · %2$d pronósticos', max( $member_count, $pred_count ), 'mantia' ),
-					$member_count,
-					$pred_count
-				),
+				$members_str . ' · ' . $preds_str,
 			) );
 
 			$rows[] = array(
@@ -2003,7 +2017,11 @@ final class Mantia_Whatsapp_Flow {
 	 *   - `mantia_rate_limit_window_seconds` (int)
 	 */
 	private static function rate_limit_check( string $phone ): ?array {
-		$max    = (int) apply_filters( 'mantia_rate_limit_max', 20 );
+		// Bumped from 20 → 40 per minute after QA round 2 hit the cap on a
+		// legitimate "create 3 pencas + send 1 score" pattern (each command
+		// is multiple deterministic round-trips). Filter still lets admins
+		// tune. Cost is bounded — these turns don't invoke the LLM.
+		$max    = (int) apply_filters( 'mantia_rate_limit_max', 40 );
 		$window = (int) apply_filters( 'mantia_rate_limit_window_seconds', 60 );
 
 		if ( $max <= 0 || $window <= 0 ) {
