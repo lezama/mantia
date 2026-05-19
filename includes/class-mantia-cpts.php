@@ -33,7 +33,11 @@ final class Mantia_CPTs {
 				),
 				'public'              => false,
 				'show_ui'             => true,
-				'show_in_rest'        => true,
+				// REST disabled across all Mantia CPTs — privacy model depends
+				// on tokens, and /wp-json/wp/v2/mantia_* would enumerate
+				// predictions/users/groups/matches anonymously. Mantia exposes
+				// what it needs via /wp-json/mantia/v1 with auth.
+				'show_in_rest'        => false,
 				'exclude_from_search' => true,
 				'rewrite'             => false,
 				'hierarchical'        => true,
@@ -55,7 +59,11 @@ final class Mantia_CPTs {
 				),
 				'public'              => false,
 				'show_ui'             => true,
-				'show_in_rest'        => true,
+				// REST disabled across all Mantia CPTs — privacy model depends
+				// on tokens, and /wp-json/wp/v2/mantia_* would enumerate
+				// predictions/users/groups/matches anonymously. Mantia exposes
+				// what it needs via /wp-json/mantia/v1 with auth.
+				'show_in_rest'        => false,
 				'exclude_from_search' => true,
 				'rewrite'             => false,
 				'menu_icon'           => 'dashicons-calendar-alt',
@@ -76,7 +84,11 @@ final class Mantia_CPTs {
 				),
 				'public'              => false,
 				'show_ui'             => true,
-				'show_in_rest'        => true,
+				// REST disabled across all Mantia CPTs — privacy model depends
+				// on tokens, and /wp-json/wp/v2/mantia_* would enumerate
+				// predictions/users/groups/matches anonymously. Mantia exposes
+				// what it needs via /wp-json/mantia/v1 with auth.
+				'show_in_rest'        => false,
 				'exclude_from_search' => true,
 				'rewrite'             => false,
 				'menu_icon'           => 'dashicons-chart-bar',
@@ -97,7 +109,11 @@ final class Mantia_CPTs {
 				),
 				'public'              => false,
 				'show_ui'             => true,
-				'show_in_rest'        => true,
+				// REST disabled across all Mantia CPTs — privacy model depends
+				// on tokens, and /wp-json/wp/v2/mantia_* would enumerate
+				// predictions/users/groups/matches anonymously. Mantia exposes
+				// what it needs via /wp-json/mantia/v1 with auth.
+				'show_in_rest'        => false,
 				'exclude_from_search' => true,
 				'rewrite'             => false,
 				'menu_icon'           => 'dashicons-groups',
@@ -118,7 +134,11 @@ final class Mantia_CPTs {
 				),
 				'public'              => false,
 				'show_ui'             => true,
-				'show_in_rest'        => true,
+				// REST disabled across all Mantia CPTs — privacy model depends
+				// on tokens, and /wp-json/wp/v2/mantia_* would enumerate
+				// predictions/users/groups/matches anonymously. Mantia exposes
+				// what it needs via /wp-json/mantia/v1 with auth.
+				'show_in_rest'        => false,
 				'exclude_from_search' => true,
 				'rewrite'             => false,
 				'menu_icon'           => 'dashicons-smartphone',

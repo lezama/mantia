@@ -1,0 +1,102 @@
+{
+  "persona": "multi-penca",
+  "ran_at": "2026-05-19T18:42:00Z",
+  "flows_run": ["crear-penca", "crear-penca", "crear-penca", "auto-routing-multipenca", "listar-pencas"],
+  "summary": "Auto-routing — the killer feature — works perfectly. Three pencas were created in libertadores-semana, a single 2-1 from the user wrote to all three (and the 0-0 overwrite correctly updated the same 3 prediction posts, no duplicates). The 'Anotado en *X*, *Y*, *Z*' reply lists every penca with asterisks in stable order (creation order). The major UX gap is that a bare score with NO match context falls through to the LLM and returns an EMPTY reply, which is silent failure. Plus a copy inconsistency: home suggests 'mis grupos' but the product nomenclature elsewhere is 'penca'.",
+  "findings": [
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "auto-routing-multipenca",
+      "where": "bare-score reply after tapping match 6382",
+      "what": "Auto-routing writes to all 3 pencas in a single operation. DB confirms predictions 6534/6559/6572 (one per penca) all updated to the new score, with no duplicates on overwrite.",
+      "evidence": "reply: '✅ Anotado en *Los del Trabajo*, *Penca del Barrio*, *Pibes del 5*: Bolívar 2 - 1 Cerro Porteño'. DB query: 3 prediction posts for user 6533 / match 6382, group_ids 6532/6558/6571."
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "auto-routing-multipenca",
+      "where": "second score for same match",
+      "what": "Overwrite of an existing prediction is in-place (same post IDs). After sending 0-0 the three prediction posts kept their IDs but title flipped from '2-1' to '0-0'. No duplication, prediction count stays at 24 (3 pencas × 8 matches).",
+      "evidence": "Both before-and-after queries return the same IDs 6534/6559/6572 with updated titles 'Bolívar 0-0 Cerro Porteño'. state.predictions = 24 before and after."
+    },
+    {
+      "severity": "works",
+      "lens": "copy",
+      "flow": "auto-routing-multipenca",
+      "where": "Anotado reply formatting",
+      "what": "Penca names are wrapped in WhatsApp asterisks and joined with commas in a stable order (matches creation order). Code at class-mantia-whatsapp-flow.php:1873-1875 uses implode(', ', map(fn $n => '*'.$n.'*', $names)) — degenerate 1-penca case still produces 'Anotado en *X*'.",
+      "evidence": "class-mantia-whatsapp-flow.php:1875 implementation; reply matches exactly the persona's expected format 'Anotado en *X*, *Y*, *Z*'."
+    },
+    {
+      "severity": "blocker",
+      "lens": "flow",
+      "flow": "auto-routing-multipenca",
+      "where": "bare score with no match context",
+      "what": "Sending '2-1' (or '2 1', '2-1 Bolivar') with NO pending-match transient returns an EMPTY reply (falls through to LLM which returns null). The persona explicitly asks 'cuando manda un score sin tapear un partido, el bot pregunta cuál partido o asume el más próximo?' — current answer is 'neither, silent fail'. Three identical attempts all returned reply:'', interactive:null, fell_through_to_llm:true.",
+      "fix_hint": "In class-mantia-whatsapp-flow.php:196-201 the score regex matches but if pending_match transient is empty/expired the handler silently falls through. Either (a) auto-target the next pending match for the active penca's competition and confirm 'asumiendo Bolívar vs Cerro Porteño — mandá el id si era otro', or (b) reply with a list of pending matches asking which one. Empty reply is the worst option.",
+      "evidence": "bin/sim-wa.sh '+999900004' ... '2-1' → {reply:'', interactive:null, fell_through_to_llm:true}. Same for '2 1' and '2-1 Bolivar'."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "listar-pencas",
+      "where": "/home reply text",
+      "what": "Home text says 'Escribí *mis grupos* para verlas' but the product calls them 'pencas' everywhere else (header, picker, /me/ UI). Both 'mis grupos' and 'mis pencas' work as commands, but the surfaced suggestion uses the wrong noun.",
+      "fix_hint": "Change the home-screen text to 'Escribí *mis pencas* para verlas'. The regex at flow.php:207 already accepts both forms — only the displayed suggestion needs updating.",
+      "evidence": "reply to mantia:cmd:home: 'Tenés 3 pencas en total. Escribí *mis grupos* para verlas.'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "Interactive List rows for 'mis pencas'",
+      "what": "Flow spec asks for description with 'torneo + estado (4 jugadores · 8 pronósticos)' so user knows where they have predictions pending. Actual description shows only the torneo emoji+name. Diego's persona explicitly evaluates 'cada penca muestra cuántos pronósticos tiene cargados / cuántos van? Útil para saber dónde le falta.'",
+      "fix_hint": "Append ' · N pronósticos' (and maybe ' · M jugadores' if cheap) to the row description in the my-pencas list handler.",
+      "evidence": "row: {title:'Los del Trabajo', description:'📆 Libertadores semanal'} — no player or prediction count."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "copy",
+      "flow": "crear-penca",
+      "where": "first 'hola' reply",
+      "what": "Bot still says 'la app de pronósticos mundialistas por WhatsApp' but Mundial was removed from the available competitions (only Libertadores 2026 / Libertadores semanal in the picker). Diego is creating Libertadores pencas — the welcome copy promises Mundial.",
+      "fix_hint": "Replace 'pronósticos mundialistas' with 'pronósticos de fútbol' or 'pronósticos para la Libertadores' in the cold-hola reply.",
+      "evidence": "reply to 'hola': 'Hola! Soy *Mantia*, la app de pronósticos mundialistas por WhatsApp.'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "ia",
+      "flow": "crear-penca",
+      "where": "post-create confirmation buttons",
+      "what": "After creating each penca the reply offers 'Re-enviar / Partidos / Ayuda' buttons. The 'Re-enviar' button references 'la tarjeta de arriba ↑' but the simulator output doesn't show a tarjeta — and the test path didn't render a shareable card before the create. Real WhatsApp may render it, but the copy 'Reenviá la tarjeta de arriba' is referring to a media message that may or may not be visible depending on render order.",
+      "fix_hint": "Either send the share card AS the parent of this reply (so 'arriba' is true), or change copy to 'Tocá *Re-enviar* para mandar la tarjeta a tus amigos'.",
+      "evidence": "reply: 'Reenviá la tarjeta de arriba ↑ a cualquier grupo... 👥 Solo vos por ahora.' with button 'Re-enviar'."
+    },
+    {
+      "severity": "works",
+      "lens": "flow",
+      "flow": "crear-penca",
+      "where": "3 pencas created back-to-back, no rate-limit",
+      "what": "Diego's persona worries about rate-limits blocking the legitimate organizer of 3 groups. Three pencas were created in <30s with no throttling, picker selection, or LLM detour. Each landed cleanly with its own group_id (6532, 6558, 6571) and 8 default predictions each.",
+      "evidence": "state.groups list shows all 3; state.predictions = 24 (3×8). No rate-limit/error reply during the sequence."
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "crear-penca",
+      "where": "competition picker",
+      "what": "Picker has EXACTLY 2 rows (Libertadores 2026 + Libertadores semanal) as the flow expects — no orphan slugs from a stale migration. Both titles fit ≤24 chars.",
+      "evidence": "picker rows: ['🥇 Libertadores 2026', '📆 Libertadores semanal'] — 2 rows, no extras."
+    },
+    {
+      "severity": "polish",
+      "lens": "ia",
+      "flow": "listar-pencas",
+      "where": "active penca indicator",
+      "what": "Active penca (Pibes del 5, the most recently created) gets a green ✅ in the text block but a smaller ✓ prefix in the list-row title. The body emoji and the row-title prefix don't match; both are different from the ▫️ used for inactive ones. Minor visual inconsistency.",
+      "evidence": "reply text: '✅ *Pibes del 5*'; row.title: '✓ Pibes del 5'. Inactive: '▫️ *Los del Trabajo*' (body), 'Los del Trabajo' (row, no prefix)."
+    }
+  ],
+  "screenshots": []
+}

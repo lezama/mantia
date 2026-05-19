@@ -222,7 +222,17 @@ final class Mantia_Frontend {
 		$phone = Mantia_Repository::bot_phone_e164();
 		$msg   = (string) apply_filters( 'mantia_home_first_message', 'hola' );
 		$wa    = '' !== $phone ? sprintf( 'https://wa.me/%s?text=%s', $phone, rawurlencode( $msg ) ) : '';
-		$ranking_url = Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() );
+		// CTA points at the install's default competition (seed-driven). Read
+		// its name dynamically so the label never goes stale after a seed
+		// change — the QA cycle caught a "Ver el ranking del Mundial" CTA
+		// pointing at libertadores-2026 after Mundial was removed from the
+		// seed but the hardcoded label survived.
+		$default_id   = Mantia_Competitions::default_id();
+		$ranking_url  = Mantia_Repository::competition_view_url( $default_id );
+		$default_comp = Mantia_Competitions::get( $default_id );
+		$ranking_label = $default_comp
+			? sprintf( __( 'Ver %s', 'mantia' ), (string) $default_comp['name'] )
+			: __( 'Ver el ranking', 'mantia' );
 
 		ob_start();
 		self::page_header( 'Mantia · Penca por WhatsApp' );
@@ -269,7 +279,7 @@ final class Mantia_Frontend {
 
 			<?php if ( '' !== $ranking_url ) : ?>
 				<a class="mantia-pill mantia-pill-ghost" href="<?php echo esc_url( $ranking_url ); ?>">
-					<?php esc_html_e( 'Ver el ranking del Mundial', 'mantia' ); ?>
+					<?php echo esc_html( $ranking_label ); ?>
 				</a>
 			<?php endif; ?>
 		</main>
@@ -1521,10 +1531,17 @@ SVG;
 	}
 
 	private static function render_not_found( string $message ): string {
-		$bot_phone  = Mantia_Repository::bot_phone_e164();
-		$bot_url    = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
-		$home_url   = Mantia_Repository::competition_view_url( Mantia_Competitions::default_id() );
-		$create_url = self::create_penca_wa_url();
+		$bot_phone     = Mantia_Repository::bot_phone_e164();
+		$bot_url       = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
+		$default_id    = Mantia_Competitions::default_id();
+		$home_url      = Mantia_Repository::competition_view_url( $default_id );
+		$create_url    = self::create_penca_wa_url();
+		// Dynamic CTA so the 404 recovery never points at a torneo that
+		// was removed from the seed. Falls back to a generic label.
+		$default_comp  = Mantia_Competitions::get( $default_id );
+		$home_label    = $default_comp
+			? sprintf( __( 'Ver %s', 'mantia' ), (string) $default_comp['name'] )
+			: __( 'Ver torneo', 'mantia' );
 
 		ob_start();
 		self::page_header( __( 'No encontrado', 'mantia' ) );
@@ -1537,7 +1554,7 @@ SVG;
 				<p class="mantia-hero-meta"><?php esc_html_e( 'Si te mandaron un link, pediles que te lo reenvíen — algunos vencen.', 'mantia' ); ?></p>
 			</section>
 			<section class="mantia-cta-section mantia-cta-stack">
-				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $home_url ); ?>"><?php esc_html_e( 'Ver Mundial 2026', 'mantia' ); ?></a>
+				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $home_url ); ?>"><?php echo esc_html( $home_label ); ?></a>
 				<?php if ( '' !== $create_url ) : ?>
 					<a class="mantia-pill mantia-pill-ghost" href="<?php echo esc_url( $create_url ); ?>"><?php esc_html_e( 'Crear una penca', 'mantia' ); ?></a>
 				<?php endif; ?>

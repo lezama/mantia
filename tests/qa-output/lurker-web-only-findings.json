@@ -1,0 +1,145 @@
+{
+  "persona": "lurker-web-only",
+  "ran_at": "2026-05-19T19:45:00Z",
+  "flows_run": ["lurker-web", "competition-page", "group-page-public"],
+  "findings": [
+    {
+      "severity": "blocker",
+      "lens": "copy",
+      "flow": "lurker-web",
+      "where": "Home page · second CTA button (mobile + desktop)",
+      "what": "CTA says 'Ver el ranking del Mundial' but Mundial was removed from the product. The link correctly points to /penca/libertadores-2026 but the visible label is stale and undermines trust in 5 seconds. The flow spec calls for 'Ver Libertadores'.",
+      "fix_hint": "Grep the codebase for 'Ver el ranking del Mundial' or 'ranking del Mundial' — likely in the home template (mantia-home shortcode / template-home.php). Change to 'Ver Libertadores' or 'Ver el ranking · Libertadores 2026'.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/01-home-mobile.png · DOM: a[href='https://mantia3.wpcomstaging.com/penca/libertadores-2026'] textContent='Ver el ranking del Mundial'"
+    },
+    {
+      "severity": "blocker",
+      "lens": "copy",
+      "flow": "lurker-web",
+      "where": "Themed 404 page · primary recovery CTA (3 paths: /penca/no-existe/, /penca/g/bogus/, /penca/me/share/bogus/)",
+      "what": "Every themed 404 page surfaces a pink primary CTA 'Ver Mundial 2026' linking to /penca/libertadores-2026. Same stale 'Mundial' string. Worse here than the home because the 404 is the moment we recover the visitor — handing them an out-of-date competition reference is high-friction.",
+      "fix_hint": "In the themed 404 template (probably class-mantia-404.php or a not-found template part), change 'Ver Mundial 2026' to 'Ver Libertadores 2026'. Same source line likely powers all 3 paths.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · accessibility snapshot uid=7_7 / uid=8_7 / uid=9_7 all read 'Ver Mundial 2026'"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "flow",
+      "flow": "lurker-web",
+      "where": "Share-poster page (/penca/me/share/<token>/) · 'Mandar por WhatsApp' button + card footer",
+      "what": "The share-poster's 'Mandar por WhatsApp' wa.me href is 'https://wa.me/?text=mantia3.wpcomstaging.com%2F' — just the root domain, no specific path. The card footer also shows only 'mantia3.wpcomstaging.com/'. Recipients of the share won't know what's being shared until they click. Defeats the recipient-friendly intent of the share-poster.",
+      "fix_hint": "Include the sharer's /penca/me/<edit_token>/ or /penca/g/<group_view_token>/ in the wa.me text body and in the card footer. Look in template-share.php / class-mantia-share for the wa.me URL builder.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/07-share-poster-desktop.png · DOM: a[href='https://wa.me/?text=mantia3.wpcomstaging.com%2F']"
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "security",
+      "flow": "group-page-public",
+      "where": "REST API · /wp-json/wp/v2/mantia_prediction (and /mantia_user, /mantia_group, /mantia_match)",
+      "what": "All Mantia CPTs have show_in_rest enabled and are publicly listable by anonymous users. /wp-json/wp/v2/mantia_prediction exposes 10 prediction records titled with player display name + match score (e.g. 'Florencia QA Returning: River Plate 0-1 Boca Juniors'). Anyone can scrape who-predicted-what without ever needing a view_token. View_tokens themselves do NOT leak in meta (private meta is gated), but the listing alone is a privacy paper-cut — predictions are meant to be private until /me/ reveal.",
+      "fix_hint": "Set show_in_rest=false on mantia_prediction, mantia_user, mantia_group, mantia_match CPT registrations, OR add a rest_authentication filter that returns empty for unauthenticated callers. Predictions and player names should never be enumerable anonymously.",
+      "evidence": "/wp-json/wp/v2/mantia_prediction returns 200 with 10 entries. Sample title: 'Florencia QA Returning: River Plate 0-1 Boca Juniors'. /wp-json/wp/v2/mantia_user returns 6 player names ('Florencia QA Returning' etc). /wp-json/wp/v2/mantia_group returns 7 group titles ('Los Pibes del 92', 'Pibes del 5', 'Penca del Barrio'...)."
+    },
+    {
+      "severity": "paper-cut",
+      "lens": "performance",
+      "flow": "lurker-web",
+      "where": "PWA assets · /service-worker.js and /manifest.json (no trailing slash)",
+      "what": "Both /service-worker.js and /manifest.json return nginx 404 at canonical paths. They only work at /service-worker.js/ and /manifest.json/ (trailing slash). The page itself registers '/service-worker.js/' so PWA actually works, but anything probing canonical paths (PWA Builder, Lighthouse, third-party crawlers, social previews) will mark Mantia as broken.",
+      "fix_hint": "Add rewrite rules so canonical paths (no trailing slash) resolve. Either via .htaccess or via the rewrite rule that produces the trailing-slash version — drop the trailing slash, or add an additional rewrite for the non-slash variant.",
+      "evidence": "fetch('/service-worker.js') → 404 nginx HTML; fetch('/service-worker.js/') → 200 application/javascript, 2612 bytes starting 'Mantia · Service Worker'. fetch('/manifest.json') → 200 (this one works without slash). Page DOM: `register('\\/service-worker.js\\/')`."
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "competition-page",
+      "where": "/penca/libertadores-semana/ and /penca/libertadores-2026/ · subtitle date range",
+      "what": "Subtitle reads 'mar 19 may – jue 21 may · 8 partidos' using en-dash '–'. The flow spec expects arrow '→' between dates. Visually, '–' between two day-abbrevs is harder to scan than '→'. Polish-only — both are valid Spanish typography.",
+      "fix_hint": "If the flow spec is the source of truth, replace en-dash with U+2192 RIGHTWARDS ARROW in the competition-page template's date range builder.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/03-lib-semana-mobile.png · uid=5_6 'mar 19 may – jue 21 may · 8 partidos'"
+    },
+    {
+      "severity": "polish",
+      "lens": "copy",
+      "flow": "lurker-web",
+      "where": "404 page H1 for /penca/no-existe/",
+      "what": "When the bad slug is a competition (/penca/<slug>), the H1 is descriptive: 'Competencia \"no-existe\" no encontrada'. For /penca/g/<bad-token> and /penca/me/share/<bad-token> the H1 is the friendlier 'Este link de penca no funciona o ya venció.' The competition-not-found message echoing the literal slug back to the user feels technical and could be reflected XSS bait — the slug is HTML-escaped in title text but still feels off-tone vs the friendlier sibling.",
+      "fix_hint": "Unify both 404 messages to the friendlier 'Este link no funciona o ya venció.' regardless of /penca/* subpath. Skip echoing the user-supplied slug.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · h1 'Competencia \"no-existe\" no encontrada' vs /09-404-bogus-group-mobile.png h1 'Este link de penca no funciona o ya venció.'"
+    },
+    {
+      "severity": "works",
+      "lens": "visual",
+      "flow": "lurker-web",
+      "where": "Themed 404 across all 3 paths (/penca/no-existe/, /penca/g/bogus/, /penca/me/share/bogus/)",
+      "what": "Critical primetime check passes: NO Lorem-ipsum / Assembler fallthrough on any /penca/* path. All three return HTTP 404 with the themed Mantia design (cancha green, Archivo Black, ear-pill back arrow, recovery CTAs). The hard-routed themed 404 is well-engineered.",
+      "fix_hint": null,
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png · /09-404-bogus-group-mobile.png · /10-404-bogus-share-mobile.png · all fetch() returns HTTP 404 status with themed body"
+    },
+    {
+      "severity": "works",
+      "lens": "ia",
+      "flow": "competition-page",
+      "where": "/penca/libertadores-2026/ + /penca/libertadores-semana/",
+      "what": "Competition pages are clean and correct: exactly 2 pills (Libertadores 2026 + Libertadores semanal — no Mundial, no Sudamericana, no LigaUY, no 'Esta semana' orphans). Phase header hoists per day ('MAR 19 MAY · FASE DE GRUPOS · FECHA 5'). Fecha 5 vs Fecha 6 hoisted correctly on the parent. Team and country names all in Spanish (São Paulo, Vélez Sársfield, Universidad Católica, Atlético Bucaramanga). Empty ranking state 'Todavía no hay puntos cargados.' renders gracefully.",
+      "fix_hint": null,
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/03-lib-semana-mobile.png · /04-lib-semana-desktop.png · /05-lib-2026-mobile.png · /06-lib-2026-desktop.png"
+    },
+    {
+      "severity": "works",
+      "lens": "performance",
+      "flow": "lurker-web",
+      "where": "Home page and competition page initial paint",
+      "what": "Performance is excellent. Home + competition pages: DOMContentLoaded ~740ms, transferSize ~48KB. No render-blocking external CSS bundles, fonts inlined, QR code lazy via 3rd-party API but doesn't block paint. Well under the <500ms budget for everything-but-network.",
+      "fix_hint": null,
+      "evidence": "performance.getEntriesByType('navigation')[0]: domContentLoadedEventEnd=739, loadEventEnd=739, transferSize=48KB. /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/04-lib-semana-desktop.png"
+    },
+    {
+      "severity": "works",
+      "lens": "visual",
+      "flow": "lurker-web",
+      "where": "PWA install banner (mobile only)",
+      "what": "Install banner correctly appears on mobile (390px wide, viewport <768) with friendly Spanish copy 'Agregalo a tu pantalla de inicio para abrirlo en un toque. · Instalar · ✕'. Hidden on desktop (1280px). Dismissal persists via localStorage key 'mantia-pwa-dismissed' so it doesn't nag repeat visitors. Polished UX.",
+      "fix_hint": null,
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/13-home-install-banner.png shows banner present on 390px after clearing localStorage. On 1280px viewport the banner has computed display:none."
+    },
+    {
+      "severity": "works",
+      "lens": "visual",
+      "flow": "lurker-web",
+      "where": "Home page · ear-pills (PENCA · X WHATSAPP) at 320px/390px/desktop",
+      "what": "Ear-pill stickers ('PENCA' and 'X WHATSAPP') flank the wordmark and never clip — survived 320px iPhone-SE test without overflow. The Archivo Black wordmark + cancha-green canvas + sticker-shadow CTAs land the 'juvenil cancha' identity hard in <3 seconds.",
+      "fix_hint": null,
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/01-home-mobile.png · /02-home-desktop.png · /11-home-320.png"
+    }
+  ],
+  "screenshots": [
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/01-home-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/02-home-desktop.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/03-lib-semana-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/04-lib-semana-desktop.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/05-lib-2026-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/06-lib-2026-desktop.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/07-share-poster-desktop.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/08-404-no-existe-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/09-404-bogus-group-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/10-404-bogus-share-mobile.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/11-home-320.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/12-comp-320.png",
+    "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-web/13-home-install-banner.png"
+  ],
+  "notes": {
+    "incomplete_flows": [
+      "group-page-public: Could not exercise /penca/g/<real_view_token>/ flow end-to-end. SSH to mantia3.wordpress.com was blocked by sandbox policy and no view_token leaks via REST. Themed 404 for bogus tokens was verified instead. Recommend re-running this flow with an SSH-extracted token."
+    ],
+    "verified_clean": [
+      "No stale 'Sudamericana', 'LigaUY', or 'Esta semana' anywhere on /, /penca/libertadores-semana/, /penca/libertadores-2026/, or any 404 path",
+      "Exactly 2 pills on competition pages (Libertadores 2026 + Libertadores semanal)",
+      "Phase + matchday hoisted per day in Spanish ('FASE DE GRUPOS · FECHA 5')",
+      "Spanish team/country names throughout (no English leak)",
+      "REST /wp-json/wp/v2/mantia_group meta does not leak _mantia_group_view_token",
+      "Themed 404 (status 404 + themed body) on all 3 /penca/* bad paths — no Lorem-ipsum Assembler fallthrough",
+      "Slug-only access to /penca/g/<slug>/ correctly returns themed 404 (view_token gate works)"
+    ],
+    "competition_count_verified_via_rest": "2 (Libertadores semanal + Libertadores 2026) — matches expected"
+  }
+}
