@@ -44,11 +44,11 @@ final class Mantia_Bootstrap {
 	}
 
 	/**
-	 * Bump when a deploy needs the seed-defaults migration to re-run
-	 * (currently used to self-heal placeholder competition descriptions
-	 * without forcing a plugin re-activation on prod).
+	 * Bump when a deploy needs to re-run seed migrations on existing
+	 * installs (placeholder copy heal, competition renames that need to
+	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 2;
+	private const DB_VERSION        = 3;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -56,7 +56,27 @@ final class Mantia_Bootstrap {
 		if ( $current >= self::DB_VERSION ) {
 			return;
 		}
-		Mantia_Competitions::seed_defaults();
+
+		// v2: re-run seed_defaults so ensure_post() heals placeholder copy.
+		if ( $current < 2 ) {
+			Mantia_Competitions::seed_defaults();
+		}
+
+		// v3: rename "Libertadores — esta semana" → "Libertadores semanal".
+		// WhatsApp Interactive List rows truncate post_title at 24 chars
+		// and the original (27 chars) was rendering as "Libertadores — esta s".
+		if ( $current < 3 ) {
+			$post = Mantia_Competitions::find_post( 'libertadores-semana' );
+			if ( $post && 'Libertadores — esta semana' === (string) $post->post_title ) {
+				wp_update_post(
+					array(
+						'ID'         => (int) $post->ID,
+						'post_title' => 'Libertadores semanal',
+					)
+				);
+			}
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 	}
 

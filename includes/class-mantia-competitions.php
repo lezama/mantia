@@ -54,13 +54,13 @@ final class Mantia_Competitions {
 			),
 			array(
 				'slug'        => 'libertadores-semana',
-				'name'        => 'Libertadores — esta semana',
+				'name'        => 'Libertadores semanal',
 				'emoji'       => '📆',
 				'description' => 'Solo partidos de Libertadores en los próximos 7 días',
 				'parent_slug' => 'libertadores-2026',
 				'window_days' => 7,
 				'sort'        => 21,
-				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores semanal' ),
+				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores — esta semana' ),
 			),
 			array(
 				'slug'        => 'esta-semana',
@@ -306,7 +306,7 @@ final class Mantia_Competitions {
 		return is_array( $stored ) ? array_values( array_filter( array_map( 'strval', $stored ) ) ) : array();
 	}
 
-	private static function find_post( string $slug ): ?WP_Post {
+	public static function find_post( string $slug ): ?WP_Post {
 		$slug = sanitize_title( $slug );
 		if ( '' === $slug ) {
 			return null;
