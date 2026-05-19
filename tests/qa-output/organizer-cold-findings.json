@@ -1,0 +1,8 @@
+{"persona":"organizer-cold","ran_at":"2026-05-19T00:00:00Z","flows_run":["onboarding-cold","crear-penca","mis-pencas"],"findings":[
+{"id":1,"check":"Cold 'hola' reply contains 'de fútbol' NOT 'mundialistas'","severity":"works","evidence":"Reply: 'Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.'"},
+{"id":2,"check":"Bot uses 'Hola.' (period) not 'Hola!' (exclamation)","severity":"works","evidence":"Reply starts with 'Hola. Soy *Mantia*...'"},
+{"id":3,"check":"After Crear penca + libertadores-semana, share reply does NOT contain 'Tu link privado' or 'Ver standings en la web'","severity":"blocker","evidence":"Reply STILL contains '📱 Tu link privado: https://mantia3.wpcomstaging.com/penca/me/2e037255eb088ce47d32b1d5'. Privacy-leak regression — the private edit-token URL is shown right after the public share card. 'Ver standings en la web' is NOT present, but 'Tu link privado' line still leaks. Half-fixed."},
+{"id":4,"check":"Bare '2-1' (no match) returns 'Recibí *2-1* pero no sé para qué partido...'","severity":"works","evidence":"Reply: 'Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.' + Interactive list of pending matches."},
+{"id":5,"check":"After bare '2-1' then tap match, stashed score auto-applies","severity":"works","evidence":"Tapping mantia:match:6390 (Flamengo vs Palmeiras) replied: '✅ Anotado en *Los del 92*: Flamengo 2 - 1 Palmeiras'. No re-typing needed."},
+{"id":6,"check":"'mis pencas' row description uses '1 jugador' singular (not '1 jugadores')","severity":"works","evidence":"Row description: '📆 Libertadores semanal · 1 jugador · 9 pronósticos'. Singular form correct."}
+]}

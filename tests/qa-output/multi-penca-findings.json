@@ -1,116 +1,80 @@
 {
   "persona": "multi-penca",
-  "ran_at": "2026-05-19T19:30:00Z",
-  "flows_run": ["crear-penca", "crear-penca", "crear-penca", "auto-routing-multipenca", "listar-pencas"],
-  "summary": "Round 2: every round-1 issue closed. The BLOCKER (bare score → empty reply) is fully fixed and the new stashed-score UX is a clear win: type '2-1' cold, tap a match, score applies to all 3 pencas in one round trip with zero retyping. Auto-routing (killer feature) did NOT regress — verified across three score-writes (Bolívar/Flamengo/River) to all 3 pencas with stable 'Anotado en *X*, *Y*, *Z*' formatting. Listar pencas now shows '· N jugadores · M pronósticos' per row. Home text uses 'mis pencas' (not 'mis grupos'). Cold welcome no longer mentions 'mundialistas'. New paper-cuts found: 'jugadores' pluralization is wrong for solo pencas ('1 jugadores'), and the stashed-score prefix still says 'Tocá uno y lo anoto' even when the user has every match predicted and there is no list to tap.",
+  "ran_at": "2026-05-19T21:58:17Z",
+  "flows_run": ["crear-penca x3", "auto-routing", "listar-pencas", "stash-collision"],
   "findings": [
     {
-      "severity": "works",
-      "lens": "flow",
-      "flow": "auto-routing-multipenca",
-      "where": "bare score with NO pending-match (round-1 BLOCKER fix)",
-      "what": "Round-1 BLOCKER closed. Sending '2-1' as the first message after creating 3 pencas now replies 'Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.' + an Interactive List of pending matches grouped by competition. No more silent fall-through to the empty LLM reply.",
-      "evidence": "After creating Los del 92 / Penca del Barrio / Pibes del 5 and sending '2-1' cold, reply = 'Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.\\n\\nTe faltan *2* pronósticos:\\n\\n*🥇 Libertadores 2026* — 2 partidos\\n\\n_Tocá uno y te pido el marcador._' + list rows [{Flamengo vs Palmeiras}, {River vs Boca}]. Code path: class-mantia-whatsapp-flow.php:207-211 (stashes the score, prefixes handle_pending output)."
+      "step": 1,
+      "title": "Create 3 pencas back-to-back without rate-limit",
+      "status": "PASS",
+      "notes": "All 3 created without rate-limit (R2 paper-cut 3 fix verified: limit 20->40). Pencas: Alpha (8 matches), Beta (8 matches), Gamma (7 matches)."
     },
     {
-      "severity": "works",
-      "lens": "flow",
-      "flow": "auto-routing-multipenca",
-      "where": "stashed-score → tap match → auto-apply (NEW UX)",
-      "what": "Type '2-1' cold (no match context). Bot stashes 2-1 in a 5-min transient and shows pending matches. Tap mantia:match:6390 (Flamengo vs Palmeiras). Bot auto-applies the stashed 2-1 across all 3 pencas in a single round trip — no need to retype. Real UX win: turns the failure case into a feature.",
-      "evidence": "After 'Recibí *2-1* pero no sé...' prefix, sending mantia:match:6390 returned '✅ Anotado en *Los del 92*, *Penca del Barrio*, *Pibes del 5*: Flamengo 2 - 1 Palmeiras'. Re-tested with '1-0' + tap mantia:match:6382 → '✅ Anotado en ... : Bolívar 1 - 0 Cerro Porteño'. Code path: class-mantia-whatsapp-flow.php:1837-1843 reads the stash on match-tap and calls handle_quick_score directly."
+      "step": 2,
+      "title": "Auto-routing: cold '2-1' -> tap match -> reply lists all 3 pencas",
+      "status": "PASS",
+      "notes": "Cold '2-1' showed list of pending matches. Tap on Flamengo vs Palmeiras (6390) replied 'Anotado en *Penca Alpha R3*, *Penca Beta R3*, *Penca Gamma R3*: Flamengo 2 - 1 Palmeiras'. Stashed-score + auto-routing combined work correctly across 3 pencas."
     },
     {
-      "severity": "works",
-      "lens": "flow",
-      "flow": "auto-routing-multipenca",
-      "where": "classic auto-routing (tap match → send score)",
-      "what": "Did NOT regress. After tapping mantia:match:6391 (River vs Boca) the bot prompted for a score; '3-2' wrote to all 3 pencas. Reply 'Anotado en *Los del 92*, *Penca del Barrio*, *Pibes del 5*: River Plate 3 - 2 Boca Juniors'. DB shows 3 separate prediction posts (pids 6869/6870/6871) — one per group, all with River 3-2 Boca, all linked to user 6764. Overwrite (1-0 applied later via stashed flow) updated the same row set in-place.",
-      "evidence": "state.predictions = 30 after all writes; per-group breakdown shows match_id 6391 mapped to group_ids 6763/6773/6792 (the 3 pencas). Reply order matches creation order. Asterisk wrapping intact."
+      "step": 3,
+      "title": "State query confirms 3 prediction posts created (one per penca)",
+      "status": "PASS",
+      "notes": "qa-sim state shows groups=[Alpha 6952, Beta 6967, Gamma 6979], predictions=23 (8+8+7) initially."
     },
     {
-      "severity": "works",
-      "lens": "ia",
-      "flow": "listar-pencas",
-      "where": "row description on 'mis pencas' list",
-      "what": "Round-1 paper-cut closed. Each row now shows torneo + member + prediction counts: '📆 Libertadores semanal · 1 jugadores · 9 pronósticos'. Diego can see at a glance where he has predictions pending.",
-      "evidence": "Row for Los del 92: {title:'Los del 92', description:'📆 Libertadores semanal · 1 jugadores · 9 pronósticos'}. Source: class-mantia-whatsapp-flow.php:1176 builds the line via _n( '%d jugador · %d pronóstico', '%d jugadores · %d pronósticos', max(...) )."
+      "step": 4,
+      "title": "mis-pencas shows correct pluralization",
+      "status": "PASS",
+      "notes": "Reply: '1 jugador · N pronósticos' for each penca (singular form for 1, correct grammar). R2 paper-cut 1 fixed. Note: scenario in prompt mentioned '3 jugadores' but each penca only has the creator so '1 jugador' is correct singular."
     },
     {
-      "severity": "works",
-      "lens": "copy",
-      "flow": "listar-pencas",
-      "where": "home reply suggestion text",
-      "what": "Round-1 paper-cut closed. Home now says 'Tenés 3 pencas en total. Escribí *mis pencas* para verlas.' — matches the product noun everywhere else. The lingering 'mis grupos' suggestion is gone.",
-      "evidence": "Reply to 'home': 'Activa: *Pibes del 5*\\n📆 Libertadores semanal • codigo `PIBESDEL5JRJMG`\\nTenés 3 pencas en total. Escribí *mis pencas* para verlas.' Code: class-mantia-whatsapp-flow.php:1347."
+      "step": 5,
+      "title": "Cold score when all matches predicted -> 'ya pronosticaste todos' reply",
+      "status": "PARTIAL_PASS",
+      "notes": "FIX VERIFIED for new scores: cold '3-0' with everything predicted correctly replied 'Recibí *3-0* — pero ya pronosticaste todos los pendientes. Mandá el partido por nombre...'. Cold '2-1' second time (after '3-0') also produced the expected reply."
     },
     {
-      "severity": "works",
-      "lens": "copy",
-      "flow": "crear-penca",
-      "where": "cold hola reply",
-      "what": "Round-1 paper-cut closed. Welcome text now says 'la app de pronósticos de fútbol por WhatsApp' instead of 'mundialistas'. Correct for the Libertadores-only seed.",
-      "evidence": "Reply to 'hola' (cold user): 'Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\\n\\n¿Por dónde arrancamos?' Code: class-mantia-whatsapp-flow.php:1299."
+      "step": "bug-1",
+      "title": "Stash collision: cold-typed score matching the stashed last-used score silently re-applies",
+      "status": "FAIL",
+      "severity": "minor",
+      "repro": [
+        "Have 3 pencas with multiple pending matches.",
+        "Type '2-1' cold -> get list of pending matches.",
+        "Tap last pending match (e.g. River vs Boca) -> all predictions made with 2-1.",
+        "Now ALL matches are predicted. Stashed score is still 2-1.",
+        "Type '2-1' again cold."
+      ],
+      "expected": "Reply 'Recibí *2-1* — pero ya pronosticaste todos los pendientes. Mandá el partido por nombre...'",
+      "actual": "Reply '✅ Anotado en *Penca Alpha R3*, *Penca Beta R3*, *Penca Gamma R3*: River Plate 2 - 1 Boca Juniors' — silently re-applies the stash to the last-predicted match.",
+      "workaround": "Typing a different score (e.g. '3-0') produces the correct message. After typing any other score the bug clears.",
+      "hypothesis": "When all-predicted code path checks if the typed score equals the stashed score / pending-match score, it may be skipping the 'all done' branch and falling through to re-stamp. Look for stash comparison in score-handling in includes/class-mantia-whatsapp-flow.php."
     },
     {
-      "severity": "works",
-      "lens": "flow",
-      "flow": "crear-penca",
-      "where": "3 pencas back-to-back, no rate-limit",
-      "what": "Three pencas created in sequence with no throttling on the create path. Each created with its own group_id (6763/6773/6792), correctly tagged competition=libertadores-semana, and auto-populated with 8 default predictions per penca (24 total at the start). Rate-limit DOES fire later — but only on score writes (see polish note).",
-      "evidence": "state.groups = 3 distinct ids; state.predictions = 24 before any user score writes; no rate-limit message during the 3 sequential creates."
+      "step": "bug-2",
+      "title": "Pluralization paper-cut: 'Te faltan *1* pronósticos' and '1 partidos'",
+      "status": "FAIL",
+      "severity": "cosmetic",
+      "repro": [
+        "Reach a state where exactly 1 match is pending across all pencas.",
+        "Send 'pendientes'."
+      ],
+      "actual": "Reply 'Te faltan *1* pronósticos:\\n\\n*🥇 Libertadores 2026* — 1 partidos'",
+      "expected": "Te falta *1* pronóstico ... 1 partido (singular)",
+      "fix_hint": "Wrap both 'pronósticos' and 'partidos' in a pluralize helper that switches based on count."
     },
     {
-      "severity": "works",
-      "lens": "ia",
-      "flow": "crear-penca",
-      "where": "competition picker",
-      "what": "Picker still has EXACTLY 2 rows (Libertadores 2026 + Libertadores semanal) and the IDs are the documented mantia:competition:<slug> shape — confirmed across all 3 creates.",
-      "evidence": "Picker rows on each of the 3 create flows: [{id:'mantia:competition:libertadores-2026', title:'🥇 Libertadores 2026'}, {id:'mantia:competition:libertadores-semana', title:'📆 Libertadores semanal'}]."
-    },
-    {
-      "severity": "works",
-      "lens": "flow",
-      "flow": "auto-routing-multipenca",
-      "where": "cross-window competition routing",
-      "what": "Diego's 3 pencas are tagged libertadores-semana but the seed matches are tagged libertadores-2026. Mantia_Repository::user_groups_in_competition() correctly normalizes both to the same storage_id, so auto-routing across the 'semanal' vs 'full tournament' framings Just Works. No user-visible 'wrong torneo' error even though the slugs differ.",
-      "evidence": "Match 6390 (Flamengo vs Palmeiras) has _mantia_competition_id='libertadores-2026'. Groups 6763/6773/6792 have _mantia_competition_id='libertadores-semana'. handle_quick_score still wrote to all 3 (verified via state query showing 3 prediction posts for match_id=6390). Code: class-mantia-repository.php:497-508."
-    },
-    {
-      "severity": "paper-cut",
-      "lens": "copy",
-      "flow": "listar-pencas",
-      "where": "row description pluralization",
-      "what": "Description says '1 jugadores' for a solo penca — should be '1 jugador'. Code uses _n with max(member_count, pred_count) as the pluralization decider, so when there are 9 pronósticos (plural) but 1 jugador (singular) it picks the plural form for BOTH halves, producing '1 jugadores · 9 pronósticos'. Wrong for the player half.",
-      "fix_hint": "Split the line into two _n calls — one for jugadores using $member_count, one for pronósticos using $pred_count — and concatenate, instead of one combined format string controlled by max().",
-      "evidence": "All 3 rows show '… · 1 jugadores · 9 pronósticos'. Source: class-mantia-whatsapp-flow.php:1176 — single sprintf+_n with max() as the count."
-    },
-    {
-      "severity": "paper-cut",
-      "lens": "copy",
-      "flow": "auto-routing-multipenca",
-      "where": "bare-score prefix when user has nothing pending",
-      "what": "Send '1-0' cold when every match is already predicted: bot replies 'Recibí *1-0* pero no sé para qué partido. Tocá uno y lo anoto.\\n\\n✅ Tenés todos los partidos pronosticados. ¡Bien ahí!' — prefix tells user to 'Tocá uno' but the body says there's nothing to tap, and there is no Interactive List. Contradictory copy. The score is also stashed for 5 min and will silently overwrite the next match the user taps, which can be surprising.",
-      "fix_hint": "In class-mantia-whatsapp-flow.php:207-211, when handle_pending() returns the 'todos los partidos pronosticados' branch, either (a) skip stashing and reply 'Recibí *X-Y* pero ya tenés todos los partidos pronosticados. Tocá un partido para cambiar el marcador.' with a 'Partidos' button, or (b) keep the stash but change the prefix to 'Recibí *X-Y*. Tocá un partido en *Partidos* para anotarlo.'",
-      "evidence": "Send '1-0' (no pending match) → reply contains both 'Tocá uno y lo anoto.' AND 'Tenés todos los partidos pronosticados.' with interactive.type='button' (NO list). The 1-0 stash then silently applied when tapping match 6382 in the next turn (overwriting 3-2 with 1-0)."
-    },
-    {
-      "severity": "paper-cut",
-      "lens": "flow",
-      "flow": "auto-routing-multipenca",
-      "where": "rate-limiter trips on the legitimate organizer pattern",
-      "what": "Sending 'tap match → score' twice in <30s triggers 'Estás mandando muchos mensajes en poco tiempo. Esperá ~60s y volvé a intentar.' The organizer-of-3-pencas persona (Diego's whole brief) is also the user most likely to fire several score writes in a row. The throttle hits a legitimate use case — and worse, the throttle message blocks even a 'mis pencas' query, not just score writes.",
-      "fix_hint": "Either (a) raise the per-minute cap from whatever it is now (looks like ~2-3/min) to ~8-10 for authenticated users with ≥1 penca, or (b) only throttle write operations (create-penca, score) and let read-only commands (mis pencas, partidos, home, leaderboard) through.",
-      "evidence": "Sequence: tap mantia:match:6391 → reply OK in 47ms; immediately send '3-2' → reply 'Estás mandando muchos mensajes en poco tiempo. Esperá ~60s y volvé a intentar.' in 11ms. After 70s cooldown, same '3-2' wrote successfully. Subsequent 'mis pencas' (read-only) was ALSO blocked during the cooldown window."
-    },
-    {
-      "severity": "polish",
-      "lens": "ia",
-      "flow": "listar-pencas",
-      "where": "active penca marker inconsistency",
-      "what": "Still the round-1 visual mismatch: body uses '✅ *Pibes del 5*' but the row title uses '✓ Pibes del 5' (different checkmark glyph), and inactive ones use '▫️' in body but no prefix in row. Three different visual treatments for the same active/inactive status.",
-      "evidence": "Reply text contains '▫️ *Los del 92*' / '▫️ *Penca del Barrio*' / '✅ *Pibes del 5*'. Row titles: 'Los del 92' / 'Penca del Barrio' / '✓ Pibes del 5'."
+      "step": "bug-3",
+      "title": "Cold-score routing shows wrong competition label",
+      "status": "FAIL",
+      "severity": "minor",
+      "repro": [
+        "Create pencas for 'libertadores-semana' (📆 Libertadores semanal).",
+        "Send '2-1' cold."
+      ],
+      "actual": "List header shows '🥇 Libertadores 2026 — 2 partidos' even though all 3 pencas are libertadores-semana. The competition label in the pending-list section title disagrees with the user's actual competitions.",
+      "expected": "Section header should reflect the user's penca competition (📆 Libertadores semanal) or at least be consistent.",
+      "hypothesis": "Pending matches are grouped by underlying competition slug rather than by the user's joined-penca competition. Libertadores-semana matches may be also tagged libertadores-2026 in the source data."
     }
-  ],
-  "screenshots": []
+  ]
 }

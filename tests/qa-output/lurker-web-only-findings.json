@@ -1,0 +1,115 @@
+{
+  "persona": "lurker-web-only",
+  "ran_at": "2026-05-19T21:58:32Z",
+  "flows_run": ["lurker-web", "competition-page", "404-paths", "rest-api"],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6
+  },
+  "findings": [
+    {
+      "id": 1,
+      "check": "Home CTA at mobile 390x844 says 'Ver Libertadores 2026'",
+      "category": "R1 blocker 3",
+      "status": "PASS",
+      "url": "https://mantia3.wpcomstaging.com/",
+      "viewport": "390x844",
+      "observed_ctas": ["Ver Libertadores 2026"],
+      "observed_h1": "mantia",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/01-home-mobile.png",
+      "notes": "Only one Libertadores/ranking-flavored CTA on the page, with the correct copy. No leftover 'Ver el ranking del Mundial' string anywhere."
+    },
+    {
+      "id": 2,
+      "check": "/penca/no-existe/ shows themed 404 with H1 'Este link de penca no funciona o ya venció.'",
+      "category": "R2 polish — unified H1",
+      "status": "PASS",
+      "url": "https://mantia3.wpcomstaging.com/penca/no-existe/",
+      "observed_title": "No encontrado",
+      "observed_h1": "Este link de penca no funciona o ya venció.",
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png",
+      "notes": "Themed 404 renders correctly. Body shows '404' badge, the prescribed H1, and helper text about expired links."
+    },
+    {
+      "id": 3,
+      "check": "Themed 404 primary CTA says 'Ver Libertadores 2026' (not Mundial)",
+      "category": "R1 blocker 3",
+      "status": "PASS",
+      "url": "https://mantia3.wpcomstaging.com/penca/no-existe/",
+      "observed_ctas": ["Ver Libertadores 2026", "Crear una penca", "Hablar con el bot", "MANTIA"],
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png",
+      "notes": "Primary CTA on themed 404 reads 'Ver Libertadores 2026'. No 'Mundial' string remains."
+    },
+    {
+      "id": 4,
+      "check": "REST API /wp/v2/{mantia_prediction,mantia_user,mantia_group,mantia_match} returns 404",
+      "category": "R1 blocker 5",
+      "status": "PASS",
+      "results": [
+        {"endpoint": "/wp-json/wp/v2/mantia_prediction", "http": 404, "code": "rest_no_route"},
+        {"endpoint": "/wp-json/wp/v2/mantia_user", "http": 404, "code": "rest_no_route"},
+        {"endpoint": "/wp-json/wp/v2/mantia_group", "http": 404, "code": "rest_no_route"},
+        {"endpoint": "/wp-json/wp/v2/mantia_match", "http": 404, "code": "rest_no_route"}
+      ],
+      "notes": "All four CPTs return rest_no_route 404. show_in_rest=false is in effect."
+    },
+    {
+      "id": 5,
+      "check": "/manifest.json (no trailing slash) returns 200; /service-worker.js (no trailing slash) returns 200",
+      "category": "R3 paper-cut",
+      "status": "FAIL",
+      "results": [
+        {
+          "endpoint": "/manifest.json",
+          "http": 301,
+          "redirect_to": "/manifest.json/",
+          "content_type_at_redirect_target": "application/manifest+json; charset=utf-8",
+          "follow_final_http": 200,
+          "severity": "low",
+          "notes": "Without trailing slash returns 301 redirect (x-redirect-by: WordPress) to /manifest.json/. Follows successfully to 200. Browsers tolerate the redirect, but bare URL is not 200."
+        },
+        {
+          "endpoint": "/service-worker.js",
+          "http": 404,
+          "content_type": "text/html",
+          "served_by": "nginx",
+          "follow_final_http": 404,
+          "severity": "high",
+          "notes": "Hard nginx 404 on /service-worker.js. Only /service-worker.js/ (with trailing slash) returns 200. This is wrong for service workers — many registrations specify the bare path. Spec says SW must be served at the scope path it claims."
+        }
+      ],
+      "evidence_curl_headers": "manifest: HTTP/2 301; location: https://mantia3.wpcomstaging.com/manifest.json/. service-worker: HTTP/2 404 nginx, length 146.",
+      "summary": "manifest.json/no-slash: 301 (minor). service-worker.js/no-slash: 404 (high). Both fail the R3 paper-cut 'bare URLs work without trailing slash' bar."
+    },
+    {
+      "id": 6,
+      "check": "Competition page subtitle uses arrow '→' not en-dash '–'",
+      "category": "R3 polish",
+      "status": "PASS",
+      "url": "https://mantia3.wpcomstaging.com/penca/libertadores-2026/",
+      "observed_subtitle_line": "mar 19 may → mar 26 may · 9 partidos",
+      "characters_found": {
+        "arrow_→": true,
+        "en_dash_–": false,
+        "em_dash_—": false,
+        "hyphen_minus": false
+      },
+      "evidence": "/var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/03-competition.png",
+      "notes": "Subtitle line uses the proper arrow. No stray dashes elsewhere on the page either."
+    }
+  ],
+  "new_observations": [
+    {
+      "id": "obs-1",
+      "severity": "info",
+      "url": "https://mantia3.wpcomstaging.com/",
+      "observation": "HTML <link rel=\"manifest\" href=\"https://mantia3.wpcomstaging.com/manifest.json/\"> already includes the trailing slash, so PWA install in the browser works. The bare /manifest.json URL just isn't canonical."
+    },
+    {
+      "id": "obs-2",
+      "severity": "info",
+      "observation": "/libertadores-2026/ (without /penca/ prefix) 404s into the default WordPress 'Page not found' template (not the themed mantia 404). Only /penca/<slug> is themed. Outside this is fine, but worth knowing for future deep-link shares."
+    }
+  ]
+}

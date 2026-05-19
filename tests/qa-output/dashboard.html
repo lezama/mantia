@@ -44,16 +44,16 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
 
 <h1>Mantia · primetime-readiness</h1>
 <div class="sub">
-  Generated 2026-05-19 21:41 UTC &middot;
-  1 personas &middot;
-  13 findings total
+  Generated 2026-05-19 22:06 UTC &middot;
+  3 personas &middot;
+  20 findings total
 </div>
 
 <div class="summary">
-  <div class="tile blocker"><div class="n">0</div><div class="l">Blockers</div></div>
-  <div class="tile paper-cut"><div class="n">3</div><div class="l">Paper-cuts</div></div>
-  <div class="tile polish"><div class="n">1</div><div class="l">Polish</div></div>
-  <div class="tile works"><div class="n">9</div><div class="l">Works ✓</div></div>
+  <div class="tile blocker"><div class="n">1</div><div class="l">Blockers</div></div>
+  <div class="tile paper-cut"><div class="n">0</div><div class="l">Paper-cuts</div></div>
+  <div class="tile polish"><div class="n">0</div><div class="l">Polish</div></div>
+  <div class="tile works"><div class="n">5</div><div class="l">Works ✓</div></div>
 </div>
 
 <div class="personas">
@@ -63,10 +63,22 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
     </thead>
     <tbody>
           <tr>
+        <td>lurker-web-only</td>
+        <td>2026-05-19T21:58:32Z</td>
+        <td>lurker-web, competition-page, 404-paths, rest-api</td>
+        <td>6</td>
+      </tr>
+          <tr>
         <td>multi-penca</td>
-        <td>2026-05-19T19:30:00Z</td>
-        <td>crear-penca, crear-penca, crear-penca, auto-routing-multipenca, listar-pencas</td>
-        <td>13</td>
+        <td>2026-05-19T21:58:17Z</td>
+        <td>crear-penca x3, auto-routing, listar-pencas, stash-collision</td>
+        <td>8</td>
+      </tr>
+          <tr>
+        <td>organizer-cold</td>
+        <td>2026-05-19T00:00:00Z</td>
+        <td>onboarding-cold, crear-penca, mis-pencas</td>
+        <td>6</td>
       </tr>
         </tbody>
   </table>
@@ -75,136 +87,194 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
 <div class="findings">
       <div class="finding">
       <div class="head">
-        <span class="badge paper-cut">paper-cut</span>
-        <span class="lens">copy</span>
-        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
+        <span class="badge blocker">blocker</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
       </div>
-      <div class="where">row description pluralization</div>
-      <div class="what">Description says &apos;1 jugadores&apos; for a solo penca — should be &apos;1 jugador&apos;. Code uses _n with max(member_count, pred_count) as the pluralization decider, so when there are 9 pronósticos (plural) but 1 jugador (singular) it picks the plural form for BOTH halves, producing &apos;1 jugadores · 9 pronósticos&apos;. Wrong for the player half.</div>
-              <div class="evidence">evidence: All 3 rows show &apos;… · 1 jugadores · 9 pronósticos&apos;. Source: class-mantia-whatsapp-flow.php:1176 — single sprintf+_n with max() as the count.</div>
-                    <div class="fix">fix: Split the line into two _n calls — one for jugadores using $member_count, one for pronósticos using $pred_count — and concatenate, instead of one combined format string controlled by max().</div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply STILL contains &apos;📱 Tu link privado: https://mantia3.wpcomstaging.com/penca/me/2e037255eb088ce47d32b1d5&apos;. Privacy-leak regression — the private edit-token URL is shown right after the public share card. &apos;Ver standings en la web&apos; is NOT present, but &apos;Tu link privado&apos; line still leaks. Half-fixed.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply: &apos;Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply starts with &apos;Hola. Soy *Mantia*...&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply: &apos;Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.&apos; + Interactive list of pending matches.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Tapping mantia:match:6390 (Flamengo vs Palmeiras) replied: &apos;✅ Anotado en *Los del 92*: Flamengo 2 - 1 Palmeiras&apos;. No re-typing needed.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Row description: &apos;📆 Libertadores semanal · 1 jugador · 9 pronósticos&apos;. Singular form correct.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/01-home-mobile.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/03-competition.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge minor">minor</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge cosmetic">cosmetic</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+                    <div class="fix">fix: Wrap both &apos;pronósticos&apos; and &apos;partidos&apos; in a pluralize helper that switches based on count.</div>
           </div>
       <div class="finding">
       <div class="head">
-        <span class="badge paper-cut">paper-cut</span>
-        <span class="lens">copy</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
+        <span class="badge minor">minor</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
-      <div class="where">bare-score prefix when user has nothing pending</div>
-      <div class="what">Send &apos;1-0&apos; cold when every match is already predicted: bot replies &apos;Recibí *1-0* pero no sé para qué partido. Tocá uno y lo anoto.\n\n✅ Tenés todos los partidos pronosticados. ¡Bien ahí!&apos; — prefix tells user to &apos;Tocá uno&apos; but the body says there&apos;s nothing to tap, and there is no Interactive List. Contradictory copy. The score is also stashed for 5 min and will silently overwrite the next match the user taps, which can be surprising.</div>
-              <div class="evidence">evidence: Send &apos;1-0&apos; (no pending match) → reply contains both &apos;Tocá uno y lo anoto.&apos; AND &apos;Tenés todos los partidos pronosticados.&apos; with interactive.type=&apos;button&apos; (NO list). The 1-0 stash then silently applied when tapping match 6382 in the next turn (overwriting 3-2 with 1-0).</div>
-                    <div class="fix">fix: In class-mantia-whatsapp-flow.php:207-211, when handle_pending() returns the &apos;todos los partidos pronosticados&apos; branch, either (a) skip stashing and reply &apos;Recibí *X-Y* pero ya tenés todos los partidos pronosticados. Tocá un partido para cambiar el marcador.&apos; with a &apos;Partidos&apos; button, or (b) keep the stash but change the prefix to &apos;Recibí *X-Y*. Tocá un partido en *Partidos* para anotarlo.&apos;</div>
-          </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge paper-cut">paper-cut</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
-      </div>
-      <div class="where">rate-limiter trips on the legitimate organizer pattern</div>
-      <div class="what">Sending &apos;tap match → score&apos; twice in &lt;30s triggers &apos;Estás mandando muchos mensajes en poco tiempo. Esperá ~60s y volvé a intentar.&apos; The organizer-of-3-pencas persona (Diego&apos;s whole brief) is also the user most likely to fire several score writes in a row. The throttle hits a legitimate use case — and worse, the throttle message blocks even a &apos;mis pencas&apos; query, not just score writes.</div>
-              <div class="evidence">evidence: Sequence: tap mantia:match:6391 → reply OK in 47ms; immediately send &apos;3-2&apos; → reply &apos;Estás mandando muchos mensajes en poco tiempo. Esperá ~60s y volvé a intentar.&apos; in 11ms. After 70s cooldown, same &apos;3-2&apos; wrote successfully. Subsequent &apos;mis pencas&apos; (read-only) was ALSO blocked during the cooldown window.</div>
-                    <div class="fix">fix: Either (a) raise the per-minute cap from whatever it is now (looks like ~2-3/min) to ~8-10 for authenticated users with ≥1 penca, or (b) only throttle write operations (create-penca, score) and let read-only commands (mis pencas, partidos, home, leaderboard) through.</div>
-          </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge polish">polish</span>
-        <span class="lens">ia</span>
-        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
-      </div>
-      <div class="where">active penca marker inconsistency</div>
-      <div class="what">Still the round-1 visual mismatch: body uses &apos;✅ *Pibes del 5*&apos; but the row title uses &apos;✓ Pibes del 5&apos; (different checkmark glyph), and inactive ones use &apos;▫️&apos; in body but no prefix in row. Three different visual treatments for the same active/inactive status.</div>
-              <div class="evidence">evidence: Reply text contains &apos;▫️ *Los del 92*&apos; / &apos;▫️ *Penca del Barrio*&apos; / &apos;✅ *Pibes del 5*&apos;. Row titles: &apos;Los del 92&apos; / &apos;Penca del Barrio&apos; / &apos;✓ Pibes del 5&apos;.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">copy</span>
-        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
-      </div>
-      <div class="where">home reply suggestion text</div>
-      <div class="what">Round-1 paper-cut closed. Home now says &apos;Tenés 3 pencas en total. Escribí *mis pencas* para verlas.&apos; — matches the product noun everywhere else. The lingering &apos;mis grupos&apos; suggestion is gone.</div>
-              <div class="evidence">evidence: Reply to &apos;home&apos;: &apos;Activa: *Pibes del 5*\n📆 Libertadores semanal • codigo `PIBESDEL5JRJMG`\nTenés 3 pencas en total. Escribí *mis pencas* para verlas.&apos; Code: class-mantia-whatsapp-flow.php:1347.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">copy</span>
-        <span class="persona-tag">· multi-penca · flow crear-penca</span>
-      </div>
-      <div class="where">cold hola reply</div>
-      <div class="what">Round-1 paper-cut closed. Welcome text now says &apos;la app de pronósticos de fútbol por WhatsApp&apos; instead of &apos;mundialistas&apos;. Correct for the Libertadores-only seed.</div>
-              <div class="evidence">evidence: Reply to &apos;hola&apos; (cold user): &apos;Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\n\n¿Por dónde arrancamos?&apos; Code: class-mantia-whatsapp-flow.php:1299.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
-      </div>
-      <div class="where">bare score with NO pending-match (round-1 BLOCKER fix)</div>
-      <div class="what">Round-1 BLOCKER closed. Sending &apos;2-1&apos; as the first message after creating 3 pencas now replies &apos;Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.&apos; + an Interactive List of pending matches grouped by competition. No more silent fall-through to the empty LLM reply.</div>
-              <div class="evidence">evidence: After creating Los del 92 / Penca del Barrio / Pibes del 5 and sending &apos;2-1&apos; cold, reply = &apos;Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.\n\nTe faltan *2* pronósticos:\n\n*🥇 Libertadores 2026* — 2 partidos\n\n_Tocá uno y te pido el marcador._&apos; + list rows [{Flamengo vs Palmeiras}, {River vs Boca}]. Code path: class-mantia-whatsapp-flow.php:207-211 (stashes the score, prefixes handle_pending output).</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
-      </div>
-      <div class="where">stashed-score → tap match → auto-apply (NEW UX)</div>
-      <div class="what">Type &apos;2-1&apos; cold (no match context). Bot stashes 2-1 in a 5-min transient and shows pending matches. Tap mantia:match:6390 (Flamengo vs Palmeiras). Bot auto-applies the stashed 2-1 across all 3 pencas in a single round trip — no need to retype. Real UX win: turns the failure case into a feature.</div>
-              <div class="evidence">evidence: After &apos;Recibí *2-1* pero no sé...&apos; prefix, sending mantia:match:6390 returned &apos;✅ Anotado en *Los del 92*, *Penca del Barrio*, *Pibes del 5*: Flamengo 2 - 1 Palmeiras&apos;. Re-tested with &apos;1-0&apos; + tap mantia:match:6382 → &apos;✅ Anotado en ... : Bolívar 1 - 0 Cerro Porteño&apos;. Code path: class-mantia-whatsapp-flow.php:1837-1843 reads the stash on match-tap and calls handle_quick_score directly.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
-      </div>
-      <div class="where">classic auto-routing (tap match → send score)</div>
-      <div class="what">Did NOT regress. After tapping mantia:match:6391 (River vs Boca) the bot prompted for a score; &apos;3-2&apos; wrote to all 3 pencas. Reply &apos;Anotado en *Los del 92*, *Penca del Barrio*, *Pibes del 5*: River Plate 3 - 2 Boca Juniors&apos;. DB shows 3 separate prediction posts (pids 6869/6870/6871) — one per group, all with River 3-2 Boca, all linked to user 6764. Overwrite (1-0 applied later via stashed flow) updated the same row set in-place.</div>
-              <div class="evidence">evidence: state.predictions = 30 after all writes; per-group breakdown shows match_id 6391 mapped to group_ids 6763/6773/6792 (the 3 pencas). Reply order matches creation order. Asterisk wrapping intact.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow crear-penca</span>
-      </div>
-      <div class="where">3 pencas back-to-back, no rate-limit</div>
-      <div class="what">Three pencas created in sequence with no throttling on the create path. Each created with its own group_id (6763/6773/6792), correctly tagged competition=libertadores-semana, and auto-populated with 8 default predictions per penca (24 total at the start). Rate-limit DOES fire later — but only on score writes (see polish note).</div>
-              <div class="evidence">evidence: state.groups = 3 distinct ids; state.predictions = 24 before any user score writes; no rate-limit message during the 3 sequential creates.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">flow</span>
-        <span class="persona-tag">· multi-penca · flow auto-routing-multipenca</span>
-      </div>
-      <div class="where">cross-window competition routing</div>
-      <div class="what">Diego&apos;s 3 pencas are tagged libertadores-semana but the seed matches are tagged libertadores-2026. Mantia_Repository::user_groups_in_competition() correctly normalizes both to the same storage_id, so auto-routing across the &apos;semanal&apos; vs &apos;full tournament&apos; framings Just Works. No user-visible &apos;wrong torneo&apos; error even though the slugs differ.</div>
-              <div class="evidence">evidence: Match 6390 (Flamengo vs Palmeiras) has _mantia_competition_id=&apos;libertadores-2026&apos;. Groups 6763/6773/6792 have _mantia_competition_id=&apos;libertadores-semana&apos;. handle_quick_score still wrote to all 3 (verified via state query showing 3 prediction posts for match_id=6390). Code: class-mantia-repository.php:497-508.</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">ia</span>
-        <span class="persona-tag">· multi-penca · flow listar-pencas</span>
-      </div>
-      <div class="where">row description on &apos;mis pencas&apos; list</div>
-      <div class="what">Round-1 paper-cut closed. Each row now shows torneo + member + prediction counts: &apos;📆 Libertadores semanal · 1 jugadores · 9 pronósticos&apos;. Diego can see at a glance where he has predictions pending.</div>
-              <div class="evidence">evidence: Row for Los del 92: {title:&apos;Los del 92&apos;, description:&apos;📆 Libertadores semanal · 1 jugadores · 9 pronósticos&apos;}. Source: class-mantia-whatsapp-flow.php:1176 builds the line via _n( &apos;%d jugador · %d pronóstico&apos;, &apos;%d jugadores · %d pronósticos&apos;, max(...) ).</div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge works">works</span>
-        <span class="lens">ia</span>
-        <span class="persona-tag">· multi-penca · flow crear-penca</span>
-      </div>
-      <div class="where">competition picker</div>
-      <div class="what">Picker still has EXACTLY 2 rows (Libertadores 2026 + Libertadores semanal) and the IDs are the documented mantia:competition:&lt;slug&gt; shape — confirmed across all 3 creates.</div>
-              <div class="evidence">evidence: Picker rows on each of the 3 create flows: [{id:&apos;mantia:competition:libertadores-2026&apos;, title:&apos;🥇 Libertadores 2026&apos;}, {id:&apos;mantia:competition:libertadores-semana&apos;, title:&apos;📆 Libertadores semanal&apos;}].</div>
+      <div class="where"></div>
+      <div class="what"></div>
                 </div>
   </div>
 
