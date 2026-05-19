@@ -49,13 +49,18 @@ final class Mantia_Frontend {
 		// PWA endpoints. All at root scope so the service worker can
 		// control /penca/* paths — a SW served from /penca/... can only
 		// control siblings of its own path.
+		// Optional trailing slash on both — WP's canonical redirect rewrites
+		// path-style URLs to trailing-slash form, so the strict no-slash
+		// regex used to 404 the canonical form. Lighthouse / PWA Builder
+		// hit the non-slash form; browsers register the trailing-slash form;
+		// accept both.
 		add_rewrite_rule(
-			'^manifest\.json$',
+			'^manifest\.json/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-manifest',
 			'top'
 		);
 		add_rewrite_rule(
-			'^service-worker\.js$',
+			'^service-worker\.js/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-sw',
 			'top'
 		);
@@ -486,7 +491,34 @@ final class Mantia_Frontend {
 			<section class="mantia-block">
 				<div class="mantia-eyebrow"><?php esc_html_e( 'tabla del grupo', 'mantia' ); ?></div>
 				<?php if ( empty( $rows ) ) : ?>
-					<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos cargados.', 'mantia' ); ?></p>
+					<?php
+					// Fresh-joiner safety net: when no scores are tabulated
+					// yet, show the roster instead of a dead "Todavía no hay
+					// puntos cargados." A QA persona who'd just joined
+					// reported feeling unconfirmed — hero says "4 jugadores"
+					// but nothing visible attests they're one of them. The
+					// roster doubles as that proof + a "who's here?" answer.
+					if ( ! empty( $members ) ) :
+						?>
+						<p class="mantia-empty mantia-empty-soft"><?php esc_html_e( 'Sin puntos todavía — la tabla aparece después del primer partido resuelto.', 'mantia' ); ?></p>
+						<div class="mantia-roster">
+							<?php foreach ( $members as $m ) :
+								$row_cls = 'mantia-roster-row' . ( null !== $me_id && (int) $m['id'] === $me_id ? ' mantia-roster-row-me' : '' );
+								?>
+								<div class="<?php echo esc_attr( $row_cls ); ?>">
+									<?php echo self::user_avatar( (int) $m['id'], 28 ); ?>
+									<span class="mantia-roster-name">
+										<?php echo esc_html( (string) ( $m['display_name'] ?? __( 'Jugador', 'mantia' ) ) ); ?>
+										<?php if ( null !== $me_id && (int) $m['id'] === $me_id ) : ?>
+											<span class="mantia-roster-me"><?php esc_html_e( '· vos', 'mantia' ); ?></span>
+										<?php endif; ?>
+									</span>
+								</div>
+							<?php endforeach; ?>
+						</div>
+					<?php else : ?>
+						<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos cargados.', 'mantia' ); ?></p>
+					<?php endif; ?>
 				<?php else : ?>
 					<?php self::render_leaderboard( $rows, 'group', $me_id ); ?>
 				<?php endif; ?>
@@ -1366,7 +1398,12 @@ SVG;
 		// were sent and the recipient could now navigate to it).
 		$back_url = home_url( '/' );
 
-		$share_group_url = $best ? Mantia_Repository::group_view_url( (int) $best['group']['id'] ) : home_url( '/' );
+		// Even on the empty-state poster the recipient should land on
+		// THIS user's share view (not bare domain) — otherwise the wa.me
+		// preview reads as "mantia3.wpcomstaging.com/" with no context.
+		$share_group_url = $best
+			? Mantia_Repository::group_view_url( (int) $best['group']['id'] )
+			: home_url( '/penca/me/share/' . $token . '/' );
 
 		// Rank-aware headline. The user's poster is 2nd-person ("vas X en Y")
 		// because the share originates from the user themselves. For ranks
@@ -2577,7 +2614,7 @@ JS;
 			if ( null !== $first && null !== $last ) {
 				$range = $first === $last
 					? self::format_es_short_day( $first )
-					: sprintf( '%s – %s', self::format_es_short_day( $first ), self::format_es_short_day( $last ) );
+					: sprintf( '%s → %s', self::format_es_short_day( $first ), self::format_es_short_day( $last ) );
 				return sprintf( '%s · %d partidos', $range, count( $matches ) );
 			}
 		}
@@ -2974,6 +3011,11 @@ body {
 	font-size: 14px;
 	margin: 6px 0 0;
 }
+.mantia-empty-soft {
+	font-size: 13px;
+	color: var(--ink-soft);
+	margin: 4px 0 10px;
+}
 .mantia-empty-card {
 	background: var(--field);
 	padding: 14px 16px;
@@ -2981,6 +3023,39 @@ body {
 	color: var(--ink-soft);
 	font-size: 14px;
 	margin: 14px 0 0;
+}
+/* Roster shown on /penca/g/<token>/ when no scores tabulated yet —
+   gives fresh joiners visible confirmation they're in the group, plus
+   answers "who's already here?" until the leaderboard wakes up. */
+.mantia-roster {
+	display: grid;
+	gap: 6px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	padding: 12px 14px;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+.mantia-roster-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-family: var(--font-body);
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--ink);
+}
+.mantia-roster-row-me {
+	background: var(--accent-2);
+	border-radius: 8px;
+	padding: 4px 8px;
+	margin: -4px -8px;
+}
+.mantia-roster-name { min-width: 0; }
+.mantia-roster-me {
+	color: var(--ink-soft);
+	font-weight: 600;
+	font-size: 13px;
 }
 
 /* ─── Hairline rule ──────────────────────────────────────────────── */

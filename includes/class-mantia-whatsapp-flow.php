@@ -1144,64 +1144,90 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// 2+ groups → list selector. We render the group names inline in
-		// the text first so the user reads them immediately instead of
-		// having to tap the list button to see what's inside.
+		// Render every penca — even N=1 — as a tappable Interactive List
+		// row. Two reasons: (a) consistent affordance (always a tap to
+		// drill in, never a "where do I go?" plain-text); (b) the row
+		// description carries the "N jugadores · M pronósticos" sub-line
+		// the QA cycle asked for, which has no home in a plain-text reply.
+		$rows  = array();
+		$lines = array();
 		if ( count( $groups ) >= 2 ) {
-			$rows  = array();
-			$lines = array( sprintf( 'Estás en %d %s:', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ), '' );
-			foreach ( $groups as $g ) {
-				$marker     = ! empty( $g['is_active'] ) ? '✅' : '▫️';
-				$comp_part  = isset( $g['competition_name'] ) && '' !== $g['competition_name']
-					? ' · ' . $g['competition_name']
-					: '';
-				$lines[]    = sprintf( '%s *%s*%s', $marker, $g['name'], $comp_part );
-				$rows[]     = array(
-					'id'          => 'mantia:switch:' . (int) $g['id'],
-					'title'       => self::truncate_title( ( ! empty( $g['is_active'] ) ? '✓ ' : '' ) . $g['name'], 24 ),
-					'description' => self::truncate_title( (string) ( $g['competition_name'] ?? '' ), 72 ),
-				);
-			}
+			$lines[] = sprintf( 'Estás en %d %s:', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
 			$lines[] = '';
-			$lines[] = '_Tocá una para hacerla la activa._';
-			return array(
-				'reply'       => implode( "\n", $lines ),
-				'interactive' => array(
-					'type'         => 'list',
-					'button_label' => self::truncate_title( 'Cambiar ' . Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), 20 ),
-					'sections'     => array(
-						array(
-							'title' => sprintf( 'Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
-							'rows' => $rows,
-						),
-					),
+		} else {
+			$lines[] = sprintf( 'Tu %s:', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ) );
+			$lines[] = '';
+		}
+		foreach ( $groups as $g ) {
+			$gid          = (int) $g['id'];
+			$marker       = ! empty( $g['is_active'] ) ? '✅' : '▫️';
+			$comp_part    = isset( $g['competition_name'] ) && '' !== $g['competition_name']
+				? ' · ' . $g['competition_name']
+				: '';
+			$lines[]      = sprintf( '%s *%s*%s', $marker, $g['name'], $comp_part );
+
+			// Per-row counts: members + this-user predictions in this penca.
+			$member_count = count( Mantia_Repository::group_members( $gid ) );
+			$pred_count   = self::count_user_predictions_in_group( (int) $user->ID, $gid );
+			$desc_parts   = array_filter( array(
+				(string) ( $g['competition_name'] ?? '' ),
+				sprintf(
+					/* translators: 1: members count, 2: predictions count */
+					_n( '%1$d jugador · %2$d pronóstico', '%1$d jugadores · %2$d pronósticos', max( $member_count, $pred_count ), 'mantia' ),
+					$member_count,
+					$pred_count
 				),
-				'completed' => true,
+			) );
+
+			$rows[] = array(
+				'id'          => 'mantia:switch:' . $gid,
+				'title'       => self::truncate_title( ( ! empty( $g['is_active'] ) ? '✓ ' : '' ) . $g['name'], 24 ),
+				'description' => self::truncate_title( implode( ' · ', $desc_parts ), 72 ),
 			);
 		}
+		$lines[] = '';
+		$lines[] = count( $groups ) >= 2
+			? '_Tocá una para hacerla la activa._'
+			: '_Tocá para ver el detalle._';
 
-		$g = $groups[0];
 		return array(
-			'reply'       => sprintf( 'Tu %s: *%s* (código `%s`).', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), $g['name'], $g['invite_code'] ),
+			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
-				'type'    => 'button',
-				'buttons' => array(
+				'type'         => 'list',
+				'button_label' => self::truncate_title( 'Ver ' . Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ), 20 ),
+				'sections'     => array(
 					array(
-						'id' => 'mantia:cmd:share-link',
-						'title' => '📤 Invitar',
-					),
-					array(
-						'id' => 'mantia:cmd:home',
-						'title' => '🏠 Resumen',
-					),
-					array(
-						'id' => 'mantia:cmd:new-penca',
-						'title' => '➕ Crear otra',
+						'title' => sprintf( 'Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
+						'rows'  => $rows,
 					),
 				),
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * Count predictions made by a user in a specific penca. Used to build
+	 * the "N pronósticos" sub-line on the mis-pencas list — fresh joiners
+	 * see how many of their default seeded predictions they've reviewed.
+	 */
+	private static function count_user_predictions_in_group( int $user_id, int $group_id ): int {
+		if ( $user_id <= 0 || $group_id <= 0 ) {
+			return 0;
+		}
+		$ids = get_posts( array(
+			'post_type'      => Mantia_CPTs::PREDICTION,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				'relation' => 'AND',
+				array( 'key' => Mantia_Repository::META_USER_ID,  'value' => $user_id ),
+				array( 'key' => Mantia_Repository::META_GROUP_ID, 'value' => $group_id ),
+			),
+		) );
+		return count( (array) $ids );
 	}
 
 	private static function handle_share_link( array $identity ): array {
@@ -1270,7 +1296,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
 			return array(
-				'reply'       => "Hola! Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\n\n¿Por dónde arrancamos?",
+				'reply'       => "Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.\n\n¿Por dónde arrancamos?",
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(

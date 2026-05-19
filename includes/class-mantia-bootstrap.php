@@ -48,7 +48,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 4;
+	private const DB_VERSION        = 5;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -75,6 +75,12 @@ final class Mantia_Bootstrap {
 					)
 				);
 			}
+		}
+
+		// v5: PWA rewrite regexes added optional trailing slash. Flush so
+		// the new patterns take effect without re-activating the plugin.
+		if ( $current < 5 ) {
+			flush_rewrite_rules();
 		}
 
 		// v4: drop competitions removed from default_seed() (Mundial,
