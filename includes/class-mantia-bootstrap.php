@@ -19,6 +19,7 @@ final class Mantia_Bootstrap {
 
 		add_action( 'init', array( 'Mantia_CPTs', 'register' ), 5 );
 		add_action( 'init', array( __CLASS__, 'register_blocks' ), 20 );
+		add_action( 'init', array( __CLASS__, 'maybe_run_upgrade' ), 25 );
 		add_action( 'admin_notices', array( __CLASS__, 'render_dependency_notice' ) );
 
 		add_filter( 'openclawp_register_whatsapp', '__return_true' );
@@ -39,6 +40,24 @@ final class Mantia_Bootstrap {
 		Mantia_Competitions::seed_defaults();
 		Mantia_Fixture_Seeder::seed();
 		flush_rewrite_rules();
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * Bump when a deploy needs the seed-defaults migration to re-run
+	 * (currently used to self-heal placeholder competition descriptions
+	 * without forcing a plugin re-activation on prod).
+	 */
+	private const DB_VERSION        = 2;
+	private const DB_VERSION_OPTION = 'mantia_db_version';
+
+	public static function maybe_run_upgrade(): void {
+		$current = (int) get_option( self::DB_VERSION_OPTION, 0 );
+		if ( $current >= self::DB_VERSION ) {
+			return;
+		}
+		Mantia_Competitions::seed_defaults();
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 	}
 
 	public static function register_blocks(): void {
