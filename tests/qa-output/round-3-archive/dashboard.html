@@ -44,16 +44,16 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
 
 <h1>Mantia · primetime-readiness</h1>
 <div class="sub">
-  Generated 2026-05-19 23:45 UTC &middot;
+  Generated 2026-05-19 22:06 UTC &middot;
   3 personas &middot;
-  22 findings total
+  20 findings total
 </div>
 
 <div class="summary">
-  <div class="tile blocker"><div class="n">0</div><div class="l">Blockers</div></div>
+  <div class="tile blocker"><div class="n">1</div><div class="l">Blockers</div></div>
   <div class="tile paper-cut"><div class="n">0</div><div class="l">Paper-cuts</div></div>
   <div class="tile polish"><div class="n">0</div><div class="l">Polish</div></div>
-  <div class="tile works"><div class="n">0</div><div class="l">Works ✓</div></div>
+  <div class="tile works"><div class="n">5</div><div class="l">Works ✓</div></div>
 </div>
 
 <div class="personas">
@@ -63,22 +63,22 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
     </thead>
     <tbody>
           <tr>
-        <td>laura-journalist</td>
-        <td>2026-05-19T00:00:00Z</td>
-        <td></td>
-        <td>0</td>
+        <td>lurker-web-only</td>
+        <td>2026-05-19T21:58:32Z</td>
+        <td>lurker-web, competition-page, 404-paths, rest-api</td>
+        <td>6</td>
       </tr>
           <tr>
-        <td>tincho-organizer</td>
-        <td>2026-05-19T00:00:00Z</td>
-        <td></td>
-        <td>0</td>
+        <td>multi-penca</td>
+        <td>2026-05-19T21:58:17Z</td>
+        <td>crear-penca x3, auto-routing, listar-pencas, stash-collision</td>
+        <td>8</td>
       </tr>
           <tr>
-        <td>tio-roberto</td>
-        <td>2026-05-19T22:14:49Z</td>
-        <td></td>
-        <td>22</td>
+        <td>organizer-cold</td>
+        <td>2026-05-19T00:00:00Z</td>
+        <td>onboarding-cold, crear-penca, mis-pencas</td>
+        <td>6</td>
       </tr>
         </tbody>
   </table>
@@ -87,198 +87,191 @@ h1 { font-size: 32px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.02em
 <div class="findings">
       <div class="finding">
       <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
+        <span class="badge blocker">blocker</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply STILL contains &apos;📱 Tu link privado: https://mantia3.wpcomstaging.com/penca/me/2e037255eb088ce47d32b1d5&apos;. Privacy-leak regression — the private edit-token URL is shown right after the public share card. &apos;Ver standings en la web&apos; is NOT present, but &apos;Tu link privado&apos; line still leaks. Half-fixed.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply: &apos;Hola. Soy *Mantia*, la app de pronósticos de fútbol por WhatsApp.&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply starts with &apos;Hola. Soy *Mantia*...&apos;</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Reply: &apos;Recibí *2-1* pero no sé para qué partido. Tocá uno y lo anoto.&apos; + Interactive list of pending matches.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Tapping mantia:match:6390 (Flamengo vs Palmeiras) replied: &apos;✅ Anotado en *Los del 92*: Flamengo 2 - 1 Palmeiras&apos;. No re-typing needed.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge works">works</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· organizer-cold · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: Row description: &apos;📆 Libertadores semanal · 1 jugador · 9 pronósticos&apos;. Singular form correct.</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/01-home-mobile.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/02-404-penca.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge excelencia">excelencia</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge voz-rota">voz-rota</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· lurker-web-only · flow ?</span>
+      </div>
+      <div class="where"></div>
+      <div class="what"></div>
+              <div class="evidence">evidence: /var/folders/9s/r8f3kc7x0vl0v8tddcz010r00000gn/T/qa-lurker-r3/03-competition.png</div>
+                </div>
+      <div class="finding">
+      <div class="head">
+        <span class="badge unknown">unknown</span>
+        <span class="lens">?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge excelencia">excelencia</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge overwhelm">overwhelm</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
+        <span class="badge unknown">unknown</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge voz-rota">voz-rota</span>
+        <span class="badge minor">minor</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
                 </div>
       <div class="finding">
       <div class="head">
-        <span class="badge voz-rota">voz-rota</span>
+        <span class="badge cosmetic">cosmetic</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
-                </div>
+                    <div class="fix">fix: Wrap both &apos;pronósticos&apos; and &apos;partidos&apos; in a pluralize helper that switches based on count.</div>
+          </div>
       <div class="finding">
       <div class="head">
-        <span class="badge necesita-explicacion">necesita-explicacion</span>
+        <span class="badge minor">minor</span>
         <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge excelencia">excelencia</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge necesita-explicacion">necesita-explicacion</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge necesita-explicacion">necesita-explicacion</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge excelencia">excelencia</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge voz-rota">voz-rota</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge info-faltante">info-faltante</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge necesita-explicacion">necesita-explicacion</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge overwhelm">overwhelm</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
-      </div>
-      <div class="where"></div>
-      <div class="what"></div>
-                </div>
-      <div class="finding">
-      <div class="head">
-        <span class="badge necesita-explicacion">necesita-explicacion</span>
-        <span class="lens">?</span>
-        <span class="persona-tag">· tio-roberto · flow ?</span>
+        <span class="persona-tag">· multi-penca · flow ?</span>
       </div>
       <div class="where"></div>
       <div class="what"></div>
