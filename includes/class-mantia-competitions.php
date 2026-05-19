@@ -205,7 +205,8 @@ final class Mantia_Competitions {
 			// Idempotently backfill aliases on existing seeded competitions
 			// — admins can override later via the meta box, but on first
 			// install we want every default to ship with its aliases populated.
-			if ( isset( $row['aliases'] ) && '' === (string) get_post_meta( (int) $existing->ID, self::META_ALIASES, true ) ) {
+			$existing_aliases = get_post_meta( (int) $existing->ID, self::META_ALIASES, true );
+			if ( isset( $row['aliases'] ) && empty( $existing_aliases ) ) {
 				self::save_aliases( (int) $existing->ID, (array) $row['aliases'] );
 			}
 			// Self-heal placeholder copy on the description. Anything that
