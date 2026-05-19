@@ -32,6 +32,10 @@ final class Mantia_Frontend {
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_home' ), 5 );
+		// Catch malformed /penca/* URLs (non-hex tokens, deprecated /compartir/
+		// suffix, etc.) BEFORE the theme renders its default 404. Without this
+		// they fall through to the Assembler theme placeholder content.
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_intercept_penca_404' ), 1 );
 	}
 
 	/**
@@ -184,6 +188,32 @@ final class Mantia_Frontend {
 		exit;
 	}
 
+	/**
+	 * Any URL under /penca/ that didn't match our rewrite rules (typo'd
+	 * token, non-hex characters, deprecated suffixes like /compartir/) ends
+	 * up as a generic WP 404 and falls through to whatever 404.html the
+	 * active theme ships — for Assembler that's "Page Not Found" + Lorem
+	 * ipsum business hours. Intercept here so the Mantia themed 404 wins.
+	 */
+	public static function maybe_intercept_penca_404(): void {
+		if ( ! is_404() ) {
+			return;
+		}
+		if ( '' !== (string) get_query_var( self::QUERY_VAR_VIEW ) ) {
+			return; // Our own handler will deal with it.
+		}
+		$path = (string) wp_parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH );
+		if ( '' === $path || ! str_starts_with( $path, '/penca/' ) ) {
+			return;
+		}
+
+		status_header( 404 );
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=utf-8' );
+		echo self::render_not_found( __( 'Este link de penca no funciona o ya venció.', 'mantia' ) );
+		exit;
+	}
+
 	/* =================================================================
 	 * Views
 	 * ================================================================= */
@@ -279,8 +309,21 @@ final class Mantia_Frontend {
 			<?php if ( ! empty( $rows ) ) : ?>
 				<section class="mantia-block">
 					<div class="mantia-eyebrow-row">
-						<span class="mantia-eyebrow"><?php esc_html_e( 'ranking global · top 50', 'mantia' ); ?></span>
-						<span class="mantia-eyebrow-count"><?php echo esc_html( sprintf( __( 'de %d jugadores', 'mantia' ), count( $rows ) ) ); ?></span>
+						<?php
+						$row_count = count( $rows );
+						// "TOP 50" scaffolding looks template-y under 50 — adapt.
+						$eyebrow_label = $row_count >= 50
+							? __( 'ranking global · top 50', 'mantia' )
+							: __( 'ranking global', 'mantia' );
+						?>
+						<span class="mantia-eyebrow"><?php echo esc_html( $eyebrow_label ); ?></span>
+						<span class="mantia-eyebrow-count"><?php
+							echo esc_html( sprintf(
+								/* translators: %d: number of players in the global ranking. */
+								_n( 'de %d jugador', 'de %d jugadores', $row_count, 'mantia' ),
+								$row_count
+							) );
+						?></span>
 					</div>
 					<?php self::render_leaderboard( $rows, 'competition' ); ?>
 				</section>
@@ -400,11 +443,11 @@ final class Mantia_Frontend {
 						<div class="mantia-eyebrow"><?php esc_html_e( 'último partido', 'mantia' ); ?></div>
 						<div class="mantia-recent-card">
 							<div class="mantia-recent-teams">
-								<?php echo esc_html( $last_match['home_team'] ); ?>
+								<?php echo esc_html( self::normalize_team_name( (string) $last_match['home_team'] ) ); ?>
 								<strong class="mantia-recent-score">
 									<?php echo (int) $last_match['home_score']; ?>·<?php echo (int) $last_match['away_score']; ?>
 								</strong>
-								<?php echo esc_html( $last_match['away_team'] ); ?>
+								<?php echo esc_html( self::normalize_team_name( (string) $last_match['away_team'] ) ); ?>
 							</div>
 							<div class="mantia-recent-consensus">
 								<?php
@@ -547,15 +590,15 @@ final class Mantia_Frontend {
 			<section class="mantia-stat-grid">
 				<div class="mantia-stat">
 					<div class="mantia-stat-value"><?php echo (int) $total_points; ?></div>
-					<div class="mantia-stat-label"><?php esc_html_e( 'puntos', 'mantia' ); ?></div>
+					<div class="mantia-stat-label"><?php echo esc_html( _n( 'punto', 'puntos', (int) $total_points, 'mantia' ) ); ?></div>
 				</div>
 				<div class="mantia-stat mantia-stat-bordered">
 					<div class="mantia-stat-value"><?php echo (int) $total_exacts; ?></div>
-					<div class="mantia-stat-label"><?php esc_html_e( 'exactos', 'mantia' ); ?></div>
+					<div class="mantia-stat-label"><?php echo esc_html( _n( 'exacto', 'exactos', (int) $total_exacts, 'mantia' ) ); ?></div>
 				</div>
 				<div class="mantia-stat mantia-stat-bordered">
 					<div class="mantia-stat-value"><?php echo (int) $total_preds; ?></div>
-					<div class="mantia-stat-label"><?php esc_html_e( 'pronósticos', 'mantia' ); ?></div>
+					<div class="mantia-stat-label"><?php echo esc_html( _n( 'pronóstico', 'pronósticos', (int) $total_preds, 'mantia' ) ); ?></div>
 				</div>
 			</section>
 
@@ -694,10 +737,10 @@ final class Mantia_Frontend {
 									printf(
 										/* translators: 1: home team, 2: home score, 3: away score, 4: away team, 5: signed delta like +5 or 0 */
 										esc_html__( 'Último: %1$s %2$d-%3$d %4$s → %5$s', 'mantia' ),
-										esc_html( $dm['home_team'] ),
+										esc_html( self::normalize_team_name( (string) $dm['home_team'] ) ),
 										(int) $dm['home_score'],
 										(int) $dm['away_score'],
-										esc_html( $dm['away_team'] ),
+										esc_html( self::normalize_team_name( (string) $dm['away_team'] ) ),
 										$delta['points'] > 0 ? '+' . (int) $delta['points'] . ' pts' : '0 pts' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 									);
 									?>
@@ -1228,13 +1271,37 @@ SVG;
 		}
 		$share_url = $back_url;
 
+		// Group share poster: 3rd-person headline. The recipient isn't
+		// necessarily the leader, so "<leader> va primero en <group>"
+		// reads as commentary instead of pretending the receiver is the
+		// subject. Falls back to a quiet "en <group>" when there's no leader.
+		$headline_html = '';
+		$headline_text = '';
+		$group_tag     = '<span class="mantia-share-in-tag">' . esc_html( (string) $group['name'] ) . '</span>';
+		if ( $leader ) {
+			$ordinal       = self::rank_phrase_es( (int) $leader['rank'] );
+			/* translators: 1: ordinal phrase (primero / 5°), 2: group name. */
+			$headline_html = sprintf( esc_html__( 'va %1$s en %2$s', 'mantia' ), esc_html( $ordinal ), $group_tag );
+			$headline_text = sprintf(
+				/* translators: 1: leader name, 2: ordinal phrase, 3: group name. */
+				__( '%1$s · %2$s en %3$s', 'mantia' ),
+				(string) $leader['name'],
+				$ordinal,
+				(string) $group['name']
+			);
+		} else {
+			$headline_html = sprintf( esc_html__( 'en %s', 'mantia' ), $group_tag );
+			$headline_text = sprintf( __( 'en %s', 'mantia' ), (string) $group['name'] );
+		}
+
 		return self::render_share_poster(
 			array(
 				'title'         => $group['name'],
 				'subtitle'      => $group['competition_name'] ?? '',
 				'leader_name'   => $leader ? (string) $leader['name'] : '',
 				'leader_rank'   => $leader ? (int) $leader['rank'] : 0,
-				'in_label'      => sprintf( __( 'en %s', 'mantia' ), $group['name'] ),
+				'headline_html' => $headline_html,
+				'headline_text' => $headline_text,
 				'stat_a_value'  => $leader ? (int) $leader['points'] : 0,
 				'stat_a_label'  => 'pts',
 				'stat_b_value'  => $leader ? (int) $leader['exacts'] : 0,
@@ -1291,13 +1358,29 @@ SVG;
 
 		$share_group_url = $best ? Mantia_Repository::group_view_url( (int) $best['group']['id'] ) : home_url( '/' );
 
+		// Rank-aware headline. The user's poster is 2nd-person ("vas X en Y")
+		// because the share originates from the user themselves. For ranks
+		// 1-3 the ordinal is spelled out; rank 4+ uses "4° en Y".
+		$headline_html = '';
+		$headline_text = '';
+		if ( $best ) {
+			$rank         = (int) $best['row']['rank'];
+			$group_name   = (string) $best['group']['name'];
+			$ordinal      = self::rank_phrase_es( $rank );
+			$group_tag    = '<span class="mantia-share-in-tag">' . esc_html( $group_name ) . '</span>';
+			/* translators: 1: ordinal phrase (primero / 5°), 2: group name. */
+			$headline_html = sprintf( esc_html__( 'vas %1$s en %2$s', 'mantia' ), esc_html( $ordinal ), $group_tag );
+			$headline_text = sprintf( __( 'vas %1$s en %2$s', 'mantia' ), $ordinal, $group_name );
+		}
+
 		return self::render_share_poster(
 			array(
 				'title'         => $name,
 				'subtitle'      => $best ? (string) ( $best['group']['competition_name'] ?? '' ) : '',
 				'leader_name'   => $name,
 				'leader_rank'   => $best ? (int) $best['row']['rank'] : 0,
-				'in_label'      => $best ? sprintf( __( 'en %s', 'mantia' ), $best['group']['name'] ) : '',
+				'headline_html' => $headline_html,
+				'headline_text' => $headline_text,
 				'stat_a_value'  => $best ? (int) $best['row']['points'] : 0,
 				'stat_a_label'  => 'pts',
 				'stat_b_value'  => $best ? (int) $best['row']['exacts'] : 0,
@@ -1341,16 +1424,10 @@ SVG;
 					<div class="mantia-share-center">
 						<div class="mantia-share-rank" data-rank="<?php echo esc_attr( (string) max( 1, min( $rank, 3 ) ) ); ?>"><?php echo esc_html( (string) $rank ); ?></div>
 						<div class="mantia-share-name"><?php echo esc_html( (string) $args['leader_name'] ); ?></div>
-						<?php if ( ! empty( $args['in_label'] ) ) : ?>
-							<div class="mantia-share-in">
-								<?php
-								/* translators: %s: group name highlighted on the share poster. */
-								printf(
-									esc_html__( 'vas primero en %s', 'mantia' ),
-									'<span class="mantia-share-in-tag">' . esc_html( (string) $args['in_label'] ) . '</span>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-								);
-								?>
-							</div>
+						<?php if ( ! empty( $args['headline_html'] ) ) : ?>
+							<div class="mantia-share-in"><?php
+								echo $args['headline_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — caller-built, see render_share_user / render_share_group.
+							?></div>
 						<?php endif; ?>
 					</div>
 
@@ -1383,13 +1460,15 @@ SVG;
 
 			<?php
 			// One-tap WhatsApp share: prefill a forwardable message with
-			// the headline ("Vas primero en La Familia · <url>") so the
-			// user doesn't have to type anything in WhatsApp's compose
-			// box after opening it.
-			$wa_text   = '' !== (string) ( $args['leader_name'] ?? '' )
-				? sprintf( '%s · %s', wp_strip_all_tags( (string) ( $args['in_label'] ?? '' ) ?: (string) $args['title'] ), $short_url )
+			// the headline ("1° en La Familia · <url>") so the user
+			// doesn't have to type anything in WhatsApp's compose box
+			// after opening it. Caller passes a pre-built headline_text
+			// (no HTML); fall back to the title for the empty-state poster.
+			$wa_headline = (string) ( $args['headline_text'] ?? $args['title'] ?? '' );
+			$wa_text     = '' !== $wa_headline && '' !== $short_url
+				? sprintf( '%s · %s', wp_strip_all_tags( $wa_headline ), $short_url )
 				: $short_url;
-			$wa_link   = 'https://wa.me/?text=' . rawurlencode( $wa_text );
+			$wa_link     = 'https://wa.me/?text=' . rawurlencode( $wa_text );
 			?>
 			<div class="mantia-share-actions">
 				<a class="mantia-share-wa" href="<?php echo esc_url( $wa_link ); ?>" target="_blank" rel="noopener">
@@ -1883,7 +1962,7 @@ JS;
 						</div>
 						<div class="mantia-board-exc">
 							<strong><?php echo (int) $row['exacts']; ?></strong>
-							<span><?php esc_html_e( 'exactos', 'mantia' ); ?></span>
+							<span><?php echo esc_html( _n( 'exacto', 'exactos', (int) $row['exacts'], 'mantia' ) ); ?></span>
 							<?php if ( 'competition' === $variant && ! empty( $row['group_name'] ) ) : ?>
 								<span class="mantia-mid">·</span>
 								<span class="mantia-board-group"><?php echo esc_html( $row['group_name'] ); ?></span>
@@ -1919,9 +1998,9 @@ JS;
 				<div class="mantia-history-row">
 					<div class="mantia-history-match">
 						<div class="mantia-history-teams">
-							<?php echo esc_html( $m['home_team'] ); ?>
+							<?php echo esc_html( self::normalize_team_name( (string) $m['home_team'] ) ); ?>
 							<span class="mantia-mid">·</span>
-							<?php echo esc_html( $m['away_team'] ); ?>
+							<?php echo esc_html( self::normalize_team_name( (string) $m['away_team'] ) ); ?>
 						</div>
 						<?php if ( null !== $ts ) : ?>
 							<div class="mantia-history-day"><?php echo esc_html( self::format_es_short_day( $ts ) ); ?></div>
@@ -1980,24 +2059,43 @@ JS;
 
 		foreach ( $by_day as $entries ) :
 			$first_ts = $entries[0]['ts'];
+
+			// If every match this day shares the same phase, hoist it to the
+			// day header — saves ~30 redundant "GROUP STAGE MATCHDAY 5" lines
+			// on packed fixture pages. Per-match phase still renders when
+			// phases differ within the same day.
+			$day_phase  = self::normalize_phase( (string) ( $entries[0]['m']['phase'] ?? '' ) );
+			$phase_uniform = '' !== $day_phase;
+			foreach ( $entries as $entry ) {
+				if ( self::normalize_phase( (string) ( $entry['m']['phase'] ?? '' ) ) !== $day_phase ) {
+					$phase_uniform = false;
+					break;
+				}
+			}
 			?>
 			<div class="mantia-day-group">
-				<div class="mantia-day-eyebrow mantia-eyebrow"><?php echo esc_html( strtoupper( self::format_es_short_day( $first_ts ) ) ); ?></div>
+				<div class="mantia-day-eyebrow mantia-eyebrow"><?php
+					echo esc_html( strtoupper( self::format_es_short_day( $first_ts ) ) );
+					if ( $phase_uniform ) {
+						echo ' · ' . esc_html( $day_phase );
+					}
+				?></div>
 				<?php
 				foreach ( $entries as $entry ) :
-					$m  = $entry['m'];
-					$hm = gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS );
+					$m     = $entry['m'];
+					$hm    = gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS );
+					$phase = self::normalize_phase( (string) ( $m['phase'] ?? '' ) );
 					?>
 					<div class="mantia-match-row">
 						<div class="mantia-match-time"><?php echo esc_html( $hm ); ?></div>
 						<div class="mantia-match-teams">
 							<div class="mantia-match-names">
-								<?php echo esc_html( $m['home_team'] ); ?>
+								<?php echo esc_html( self::normalize_team_name( (string) $m['home_team'] ) ); ?>
 								<span class="mantia-mid">·</span>
-								<?php echo esc_html( $m['away_team'] ); ?>
+								<?php echo esc_html( self::normalize_team_name( (string) $m['away_team'] ) ); ?>
 							</div>
-							<?php if ( ! empty( $m['phase'] ) ) : ?>
-								<div class="mantia-match-phase"><?php echo esc_html( $m['phase'] ); ?></div>
+							<?php if ( '' !== $phase && ! $phase_uniform ) : ?>
+								<div class="mantia-match-phase"><?php echo esc_html( $phase ); ?></div>
 							<?php endif; ?>
 						</div>
 					</div>
@@ -2064,22 +2162,23 @@ JS;
 							<div class="mantia-edit-meta">
 								<div class="mantia-edit-time"><?php echo esc_html( $hm ); ?></div>
 								<div class="mantia-edit-teams">
-									<?php echo esc_html( $m['home_team'] ); ?>
+									<?php echo esc_html( self::normalize_team_name( (string) $m['home_team'] ) ); ?>
 									<span class="mantia-mid">·</span>
-									<?php echo esc_html( $m['away_team'] ); ?>
+									<?php echo esc_html( self::normalize_team_name( (string) $m['away_team'] ) ); ?>
 								</div>
-								<?php if ( ! empty( $m['phase'] ) ) : ?>
-									<div class="mantia-match-phase"><?php echo esc_html( $m['phase'] ); ?></div>
+								<?php $phase_edit = self::normalize_phase( (string) ( $m['phase'] ?? '' ) ); ?>
+								<?php if ( '' !== $phase_edit ) : ?>
+									<div class="mantia-match-phase"><?php echo esc_html( $phase_edit ); ?></div>
 								<?php endif; ?>
 							</div>
 							<div class="mantia-edit-inputs">
 								<input class="mantia-edit-score" name="home_score" type="number" min="0" max="20" inputmode="numeric" autocomplete="off"
 									value="<?php echo esc_attr( $home_val ); ?>"
-									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), $m['home_team'] ) ); ?>">
+									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), self::normalize_team_name( (string) $m['home_team'] ) ) ); ?>">
 								<span class="mantia-edit-sep">·</span>
 								<input class="mantia-edit-score" name="away_score" type="number" min="0" max="20" inputmode="numeric" autocomplete="off"
 									value="<?php echo esc_attr( $away_val ); ?>"
-									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), $m['away_team'] ) ); ?>">
+									aria-label="<?php echo esc_attr( sprintf( __( 'Goles de %s', 'mantia' ), self::normalize_team_name( (string) $m['away_team'] ) ) ); ?>">
 							</div>
 							<button class="mantia-edit-save" type="submit" aria-label="<?php esc_attr_e( 'Guardar pronóstico', 'mantia' ); ?>">
 								<?php esc_html_e( 'Guardar', 'mantia' ); ?>
@@ -2266,14 +2365,15 @@ JS;
 		$name = self::display_name_for( $user_id );
 		if ( '' === $name || __( 'jugador', 'mantia' ) === $name ) {
 			$initials = '?';
-			$seed     = 'u' . $user_id;
 		} else {
 			$initials = self::initials_from( $name );
-			$seed     = $name;
 		}
 
-		// Stable hue + bright sticker tone — saturated for the juvenil palette.
-		$hue = abs( crc32( $seed ) ) % 360;
+		// Seed the hue from user_id, not display name. Two players named
+		// "Miguel" in the same competition need different avatar colors so
+		// the leaderboard reads as distinct people instead of "is this the
+		// same user duplicated?".
+		$hue = abs( crc32( 'u' . $user_id ) ) % 360;
 		$bg  = sprintf( 'oklch(0.78 0.18 %d)', $hue );
 		$fg  = sprintf( 'oklch(0.20 0.05 %d)', $hue );
 		$style = sprintf(
@@ -2331,6 +2431,111 @@ JS;
 			return (string) $n;
 		}
 		return str_pad( (string) $n, 2, '0', STR_PAD_LEFT );
+	}
+
+	/**
+	 * Normalize a phase string from upstream fixture data into Spanish.
+	 * Feeds (Wikipedia, FIFA, etc.) ship English labels like "Group stage"
+	 * or "Group stage Matchday 5" — render those as "Fase de grupos" /
+	 * "Fase de grupos · Fecha 5" so the public UI stays single-language.
+	 * Unknown phases pass through unchanged.
+	 */
+	private static function normalize_phase( string $phase ): string {
+		$phase = trim( $phase );
+		if ( '' === $phase ) {
+			return '';
+		}
+		// "Group stage Matchday 5" → "Fase de grupos · Fecha 5"
+		if ( preg_match( '/^group stage\s+matchday\s*(\d+)$/i', $phase, $match ) ) {
+			return sprintf( __( 'Fase de grupos · Fecha %d', 'mantia' ), (int) $match[1] );
+		}
+		// "Matchday 5" alone → "Fecha 5" (no group-stage assumption).
+		if ( preg_match( '/^matchday\s*(\d+)$/i', $phase, $match ) ) {
+			return sprintf( __( 'Fecha %d', 'mantia' ), (int) $match[1] );
+		}
+		$map = array(
+			'group stage'     => __( 'Fase de grupos', 'mantia' ),
+			'round of 32'     => __( '32avos de final', 'mantia' ),
+			'round of 16'     => __( 'Octavos de final', 'mantia' ),
+			'quarter-finals'  => __( 'Cuartos de final', 'mantia' ),
+			'quarter finals'  => __( 'Cuartos de final', 'mantia' ),
+			'semi-finals'     => __( 'Semifinales', 'mantia' ),
+			'semi finals'     => __( 'Semifinales', 'mantia' ),
+			'final'           => __( 'Final', 'mantia' ),
+			'third place'     => __( 'Tercer puesto', 'mantia' ),
+			'play-off'        => __( 'Repechaje', 'mantia' ),
+			'playoff'         => __( 'Repechaje', 'mantia' ),
+		);
+		$key = strtolower( $phase );
+		return $map[ $key ] ?? $phase;
+	}
+
+	/**
+	 * Localize country / club names that fixture feeds ship in English.
+	 * Same passthrough rule as normalize_phase — only known mappings get
+	 * replaced; everything else renders as-is.
+	 */
+	private static function normalize_team_name( string $name ): string {
+		$name = trim( $name );
+		if ( '' === $name ) {
+			return '';
+		}
+		static $map = array(
+			'Mexico'          => 'México',
+			'Brazil'          => 'Brasil',
+			'Spain'           => 'España',
+			'United States'   => 'Estados Unidos',
+			'USA'             => 'Estados Unidos',
+			'Germany'         => 'Alemania',
+			'France'          => 'Francia',
+			'England'         => 'Inglaterra',
+			'Italy'           => 'Italia',
+			'Belgium'         => 'Bélgica',
+			'Netherlands'     => 'Países Bajos',
+			'Switzerland'     => 'Suiza',
+			'Sweden'          => 'Suecia',
+			'Denmark'         => 'Dinamarca',
+			'Norway'          => 'Noruega',
+			'Poland'          => 'Polonia',
+			'Czechia'         => 'Chequia',
+			'Czech Republic'  => 'Chequia',
+			'Croatia'         => 'Croacia',
+			'Serbia'          => 'Serbia',
+			'Türkiye'         => 'Turquía',
+			'Turkey'          => 'Turquía',
+			'Greece'          => 'Grecia',
+			'Egypt'           => 'Egipto',
+			'Morocco'         => 'Marruecos',
+			'South Africa'    => 'Sudáfrica',
+			'Korea Republic'  => 'Corea del Sur',
+			'South Korea'     => 'Corea del Sur',
+			'Japan'           => 'Japón',
+			'Saudi Arabia'    => 'Arabia Saudita',
+			'Iran'            => 'Irán',
+			'Australia'       => 'Australia',
+			'New Zealand'     => 'Nueva Zelanda',
+			'Canada'          => 'Canadá',
+			'Russia'          => 'Rusia',
+			'Ukraine'         => 'Ucrania',
+			'Ireland'         => 'Irlanda',
+			'Scotland'        => 'Escocia',
+			'Wales'           => 'Gales',
+		);
+		return $map[ $name ] ?? $name;
+	}
+
+	/**
+	 * Spanish ordinal for share-poster headlines: "primero", "segundo",
+	 * "tercero" for the podium, then numeric "4°", "5°" for the rest.
+	 * Anything <= 0 returns empty so callers can fall back.
+	 */
+	private static function rank_phrase_es( int $n ): string {
+		switch ( $n ) {
+			case 1: return __( 'primero', 'mantia' );
+			case 2: return __( 'segundo', 'mantia' );
+			case 3: return __( 'tercero', 'mantia' );
+			default: return $n > 0 ? sprintf( '%d°', $n ) : '';
+		}
 	}
 
 	/**
@@ -2468,13 +2673,21 @@ JS;
 			var deferredPrompt = null;
 			var banner = document.querySelector('.mantia-pwa-install');
 			if (!banner) return;
+			function isDismissed() {
+				try { return localStorage.getItem('mantia-pwa-dismissed') === '1'; }
+				catch (e) { return false; }
+			}
 			window.addEventListener('beforeinstallprompt', function (evt) {
 				evt.preventDefault();
 				deferredPrompt = evt;
+				// Respect a prior dismissal — without this check the banner
+				// re-appears on every page load whenever Chrome re-fires
+				// the install prompt event.
+				if (isDismissed()) return;
 				banner.hidden = false;
 			});
 			banner.addEventListener('click', function (evt) {
-				if (evt.target.matches('.mantia-pwa-dismiss')) {
+				if (evt.target.closest('.mantia-pwa-dismiss')) {
 					banner.hidden = true;
 					try { localStorage.setItem('mantia-pwa-dismissed', '1'); } catch (e) {}
 					return;
@@ -2488,9 +2701,6 @@ JS;
 				}
 			});
 			window.addEventListener('appinstalled', function () { banner.hidden = true; });
-			try {
-				if (localStorage.getItem('mantia-pwa-dismissed') === '1') banner.hidden = true;
-			} catch (e) {}
 		})();
 
 		// Sticky compact stats bar on /me/. When the big stat-grid scrolls
@@ -2504,6 +2714,19 @@ JS;
 				sticky.hidden = entries[0].isIntersecting;
 			}, { rootMargin: '-60px 0px 0px 0px' });
 			io.observe(grid);
+		})();
+
+		// Scroll the active competition chip into view inside its
+		// horizontal nav. Without this, pages whose chip is far right
+		// in the list (e.g. "Otra / Personalizada") load with the active
+		// chip off-screen and no visible scroll affordance.
+		(function () {
+			var chips = document.querySelector('.mantia-chips');
+			if (!chips) return;
+			var active = chips.querySelector('.mantia-chip.is-active');
+			if (!active) return;
+			var offset = active.offsetLeft - (chips.clientWidth - active.offsetWidth) / 2;
+			chips.scrollLeft = Math.max(0, offset);
 		})();
 		</script>
 		<?php
@@ -3217,7 +3440,9 @@ body {
 }
 
 /* PWA install banner on the home page. Hidden until
-   beforeinstallprompt fires; dismiss persists via localStorage. */
+   beforeinstallprompt fires; dismiss persists via localStorage.
+   Mobile-only — desktop browsers rarely install PWAs and the
+   banner would just be a full-width band of noise on those widths. */
 .mantia-pwa-install {
 	display: flex;
 	align-items: center;
@@ -3234,6 +3459,7 @@ body {
 	font-weight: 700;
 }
 .mantia-pwa-install[hidden] { display: none; }
+@media (min-width: 768px) { .mantia-pwa-install { display: none !important; } }
 .mantia-pwa-text { flex: 1; min-width: 0; }
 .mantia-pwa-install-btn {
 	appearance: none;
@@ -3257,16 +3483,17 @@ body {
 	width: 28px;
 	height: 28px;
 	border-radius: 50%;
-	background: transparent;
+	background: rgba(255,255,255,0.12);
 	color: #ffffff;
-	border: 2px solid #ffffff;
+	border: none;
 	font-size: 14px;
 	font-weight: 800;
 	line-height: 0;
 	padding: 0;
 	flex-shrink: 0;
+	opacity: 0.85;
 }
-.mantia-pwa-dismiss:hover { background: rgba(255,255,255,0.15); }
+.mantia-pwa-dismiss:hover { background: rgba(255,255,255,0.22); opacity: 1; }
 
 /* Friendly one-liner below the stats tiles to tell first-time
    visitors what they should do here. Renders only when the user has
@@ -3573,9 +3800,12 @@ body {
 	padding: 5px 11px;
 	border-radius: 999px;
 	border: 2px solid var(--ink);
+	/* Rotation grows the pill's visual bbox a few px beyond its rect, so
+	   keep both stickers off the absolute edge — the right one was clipping
+	   at 390px before. */
 }
-.mantia-home-sticker-l { left: 8px;  top: -22px; transform: rotate(-9deg); }
-.mantia-home-sticker-r { right: 8px; top: -16px; transform: rotate(8deg);  background: var(--accent-3); color: #ffffff; }
+.mantia-home-sticker-l { left: 14px;  top: -22px; transform: rotate(-9deg); }
+.mantia-home-sticker-r { right: 14px; top: -16px; transform: rotate(8deg);  background: var(--accent-3); color: #ffffff; }
 .mantia-qr-card {
 	background: var(--surface);
 	border: 2.5px solid var(--ink);

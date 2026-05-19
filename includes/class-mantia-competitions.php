@@ -63,6 +63,14 @@ final class Mantia_Competitions {
 				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores semanal' ),
 			),
 			array(
+				'slug'        => 'esta-semana',
+				'name'        => 'Esta semana',
+				'emoji'       => '⚡',
+				'description' => 'Mini-penca de cuatro días — partidazos mié → vie',
+				'sort'        => 5,
+				'aliases'     => array( 'semana', 'mini', 'corta' ),
+			),
+			array(
 				'slug'        => 'sudamericana-2026',
 				'name'        => 'Sudamericana 2026',
 				'emoji'       => '🥈',
@@ -199,6 +207,20 @@ final class Mantia_Competitions {
 			// install we want every default to ship with its aliases populated.
 			if ( isset( $row['aliases'] ) && '' === (string) get_post_meta( (int) $existing->ID, self::META_ALIASES, true ) ) {
 				self::save_aliases( (int) $existing->ID, (array) $row['aliases'] );
+			}
+			// Self-heal placeholder copy on the description. Anything that
+			// still reads as obvious test/QA scaffolding ("de prueba",
+			// "test", "fixture") gets overwritten with the canonical seed
+			// description. Admin-customised copy is preserved.
+			$current = (string) $existing->post_excerpt;
+			$seeded  = (string) ( $row['description'] ?? '' );
+			if ( '' !== $seeded && preg_match( '/\b(de prueba|test|fixture)\b/i', $current ) ) {
+				wp_update_post(
+					array(
+						'ID'           => (int) $existing->ID,
+						'post_excerpt' => $seeded,
+					)
+				);
 			}
 			return (int) $existing->ID;
 		}

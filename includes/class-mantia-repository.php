@@ -259,12 +259,27 @@ final class Mantia_Repository {
 	}
 
 	/**
+	 * Prefix used for QA / fixture-seeded groups. Surfaces (public competition
+	 * leaderboard, etc.) filter these out so they never reach real visitors.
+	 * Token-gated routes still resolve normally — owners with the token can
+	 * still load their own test groups directly.
+	 */
+	public const TEST_GROUP_PREFIX = '__UX__';
+
+	public static function is_test_group( int $group_id ): bool {
+		return str_starts_with( (string) get_the_title( $group_id ), self::TEST_GROUP_PREFIX );
+	}
+
+	/**
 	 * Cross-group leaderboard for a competition: aggregates points per (user, group)
 	 * pair, returned sorted desc. Drives the public /penca/<competition> view.
 	 */
 	public static function competition_leaderboard( string $competition_id, int $limit = 50 ): array {
 		$storage_id = Mantia_Competitions::storage_id( $competition_id );
-		$group_ids  = self::groups_in_competition( $storage_id );
+		$group_ids  = array_values( array_filter(
+			self::groups_in_competition( $storage_id ),
+			static fn ( int $gid ): bool => ! self::is_test_group( $gid )
+		) );
 		if ( empty( $group_ids ) ) {
 			return array();
 		}
