@@ -2440,7 +2440,7 @@ JS;
 	 * "Fase de grupos · Fecha 5" so the public UI stays single-language.
 	 * Unknown phases pass through unchanged.
 	 */
-	private static function normalize_phase( string $phase ): string {
+	public static function normalize_phase( string $phase ): string {
 		$phase = trim( $phase );
 		if ( '' === $phase ) {
 			return '';
@@ -2475,7 +2475,7 @@ JS;
 	 * Same passthrough rule as normalize_phase — only known mappings get
 	 * replaced; everything else renders as-is.
 	 */
-	private static function normalize_team_name( string $name ): string {
+	public static function normalize_team_name( string $name ): string {
 		$name = trim( $name );
 		if ( '' === $name ) {
 			return '';

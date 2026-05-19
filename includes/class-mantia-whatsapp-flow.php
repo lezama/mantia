@@ -317,7 +317,13 @@ final class Mantia_Whatsapp_Flow {
 		// Format as a flat readable list, leading with the majority pick.
 		$total = array_sum( $consensus );
 		$lines = array(
-			sprintf( '*%s · %d-%d %s*', $match['home_team'], (int) $match['home_score'], (int) $match['away_score'], $match['away_team'] ),
+			sprintf(
+				'*%s · %d-%d %s*',
+				Mantia_Frontend::normalize_team_name( (string) $match['home_team'] ),
+				(int) $match['home_score'],
+				(int) $match['away_score'],
+				Mantia_Frontend::normalize_team_name( (string) $match['away_team'] )
+			),
 			sprintf( '_Cómo votó el grupo (%d jugadores):_', $total ),
 			'',
 		);
@@ -1316,7 +1322,12 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = 'Proximos partidos (48h):';
 			foreach ( array_slice( $upcoming, 0, 3 ) as $m ) {
 				$kickoff = ! empty( $m['kickoff_gmt'] ) ? ' — ' . $m['kickoff_gmt'] . ' GMT' : '';
-				$lines[] = sprintf( '  • %s vs %s%s', $m['home_team'], $m['away_team'], $kickoff );
+				$lines[] = sprintf(
+					'  • %s vs %s%s',
+					Mantia_Frontend::normalize_team_name( (string) $m['home_team'] ),
+					Mantia_Frontend::normalize_team_name( (string) $m['away_team'] ),
+					$kickoff
+				);
 			}
 		}
 
@@ -1736,12 +1747,14 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		$lines = array(
-			sprintf( '*%s vs %s*', $match['home_team'], $match['away_team'] ),
+		$home_name = Mantia_Frontend::normalize_team_name( (string) $match['home_team'] );
+		$away_name = Mantia_Frontend::normalize_team_name( (string) $match['away_team'] );
+		$lines     = array(
+			sprintf( '*%s vs %s*', $home_name, $away_name ),
 			self::format_kickoff( (string) $match['kickoff_gmt'] ),
 		);
 		if ( ! empty( $match['phase'] ) ) {
-			$lines[] = $match['phase'];
+			$lines[] = Mantia_Frontend::normalize_phase( (string) $match['phase'] );
 		}
 
 		$status = (string) ( $match['status'] ?? 'scheduled' );
@@ -1787,7 +1800,11 @@ final class Mantia_Whatsapp_Flow {
 			}
 		} elseif ( 'scheduled' === $status ) {
 			$lines[] = "\n¿Cuál es tu pronóstico?";
-			$lines[] = sprintf( '_Respondé con el marcador. Ej:_ *2-1*_, o_ *%s 2 %s 1*', $match['home_team'], $match['away_team'] );
+			$lines[] = sprintf(
+				'_Respondé con el marcador. Ej:_ *2-1*_, o_ *%s 2 %s 1*',
+				Mantia_Frontend::normalize_team_name( (string) $match['home_team'] ),
+				Mantia_Frontend::normalize_team_name( (string) $match['away_team'] )
+			);
 			if ( ! empty( $user_group_ids ) ) {
 				$names = array_filter( array_map( static fn ( int $gid ): string => (string) ( Mantia_Repository::group_to_array( $gid )['name'] ?? '' ), $user_group_ids ) );
 				if ( ! empty( $names ) ) {
