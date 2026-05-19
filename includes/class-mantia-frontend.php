@@ -2445,9 +2445,13 @@ JS;
 		if ( '' === $phase ) {
 			return '';
 		}
-		// "Group stage Matchday 5" / "Matchday 5" → "Fase de grupos · Fecha 5"
-		if ( preg_match( '/^(?:group stage\s+)?matchday\s*(\d+)$/i', $phase, $match ) ) {
+		// "Group stage Matchday 5" → "Fase de grupos · Fecha 5"
+		if ( preg_match( '/^group stage\s+matchday\s*(\d+)$/i', $phase, $match ) ) {
 			return sprintf( __( 'Fase de grupos · Fecha %d', 'mantia' ), (int) $match[1] );
+		}
+		// "Matchday 5" alone → "Fecha 5" (no group-stage assumption).
+		if ( preg_match( '/^matchday\s*(\d+)$/i', $phase, $match ) ) {
+			return sprintf( __( 'Fecha %d', 'mantia' ), (int) $match[1] );
 		}
 		$map = array(
 			'group stage'     => __( 'Fase de grupos', 'mantia' ),
