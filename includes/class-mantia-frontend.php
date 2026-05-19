@@ -2404,7 +2404,9 @@ JS;
 
 	/**
 	 * Resolve a friendly display name for a user. If they never set one we
-	 * fall back to "jugador/a" rather than showing the raw E.164 phone.
+	 * fall back to "Jugador ·1234" (last 4 of phone) — distinguishing in a
+	 * leaderboard is more important than the polite generic, and several
+	 * "jugador" rows on the same board read as broken data.
 	 */
 	private static function display_name_for( int $user_id ): string {
 		$title = (string) get_the_title( $user_id );
@@ -2412,7 +2414,10 @@ JS;
 		if ( '' !== $title && $title !== $phone ) {
 			return $title;
 		}
-		return __( 'jugador', 'mantia' );
+		if ( '' !== $phone ) {
+			return sprintf( __( 'Jugador ·%s', 'mantia' ), substr( $phone, -4 ) );
+		}
+		return __( 'Jugador', 'mantia' );
 	}
 
 	/**
@@ -3656,8 +3661,14 @@ body {
 	color: var(--ink);
 	letter-spacing: -0.005em;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	line-height: 1.25;
+	/* Long matchups like "Universidad de Chile · Defensa y Justicia" were
+	   clipping mid-word at 390px because of nowrap+ellipsis. Allow wrap
+	   to 2 lines so both team names stay readable. */
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	white-space: normal;
 }
 .mantia-history-day {
 	font-family: var(--font-body);
@@ -4144,8 +4155,14 @@ body.mantia-body-share {
 	letter-spacing: -0.005em;
 	margin-top: 2px;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	line-height: 1.25;
+	/* Wrap to 2 lines instead of clipping mid-word. The competing inputs
+	   + Guardar button column is auto-sized so the team column has
+	   limited room at 390px — wrap is the only way long names survive. */
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	white-space: normal;
 }
 .mantia-edit-row .mantia-match-phase {
 	margin-top: 3px;

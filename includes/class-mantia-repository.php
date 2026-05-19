@@ -432,11 +432,22 @@ final class Mantia_Repository {
 			$title   = (string) get_the_title( (int) $u->ID );
 			$phone   = (string) get_post_meta( (int) $u->ID, self::META_PHONE, true );
 			$has_name = '' !== $title && $title !== $phone;
+			// Surface the phone's last 4 digits as a soft identifier when
+			// the user never told the bot their name — three "sin nombre"
+			// rows on a leaderboard read as broken data; "Jugador ·9203"
+			// at least lets people guess which line is whose.
+			if ( $has_name ) {
+				$display = $title;
+			} elseif ( '' !== $phone ) {
+				$display = sprintf( __( 'Jugador ·%s', 'mantia' ), substr( $phone, -4 ) );
+			} else {
+				$display = __( 'Jugador', 'mantia' );
+			}
 			$members[] = array(
 				'id'           => (int) $u->ID,
 				'name'         => $title,
 				'phone'        => $phone,
-				'display_name' => $has_name ? $title : __( 'sin nombre', 'mantia' ),
+				'display_name' => $display,
 			);
 		}
 		usort(
