@@ -525,22 +525,15 @@ final class Mantia_E2E {
 		global $wpdb;
 		$deleted = self::restore_touched_matches();
 
-		// 1. Test users — phone prefix is our anchor.
-		$users = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				'meta_query'     => array(
-					array(
-						'key'     => Mantia_Repository::META_PHONE,
-						'value'   => self::TEST_PHONE_PREFIX,
-						'compare' => 'LIKE',
-					),
-				),
-			)
-		);
+		// 1. Test users — wp_users with the test phone prefix.
+		$user_objs = get_users( array(
+			'meta_key'     => Mantia_Repository::META_PHONE,
+			'meta_value'   => self::TEST_PHONE_PREFIX,
+			'meta_compare' => 'LIKE',
+			'number'       => -1,
+			'fields'       => 'all',
+		) );
+		$users = array_map( static fn ( $u ): int => (int) $u->ID, $user_objs );
 
 		// 2. Predictions by those users.
 		foreach ( $users as $uid ) {
@@ -599,7 +592,7 @@ final class Mantia_E2E {
 		return Mantia_Repository::find_group_by_invite_code( $code );
 	}
 
-	public static function user_by_phone( string $phone ): ?WP_Post {
+	public static function user_by_phone( string $phone ): ?WP_User {
 		return Mantia_Repository::find_user_by_phone( $phone );
 	}
 

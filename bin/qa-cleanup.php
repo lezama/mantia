@@ -20,32 +20,28 @@ if ( ! class_exists( 'Mantia_Repository' ) ) {
 	exit( 1 );
 }
 
-$users = get_posts( array(
-	'post_type'      => Mantia_CPTs::USER,
-	'post_status'    => 'any',
-	'posts_per_page' => -1,
-	'fields'         => 'ids',
-	'no_found_rows'  => true,
-	'meta_query'     => array(
-		array(
-			'key'     => Mantia_Repository::META_PHONE,
-			'value'   => QA_TEST_PHONE_PREFIX,
-			'compare' => 'LIKE',
-		),
-	),
+// Post-Phase-6: identity is in wp_users, not mantia_user CPT. Query users
+// by phone meta. role-filter would over-include if multi-tenant.
+$users = get_users( array(
+	'meta_key'     => Mantia_Repository::META_PHONE,
+	'meta_value'   => QA_TEST_PHONE_PREFIX,
+	'meta_compare' => 'LIKE',
+	'number'       => -1,
+	'fields'       => 'all',
 ) );
 
 $deleted = array( 'users' => 0, 'groups' => 0, 'predictions' => 0 );
 $group_ids_to_check = array();
 
-foreach ( $users as $uid ) {
-	$phone = (string) get_post_meta( (int) $uid, Mantia_Repository::META_PHONE, true );
+foreach ( $users as $u ) {
+	$uid   = (int) $u->ID;
+	$phone = (string) get_user_meta( $uid, Mantia_Repository::META_PHONE, true );
 	// Defensive: meta_query LIKE could in principle match non-prefix values
 	// if anyone seeded weird data. Re-check before delete.
 	if ( ! str_starts_with( $phone, QA_TEST_PHONE_PREFIX ) ) {
 		continue;
 	}
-	$groups = (array) get_post_meta( (int) $uid, Mantia_Repository::META_GROUP_IDS, true );
+	$groups = (array) get_user_meta( $uid, Mantia_Repository::META_GROUP_IDS, true );
 	foreach ( array_map( 'intval', $groups ) as $gid ) {
 		if ( $gid > 0 ) {
 			$group_ids_to_check[ $gid ] = true;
@@ -62,7 +58,7 @@ foreach ( $users as $uid ) {
 		'meta_query'     => array(
 			array(
 				'key'   => Mantia_Repository::META_USER_ID,
-				'value' => (int) $uid,
+				'value' => $uid,
 			),
 		),
 	) );
@@ -71,7 +67,7 @@ foreach ( $users as $uid ) {
 		$deleted['predictions']++;
 	}
 
-	wp_delete_post( (int) $uid, true );
+	wp_delete_user( $uid );
 	$deleted['users']++;
 }
 
