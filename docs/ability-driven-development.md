@@ -47,8 +47,17 @@ neither.
 
 ## Ability unit tests — the recipe
 
-See [`tests/abilities/register-prediction.php`](../tests/abilities/register-prediction.php)
-for the canonical example. Pattern:
+Five examples ship in `tests/abilities/`, one per archetype:
+
+| File | Ability | Archetype | Highlights |
+|---|---|---|---|
+| [`register-prediction.php`](../tests/abilities/register-prediction.php) | `mantia/register-prediction` | State-changing (canonical) | Resolver fallback, auto-routing to N pencas, schema enforcement |
+| [`join-group.php`](../tests/abilities/join-group.php) | `mantia/join-group` | State-changing | Side-effect coverage (membership + active group + name capture), idempotency on re-join |
+| [`create-group.php`](../tests/abilities/create-group.php) | `mantia/create-group` | State-changing | Required-field validation, competition whitelist, default fallback, distinct invite codes |
+| [`get-standings.php`](../tests/abilities/get-standings.php) | `mantia/get-standings` | Read-only (canonical) | Scope variants, phone → active-group resolver, limit clamp, graceful empty |
+| [`get-my-groups.php`](../tests/abilities/get-my-groups.php) | `mantia/get-my-groups` | Read-only | Stable error code for cold user, is_active flag consistency |
+
+Pattern (from `register-prediction.php`):
 
 ```php
 require_once __DIR__ . '/../lib.php';
