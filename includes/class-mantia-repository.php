@@ -205,6 +205,47 @@ final class Mantia_Repository {
 		return $token;
 	}
 
+	/**
+	 * Find a group by its slug — the post_meta the URL helpers emit since
+	 * Phase 3. Falls back to slug-sanitised post_title if no explicit slug
+	 * meta is set (older groups created before slug capture was wired).
+	 */
+	public static function find_group_by_slug( string $slug ): ?WP_Post {
+		$slug = sanitize_title( $slug );
+		if ( '' === $slug ) {
+			return null;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::GROUP,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'meta_key'       => self::META_GROUP_SLUG,
+				'meta_value'     => $slug,
+			)
+		);
+		if ( ! empty( $posts ) ) {
+			return $posts[0];
+		}
+		// Fallback: scan by title-derived slug. Rare path; we only hit this
+		// if a group was created before META_GROUP_SLUG was being stamped.
+		$candidates = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::GROUP,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+			)
+		);
+		foreach ( $candidates as $p ) {
+			if ( sanitize_title( (string) $p->post_title ) === $slug ) {
+				return $p;
+			}
+		}
+		return null;
+	}
+
 	public static function find_group_by_view_token( string $token ): ?WP_Post {
 		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
 		if ( strlen( $token ) < 16 ) {

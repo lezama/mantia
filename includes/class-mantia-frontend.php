@@ -100,11 +100,32 @@ final class Mantia_Frontend {
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-user&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
+		// Group view: broadened from hex-only to slug-or-token. Handler
+		// tries find_group_by_slug() first, then falls back to view_token
+		// for backwards compat (legacy URLs shipped before magic links).
 		add_rewrite_rule(
-			'^penca/g/([a-f0-9]+)/?$',
+			'^penca/g/([a-z0-9-]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
+		// Auth-gated /penca/me/ (no token). Uses get_current_user_id()
+		// from the magic-link cookie. If not logged in, handler redirects
+		// to /penca/expired/.
+		add_rewrite_rule(
+			'^penca/me/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=me',
+			'top'
+		);
+		// Expired magic-link landing page. Magic-link verification failures
+		// (bad sig, expired, replayed) all funnel here so users see a
+		// "pediselo de nuevo al bot" affordance instead of a 404.
+		add_rewrite_rule(
+			'^penca/expired/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=expired',
+			'top'
+		);
+		// Legacy token URL for /penca/me/<hex>/ — kept until Phase 6 so
+		// users with the link in chat history can still open it.
 		add_rewrite_rule(
 			'^penca/me/([a-f0-9]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=user&' . self::QUERY_VAR_ID . '=$matches[1]',
@@ -143,6 +164,18 @@ final class Mantia_Frontend {
 				break;
 			case 'user':
 				echo self::render_user( (string) $id );
+				break;
+			case 'me':
+				// Auth-gated /penca/me/. Magic-link cookie sets current_user.
+				$current_user_id = get_current_user_id();
+				if ( $current_user_id <= 0 ) {
+					wp_safe_redirect( home_url( '/penca/expired/' ), 302 );
+					exit;
+				}
+				echo self::render_user_for_id( (int) $current_user_id );
+				break;
+			case 'expired':
+				echo self::render_magic_link_expired();
 				break;
 			case 'share-group':
 				echo self::render_share_group( (string) $id );
@@ -375,8 +408,15 @@ final class Mantia_Frontend {
 		return (string) ob_get_clean();
 	}
 
-	private static function render_group( string $token ): string {
-		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+	private static function render_group( string $token_or_slug ): string {
+		// Phase 5 cutover: try the new slug-based lookup first (matches the
+		// /penca/g/<slug>/ URLs the magic-link helper generates), fall back
+		// to the legacy view-token lookup so links shipped before the
+		// migration still work until Phase 6 retires them.
+		$group_post = Mantia_Repository::find_group_by_slug( $token_or_slug );
+		if ( ! $group_post ) {
+			$group_post = Mantia_Repository::find_group_by_view_token( $token_or_slug );
+		}
 		if ( ! $group_post ) {
 			status_header( 404 );
 			return self::render_not_found( __( 'Este link no funciona o ya venció.', 'mantia' ) );
@@ -566,13 +606,30 @@ final class Mantia_Frontend {
 	}
 
 	private static function render_user( string $token ): string {
-		$user_post = Mantia_Repository::find_user_by_view_token( $token );
-		if ( ! $user_post ) {
+		$user = Mantia_Repository::find_user_by_view_token( $token );
+		if ( ! $user ) {
 			status_header( 404 );
 			return self::render_not_found( __( 'Este link privado no funciona o ya venció.', 'mantia' ) );
 		}
+		return self::render_user_for_id( (int) $user->ID );
+	}
 
-		$user_id      = (int) $user_post->ID;
+	/**
+	 * Render the /penca/me/ page for a known user_id. Shared between the
+	 * legacy /penca/me/<token>/ entrypoint and the magic-link /penca/me/
+	 * route which resolves the user from get_current_user_id().
+	 */
+	private static function render_user_for_id( int $user_id ): string {
+		if ( $user_id <= 0 ) {
+			status_header( 404 );
+			return self::render_not_found( __( 'No encuentro tu cuenta.', 'mantia' ) );
+		}
+		// The editable-matches form posts to the REST endpoint with a token
+		// for auth. We keep the user_view_token as a per-user secret here
+		// until Phase 6 lets the REST endpoint authenticate from the
+		// magic-link cookie session directly. Auto-generated lazily by
+		// user_view_token() on first use.
+		$token        = Mantia_Repository::user_view_token( $user_id );
 		$display_name = self::display_name_for( $user_id );
 		$groups       = Mantia_Repository::user_groups_to_array( $user_id );
 		$create_url   = self::create_penca_wa_url();
@@ -1796,6 +1853,40 @@ JS;
 	 * can't reach the network and there's no cached copy for the path
 	 * the user asked for.
 	 */
+	/**
+	 * Landing page for failed magic-link verification (bad sig, expired,
+	 * replayed, missing). Surfaces a "pediselo de nuevo al bot" CTA so the
+	 * user doesn't get stuck on a generic 404.
+	 */
+	private static function render_magic_link_expired(): string {
+		$bot_phone = Mantia_Repository::bot_phone_e164();
+		$wa_url    = '' !== $bot_phone
+			? sprintf( 'https://wa.me/%s?text=%s', $bot_phone, rawurlencode( 'link' ) )
+			: '';
+
+		ob_start();
+		self::page_header( __( 'Link vencido — Mantia', 'mantia' ) );
+		?>
+		<main class="mantia-page mantia-page-narrow">
+			<?php self::render_topbar(); ?>
+			<section class="mantia-hero">
+				<div class="mantia-eyebrow"><?php esc_html_e( 'link vencido', 'mantia' ); ?></div>
+				<h1 class="mantia-h1"><?php esc_html_e( 'Este link ya no funciona.', 'mantia' ); ?></h1>
+				<p class="mantia-hero-meta"><?php esc_html_e( 'Por seguridad los links del bot vencen. Pediselo de nuevo escribiendo *link* en el chat — te llega uno fresco al toque.', 'mantia' ); ?></p>
+			</section>
+			<?php if ( '' !== $wa_url ) : ?>
+				<section class="mantia-cta-section mantia-cta-stack">
+					<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $wa_url ); ?>">
+						<?php esc_html_e( 'Pediselo al bot', 'mantia' ); ?>
+					</a>
+				</section>
+			<?php endif; ?>
+		</main>
+		<?php
+		self::page_footer();
+		return (string) ob_get_clean();
+	}
+
 	private static function render_pwa_offline(): string {
 		$bot_phone = Mantia_Repository::bot_phone_e164();
 		$wa_url    = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=hola', $bot_phone ) : '';
