@@ -1394,15 +1394,20 @@ final class Mantia_Whatsapp_Flow {
 		$lines = array();
 		if ( ! empty( $active['name'] ) ) {
 			$comp_label = ! empty( $active['competition_name'] ) ? sprintf( ' · %s', $active['competition_name'] ) : '';
-			$lines[]    = sprintf( 'Activa: *%s*%s', $active['name'], $comp_label );
+			// Drop the "Activa:" prefix — it's internal vocab. The name alone
+			// is enough context; users with multiple pencas get a switcher
+			// hint below.
+			$lines[] = sprintf( '*%s*%s', $active['name'], $comp_label );
 		} else {
-			$lines[] = sprintf( 'Todavía no tenes %s %s.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) );
+			$lines[] = sprintf( 'Todavía no tenés %s.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ) );
 		}
 
-		// Only nudge to "mis pencas" once the count is large enough that they
-		// might genuinely lose track. With 2-3 they remember what they have.
-		if ( count( $groups ) > 3 ) {
-			$lines[] = sprintf( 'Tenés %d %s — *mis pencas* para verlas.', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
+		// When the user has more than one penca, surface the switcher so they
+		// know there are others and how to flip between them. Without this
+		// nudge, the home looks identical regardless of count and the multi-
+		// penca affordance gets invisible.
+		if ( count( $groups ) > 1 ) {
+			$lines[] = sprintf( '_(%d %s — *mis pencas* para cambiar)_', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
 		}
 
 		if ( ! empty( $standings ) ) {
@@ -2272,11 +2277,31 @@ final class Mantia_Whatsapp_Flow {
 		// is monolingual Spanish; hardcode and ship.
 		static $days   = array( 'dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb' );
 		static $months = array( 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic' );
-		$local_ts = $ts - 3 * HOUR_IN_SECONDS;
-		$dow      = (int) gmdate( 'w', $local_ts );        // 0 = Sunday
-		$d        = (int) gmdate( 'j', $local_ts );
-		$m        = (int) gmdate( 'n', $local_ts ) - 1;
-		$time     = gmdate( 'H:i', $local_ts );
+
+		// For matches within the next 24-48h, "hoy" / "mañana" reads infinitely
+		// better than the absolute day-of-week. Use midnight-anchored deltas
+		// instead of raw 24h windows so a 23:00 match still counts as today,
+		// and a 00:30 match counts as today right up until midnight.
+		$local_ts       = $ts - 3 * HOUR_IN_SECONDS;
+		$now_local      = time() - 3 * HOUR_IN_SECONDS;
+		$today_midnight = (int) strtotime( gmdate( 'Y-m-d', $now_local ) . ' 00:00:00 UTC' );
+		$match_midnight = (int) strtotime( gmdate( 'Y-m-d', $local_ts ) . ' 00:00:00 UTC' );
+		$delta_days     = (int) round( ( $match_midnight - $today_midnight ) / DAY_IN_SECONDS );
+		$time           = gmdate( 'H:i', $local_ts );
+
+		if ( 0 === $delta_days ) {
+			return sprintf( 'hoy • %s', $time );
+		}
+		if ( 1 === $delta_days ) {
+			return sprintf( 'mañana • %s', $time );
+		}
+		if ( -1 === $delta_days ) {
+			return sprintf( 'ayer • %s', $time );
+		}
+
+		$dow = (int) gmdate( 'w', $local_ts );        // 0 = Sunday
+		$d   = (int) gmdate( 'j', $local_ts );
+		$m   = (int) gmdate( 'n', $local_ts ) - 1;
 		return sprintf( '%s %d %s • %s', $days[ $dow ], $d, $months[ $m ], $time );
 	}
 
