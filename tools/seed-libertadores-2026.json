@@ -76,6 +76,24 @@
       "competition_id": "libertadores-2026"
     },
     {
+      "external_id": "libertadores-2026-md5-009",
+      "home_team": "Peñarol",
+      "away_team": "Flamengo",
+      "kickoff_gmt": "2026-05-22 01:00:00",
+      "phase": "Group stage Matchday 5",
+      "status": "scheduled",
+      "competition_id": "libertadores-2026"
+    },
+    {
+      "external_id": "libertadores-2026-md5-010",
+      "home_team": "Nacional",
+      "away_team": "Palmeiras",
+      "kickoff_gmt": "2026-05-22 22:00:00",
+      "phase": "Group stage Matchday 5",
+      "status": "scheduled",
+      "competition_id": "libertadores-2026"
+    },
+    {
       "external_id": "libertadores-2026-md6-001",
       "home_team": "Flamengo",
       "away_team": "Palmeiras",
