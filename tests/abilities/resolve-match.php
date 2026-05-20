@@ -39,8 +39,7 @@ if ( ! method_exists( 'Mantia_E2E', 'finish_match' ) ) {
 Mantia_E2E::step( '2. Manufacture penca + prediction + finish match → resolve scores it' );
 
 // Bootstrap a penca and a known prediction.
-Mantia_E2E::send( $persona, 'crear penca __E2E__ Resolve' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ Resolve' );
 
 $matches  = Mantia_Repository::upcoming_matches_for_competition( 'libertadores-2026', 24 * 30 );
 if ( empty( $matches ) ) {

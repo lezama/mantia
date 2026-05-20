@@ -39,8 +39,7 @@ Mantia_E2E::assert_ability_output( 'mantia/get-upcoming-matches', $result );
 
 Mantia_E2E::step( '3. With penca + prediction → has_prediction=true for that match' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ Upcoming' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ Upcoming' );
 
 $user_id = (int) Mantia_Repository::find_user_by_phone( $persona['phone'] )->ID;
 $result = Mantia_E2E::call_ability( 'mantia/get-upcoming-matches', array(

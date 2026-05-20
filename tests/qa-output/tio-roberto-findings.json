@@ -1,152 +1,84 @@
-{"persona":"tio-roberto","ran_at":"2026-05-19T22:14:49Z","framing":"UX-maturity","findings":[
-  {
-    "scene":"1-hola",
-    "severity":"info-faltante",
-    "title":"Saludo no dice qué es una 'penca'",
-    "observation":"El bot se presenta y ofrece 3 botones: 'Crear penca', 'Tengo código', 'Ayuda'. Don Roberto nunca escuchó la palabra 'penca' en su vida. Pregunta interna: '¿una penca qué es, un castigo?' Sin un mini-ejemplo concreto, no entiende qué le están ofreciendo. La promesa es 'app de pronósticos de fútbol' pero 'crear penca' suena a algo solo.",
-    "suggestion":"Añadir una sublínea de 8 palabras antes de los botones: 'Adiviná los resultados con tu grupo. Gana el que más le pega.' Eso le da a Don Roberto el modelo mental en una línea."
-  },
-  {
-    "scene":"1-hola",
-    "severity":"excelencia",
-    "title":"Solo 3 botones, no abruma",
-    "observation":"El saludo tiene SOLO 3 botones y son acciones claras (crear, entrar con código, ayuda). No hay overwhelm."
-  },
-  {
-    "scene":"2-tap-crear-penca",
-    "severity":"voz-rota",
-    "title":"'Genial!' arranca eufórico",
-    "observation":"Tras tocar 'Crear penca', el bot responde 'Genial! Empecemos por el torneo de tu penca:'. Según las reglas de voz #2, 'Genial!' es eufórico y prohibido. Don Roberto siente que le habla un vendedor, no un asistente.",
-    "suggestion":"Cambiar a 'Dale. ¿Qué torneo?' — más rioplatense, sin entusiasmo de gerente de marketing."
-  },
-  {
-    "scene":"2-tap-crear-penca",
-    "severity":"info-faltante",
-    "title":"Solo ofrece Libertadores — ¿y el Mundial 2026?",
-    "observation":"Don Roberto llega esperando jugar el Mundial 2026 con sus nietos. La lista solo ofrece Libertadores 2026 (completa) y Libertadores semanal. Ningún torneo de selecciones. Rompe expectativa.",
-    "suggestion":"Si el Mundial existe en el sistema, ofrecerlo arriba. Si no, dejar una nota: '_Próximamente: Mundial 2026, Champions._' para no romper la promesa."
-  },
-  {
-    "scene":"3-name-penca",
-    "severity":"excelencia",
-    "title":"Pedido del nombre es perfecto",
-    "observation":"'¿Cómo se va a llamar tu penca? Mandame un nombre cortito (ej: Los Amigos) y la creo. Mandá cancelar si cambiaste de idea.' Pregunta clara, ejemplo concreto, escape hatch ('cancelar'), voseo correcto. Don Roberto sintió que el bot lo respetaba."
-  },
-  {
-    "scene":"3-confirmation",
-    "severity":"overwhelm",
-    "title":"Tras crear, dos caminos para invitar amigos",
-    "observation":"La confirmación dice 'reenviá la tarjeta de arriba ↑' Y al mismo tiempo pone un botón 'Compartir' abajo. Dos caminos para la misma acción confunden a un primerizo. Don Roberto piensa: '¿la tarjeta? ¿cuál? ¿toco el botón o reenvío?'",
-    "suggestion":"Elegir UN solo camino (el botón) y borrar el texto 'reenviá la tarjeta de arriba'."
-  },
-  {
-    "scene":"3-confirmation",
-    "severity":"info-faltante",
-    "title":"'Ya te puse pronósticos para los 9 partidos' — ¿con qué resultados?",
-    "observation":"El bot dice que YA puso pronósticos por Don Roberto. Don Roberto no sabe si le puso 0-0 a todos, aleatorio, o algo más. Información esencial para no perder confianza.",
-    "suggestion":"'_Te puse 1-1 de arranque en los 9 partidos — cambialos cuando quieras._' O lo que sea, pero declarar el default."
-  },
-  {
-    "scene":"3-confirmation",
-    "severity":"voz-rota",
-    "title":"'Pegale el link a alguien!' — ¿qué link?",
-    "observation":"Le dice 'pegale el link a alguien!' pero no muestra ningún link — solo un botón 'Compartir'. Don Roberto, primerizo, mira y no encuentra el link al que se refiere. El ! final también es leve euforia.",
-    "suggestion":"'_Tocá Compartir para mandarles a tus amigos._' (sin ! y sin la palabra 'link' fantasma)."
-  },
-  {
-    "scene":"4-mandar-2-1",
-    "severity":"voz-rota",
-    "title":"'¡Bien ahí!' es palmadita gratuita",
-    "observation":"Tras mandar '2-1' (que no aplicó a nada útil), el bot responde con '✅ Tenés todos los partidos pronosticados. ¡Bien ahí!'. El '¡Bien ahí!' es eufórico/condescendiente — Don Roberto no logró nada, solo creó la penca. Suena a felicitación hueca.",
-    "suggestion":"Cortar el '¡Bien ahí!'. La frase '✅ Tenés todos los partidos pronosticados.' ya alcanza."
-  },
-  {
-    "scene":"4-mandar-2-1",
-    "severity":"necesita-explicacion",
-    "title":"Texto dice 'tocá *partidos*' pero la palabra no es un botón",
-    "observation":"'Mandá el partido por nombre (ej Boca 2 River 1) o tocá *partidos* para cambiar uno.' La palabra 'partidos' en bold parece tocable pero no es un link en WhatsApp. SÍ hay un botón abajo con texto '📅 Próximos partidos' — pero el copy del bot no lo nombra igual. Don Roberto se pierde buscando dónde tocar.",
-    "suggestion":"Reemplazar por: 'Tocá *Próximos partidos* abajo ↓ para cambiar uno.' Misma frase que el botón, con flechita de anchor."
-  },
-  {
-    "scene":"5-que-es-esto",
-    "severity":"excelencia",
-    "title":"Explicación humana, estructurada, con ejemplo",
-    "observation":"Cuando Don Roberto pregunta 'que es esto?', el bot le da una explicación COMPLETA con: 1) qué es Mantia, 2) cómo se puntúa con ejemplos, 3) cómo pronosticar con 3 formatos, 4) qué penca tenés, 5) pregunta abierta al final. Estructura excelente, voseo correcto, ejemplos concretos. Esta es la voz que Don Roberto necesita."
-  },
-  {
-    "scene":"5-que-es-esto",
-    "severity":"necesita-explicacion",
-    "title":"Explicación llega TARDE — debería ser parte del saludo, no de un fallback",
-    "observation":"Esta explicación es exactamente lo que faltó en el 'hola' inicial. Don Roberto que NO se anima a preguntar 'que es esto?' (gente de 65 años no siempre lo hace) nunca la ve. Hay que adelantarla, aunque sea en versión corta, al primer contacto.",
-    "suggestion":"En el saludo inicial, condensar a 2 líneas: '*Mantia* — jugá con amigos a adivinar resultados de fútbol. Cada acierto suma puntos. ¿Arrancamos?'"
-  },
-  {
-    "scene":"5-que-es-esto",
-    "severity":"info-faltante",
-    "title":"Pregunta final sin botones — fuerza a tipear",
-    "observation":"La explicación termina con '¿Querés ver los próximos partidos o el top de tu penca?' SIN botones (interactive:null). Inconsistencia con todo el resto del flow que usa botones. Don Roberto, primerizo, queda colgado tipeando 'sí'.",
-    "suggestion":"Adjuntar 2 botones: '📅 Próximos partidos', '📊 Tabla'."
-  },
-  {
-    "scene":"6-quien-va-ganando",
-    "severity":"necesita-explicacion",
-    "title":"Bot responde con error técnico expuesto",
-    "observation":"Pregunta naturalísima de un primerizo recién creada su penca: 'quien va ganando?'. Respuesta: 'Uy, no pude leer la tabla ahora mismo (me faltó permiso del sistema). Probá de nuevo en un ratito mandando posiciones o top.' Esto es ROJO PROFUNDO: 1) 'permiso del sistema' es jerga técnica que asusta — Don Roberto piensa '¿hice algo mal?'; 2) la respuesta cuando él SÍ tipea 'posiciones' funciona perfecto. El LLM router falla y le tira al usuario el error. El handler real funciona bien.",
-    "suggestion":"El LLM router debería siempre routear 'quien va ganando' → comando 'posiciones'. Y si falla, el fallback no debe nombrar 'permiso del sistema' — decir simplemente 'No te encontré la tabla, probá tocando 📊 Tabla'."
-  },
-  {
-    "scene":"6-quien-va-ganando",
-    "severity":"info-faltante",
-    "title":"Error response no incluye botones",
-    "observation":"En el error 'me faltó permiso del sistema', no se ofrecen botones para reintentar o ir a otro lado. Don Roberto debe tipear 'posiciones' o 'top' a mano. Cualquier respuesta de error debería traer botones de recuperación.",
-    "suggestion":"Adjuntar siempre 3 botones de fallback: '📊 Tabla', '📅 Partidos', '❓ Ayuda'."
-  },
-  {
-    "scene":"6b-posiciones",
-    "severity":"excelencia",
-    "title":"Respuesta de tabla vacía es humana y correcta",
-    "observation":"Al tipear 'posiciones' directamente: '*Penca de la familia* — Todavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.' Breve, claro, sin jerga, sin error. La voz aquí es perfecta."
-  },
-  {
-    "scene":"6b-posiciones",
-    "severity":"info-faltante",
-    "title":"Tabla vacía no ofrece próximo paso",
-    "observation":"Tras decir que no hay puntos, no ofrece botones ni qué hacer ahora. Don Roberto queda preguntándose: '¿y entonces? ¿qué hago hasta que se jueguen los partidos?'",
-    "suggestion":"Adjuntar 2 botones: '📅 Próximos partidos' (para revisar pronósticos) y '📤 Invitar amigos' (para que la penca crezca)."
-  },
-  {
-    "scene":"7-matches",
-    "severity":"voz-rota",
-    "title":"Fechas en INGLÉS (Tue, Wed, Thu)",
-    "observation":"La lista de partidos muestra fechas como 'Tue 19 May', 'Wed 20 May', 'Thu 21 May'. Don Roberto, argentino de 65, lee 'Tue' y piensa '¿tubería? ¿esto está en inglés?'. Anglicismo rompe la voz rioplatense.",
-    "suggestion":"Localizar a 'Mar 19 may', 'Mié 20 may', 'Jue 21 may'. Mes en minúscula como se usa en castellano."
-  },
-  {
-    "scene":"7-matches",
-    "severity":"info-faltante",
-    "title":"No queda claro si el primer partido (hoy mismo) sigue siendo pronosticable",
-    "observation":"'Estudiantes vs São Paulo • Tue 19 May • 18:30 • ✓ 0-2' aparece en la lista 'Próximos partidos' y hoy es 19 may. ¿Ya empezó? ¿Todavía puedo cambiar el pronóstico? Falta un estado visible.",
-    "suggestion":"Mostrar estado: '✓ 0-2 (cerrado)' o '✓ 0-2 (editable hasta 18:30)' según el caso."
-  },
-  {
-    "scene":"7b-tap-match",
-    "severity":"necesita-explicacion",
-    "title":"Tocar un partido CONFIRMA el pronóstico actual en vez de abrir detalle",
-    "observation":"Don Roberto toca 'River vs Boca' para VER el detalle / cambiar el pronóstico. El bot responde '✅ Anotado en Penca de la familia: River Plate 2 - 1 Boca Juniors' — como si hubiera mandado un pronóstico nuevo. Pero Don Roberto solo quería MIRAR. Confunde 'tap para ver' con 'tap para confirmar'.",
-    "suggestion":"Al tocar un partido, abrir vista de detalle: 'River vs Boca — mar 26 may 18:30. Tu pronóstico: 2-1.' con botones [Cambiar pronóstico] [Volver a partidos]. La confirmación '✅ Anotado' debe ser solo cuando el usuario MANDÓ un score."
-  },
-  {
-    "scene":"7b-tap-match",
-    "severity":"overwhelm",
-    "title":"Botones 'Más pendientes' vs 'Otros partidos' suenan iguales",
-    "observation":"Tras la confirmación aparecen 3 botones: '⏳ Más pendientes', '📅 Otros partidos', '🏠 Resumen'. 'Más pendientes' y 'Otros partidos' parecen sinónimos para Don Roberto. ¿Cuál toca? Además 'Resumen' es vago.",
-    "suggestion":"Fundir en 2 botones: '📅 Otros partidos' (lista completa) y '🏠 Inicio'."
-  },
-  {
-    "scene":"VERDICT",
-    "severity":"necesita-explicacion",
-    "title":"Veredicto general — Don Roberto necesitó que alguien le explique",
-    "observation":"Don Roberto sale del flow con tres sentimientos mezclados: 1) 'me dijeron muchas cosas pero no entendí qué es una penca hasta que pregunté'; 2) 'algunas cosas estaban en inglés (Tue, Wed) y me confundieron'; 3) 'cuando pregunté quién va ganando me dijo permiso del sistema, me asustó'. Lo positivo: el pedido del nombre y la explicación tras 'que es esto?' fueron HUMANOS y claros — cuando el bot baja un cambio y conversa, funciona. Cuando rebota a router/LLM y comete errores técnicos, asusta. La voz del bot es 75% buena (voseo correcto, anchor emojis, mensajes cortos) pero 25% se desliza a eufórico ('Genial!', '¡Bien ahí!', 'pegale el link!') o robótica ('me faltó permiso del sistema'). Lo que Don Roberto le contaría a su sobrino: 'Está bueno, pero pedile a alguien que te explique las primeras pantallas, no se entiende qué es una penca y me asustó un error que me tiró. Una vez que arrancás está OK, pero solo no llegás.'",
-    "what_would_don_roberto_tell_sobrino":"'Mirá, está bueno para jugar en familia, pero al principio te tira palabras raras como penca y partidos en inglés. Yo me trabé, pero seguí tocando botones hasta que entendí. Si te animás a preguntar te explica bien. Pero un amigo mío de mi edad creo que abandona en los primeros 30 segundos.'"
-  }
-]}
+{
+  "persona": "tio-roberto",
+  "round": 5,
+  "ran_at": "2026-05-20T00:19:40Z",
+  "framing": "UX-maturity-verification",
+  "verdict": "comprehensible-without-help",
+  "r4_fixes_verified_closed": 6,
+  "r4_fixes_verified_regression": 0,
+  "llm_error_leak_status": "fixed",
+  "findings": [
+    {
+      "scene": 1,
+      "id": "r4-fix-1-hola-explains-penca",
+      "severity": "verificado-cerrado",
+      "stimulus": "hola",
+      "observed": "Hola. Soy *Mantia*. Armás una *penca* (grupo de pronósticos) con tus amigos, cargás los marcadores de cada partido por acá, y gana quien más le pega. Todo por WhatsApp, sin app. ¿Arrancamos?",
+      "note": "R4 fix verified. 'Penca' is explained inline in plain language. 4 readable lines. Buttons offer Crear penca / Tengo código / Ayuda. Don Roberto would not need a friend to start anymore."
+    },
+    {
+      "scene": 2,
+      "id": "r4-fix-2-create-penca-prompt-tone",
+      "severity": "verificado-cerrado",
+      "stimulus": "crear penca De la familia",
+      "observed": "*De la familia* — ¿para qué torneo es?",
+      "note": "R4 fix verified. No '¡Genial!' enthusiasm. Direct, calm prompt followed by a competition picker. Tone matches what an older first-time user expects from a tool."
+    },
+    {
+      "scene": 3,
+      "id": "r4-fix-3-spanish-day-labels",
+      "severity": "verificado-cerrado",
+      "stimulus": "mantia:cmd:matches after picking Libertadores semanal",
+      "observed": "Day labels: 'mar 19 may', 'mié 20 may', 'jue 21 may', 'mar 26 may'",
+      "note": "R4 fix verified. All weekday abbreviations are in Spanish (mar/mié/jue). No 'Tue'/'Wed'/'Thu' leak. Month is also in Spanish (may)."
+    },
+    {
+      "scene": 4,
+      "id": "r4-fix-4-match-tap-shows-detail",
+      "severity": "verificado-cerrado",
+      "stimulus": "mantia:match:6384 (tap a match row)",
+      "observed": "*Universidad de Chile vs Defensa y Justicia*\\nmié 20 may • 19:00 · Fase de grupos · Fecha 5\\nPronóstico actual: *1-2* — mandame uno nuevo (ej *2-1*).",
+      "note": "R4 fix verified. Tapping a match opens a detail panel with current prediction and instructions. No silent stash-confirm. Don Roberto can see context and what to type next."
+    },
+    {
+      "scene": 5,
+      "id": "r4-fix-5-anotado-no-enthusiasm",
+      "severity": "verificado-cerrado",
+      "stimulus": "2-1",
+      "observed": "✅ Anotado en *De la familia*: Universidad de Chile 2 - 1 Defensa y Justicia",
+      "note": "R4 fix verified. Plain 'Anotado'. No '¡Bien ahí!' or other casual enthusiasm. Just a check, the penca name, and the recorded score."
+    },
+    {
+      "scene": 6,
+      "id": "r4-fix-6-llm-error-leak",
+      "severity": "verificado-cerrado",
+      "stimulus": "Quien va ganando?",
+      "observed": "En *De la familia* todavía sos solo vos, así que… ¡vas ganando vos! 🏆 Cuando se sumen tus amigos con el código, ahí se arma la pelea. ¿Querés que te reenvíe la invitación?",
+      "note": "R4 fix verified. NO raw error string like 'me faltó permiso del sistema'. LLM gave a charming, contextual answer (you are the only player so you are winning) and offered a useful next step."
+    },
+    {
+      "scene": 7,
+      "id": "ayuda-routing",
+      "severity": "excelencia",
+      "stimulus": "no entiendo, ayuda",
+      "observed": "Tranqui, te explico cómo funciona Mantia 👇  with sections: La idea, Cómo se puntúa (5/3/1/0 pts), Cómo cargar un pronóstico (3 formats), Tu penca (current state), ¿Qué querés hacer?",
+      "note": "Help is structured, calm, comprehensive without overwhelming. Mentions the user's current penca by name ('Ya creaste De la familia'). Don Roberto would understand the scoring system from this single message."
+    },
+    {
+      "scene": 8,
+      "id": "compartir-via-llm-placeholder-leak",
+      "severity": "nuevo-info-faltante",
+      "stimulus": "compartir mi penca",
+      "observed": "LLM-handled reply contains: 'O tocá: https://wa.me/<numero-mantia>?text=DELAFAMILIA'. The literal string '<numero-mantia>' appears in the user-facing message, and the code is the bare 'DELAFAMILIA' (without the public token suffix).",
+      "note": "Privacy is fine — no private edit URL is leaked. But the LLM share path hallucinates a placeholder URL instead of the real wa.me/59891513284 link, and uses 'DELAFAMILIA' instead of the canonical 'DELAFAMILIA6W4SB' public share token. The button-driven mantia:cmd:share-link path works correctly. Fix: route 'compartir' phrases to the share-link handler instead of letting the LLM compose the link."
+    },
+    {
+      "scene": 9,
+      "id": "llm-idiomatic-handling",
+      "severity": "excelencia",
+      "stimulus": "che, contame quien va",
+      "observed": "En *De la familia* todavía sos el único jugador 😅 — así que el podio es todo tuyo. En cuanto se sumen tus amigos con el link, te muestro la tabla en serio. ¿Querés que te pase de nuevo la invitación?",
+      "note": "LLM gracefully handles Rioplatense idiom ('che, contame quien va'). Tone matches Don Roberto's register. Offers a useful follow-up."
+    }
+  ]
+}

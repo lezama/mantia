@@ -1,0 +1,45 @@
+{
+  "persona": "multi-penca",
+  "round": 5,
+  "ran_at": "2026-05-19T00:00:00Z",
+  "framing": "regression-verify",
+  "calls_used": 10,
+  "calls_cap": 10,
+  "pencas_created": ["Trabajo", "Barrio"],
+  "pencas_abandoned": ["Pibes"],
+  "findings": [
+    {
+      "id": "R2-rate-limit",
+      "severity": "verificado-cerrado",
+      "note": "3rd penca creation ('crear penca Pibes') was accepted by the router without rate-limit error. R2 raise 20->40 holds."
+    },
+    {
+      "id": "R2-mis-pencas-plural",
+      "severity": "verificado-cerrado",
+      "note": "'mis pencas' returns Interactive List. Correct grammar: '1 jugador' (singular) and '8 pronósticos' (plural). Header shows 'Estás en 2 pencas:'. Only 2 listed because Pibes flow was abandoned before name confirmation (call-budget tradeoff)."
+    },
+    {
+      "id": "ux-create-penca-name-not-persisted",
+      "severity": "nuevo-medio",
+      "note": "'crear penca <Nombre>' captures the name in the first prompt, but after tapping the competition the bot re-asks for the name. The supplied name does NOT persist through the competition selection step. Forces 3 messages per penca instead of 2. Repro: 'crear penca Trabajo' -> competition tap -> still prompts '¿cómo se va a llamar tu penca?'. This burned 6 of my 10 calls (2 pencas × 3 turns) and prevented completing the 3rd penca and the R3/R4 score-stash regression."
+    },
+    {
+      "id": "R3-cold-score-stash",
+      "severity": "no-verificado",
+      "note": "Could not verify in this round: budget exhausted by the name-not-persisted bug above. Step 6-8 (cold '2-1', tap-match, re-send) require ≥3 calls."
+    },
+    {
+      "id": "R4-stash-surfacing-on-match-tap",
+      "severity": "no-verificado",
+      "note": "Could not verify in this round (depends on R3 setup). Recommend retry with a 12-call budget or fix the name-persistence bug first to free up calls."
+    }
+  ],
+  "state_final": {
+    "user_id": 7263,
+    "groups": [
+      {"id": 7262, "name": "Trabajo", "competition": "libertadores-semana"},
+      {"id": 7283, "name": "Barrio", "competition": "libertadores-semana"}
+    ],
+    "predictions": 16
+  }
+}

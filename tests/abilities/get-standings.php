@@ -27,8 +27,7 @@ Mantia_E2E::cleanup_persona( $persona );
 // Bootstrap: create a penca + register one prediction so standings have
 // at least one row to read. Use the WhatsApp flow for the setup (it's
 // what real users hit) — the ability test focuses on standings retrieval.
-Mantia_E2E::send( $persona, 'crear penca __E2E__ Standings' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ Standings' );
 
 $user_id = (int) Mantia_Repository::find_user_by_phone( $persona['phone'] )->ID;
 $groups  = Mantia_Repository::user_groups_to_array( $user_id );
@@ -92,10 +91,10 @@ $result = Mantia_E2E::call_ability( 'mantia/get-standings', array(
 	'group_id' => $group_id,
 	'limit'    => 999,
 ) );
-// Schema declares max=50 — the ability should NOT return more than 50
-// rows even when the caller asks for more. (If the leaderboard has
-// fewer than 50 entries, this is trivially satisfied.)
-Mantia_E2E::assert_true( count( (array) $result['standings'] ) <= 50, 'clamped to max=50' );
+// Schema declares max=50 — the agent-loop validator rejects with a
+// WP_Error rather than silently clamping. The contract is: caller
+// shouldn't ask for more than 50.
+Mantia_E2E::assert_true( is_wp_error( $result ), 'limit > 50 rejected by schema validation' );
 
 Mantia_E2E::cleanup_persona( $persona );
 Mantia_E2E::finish();

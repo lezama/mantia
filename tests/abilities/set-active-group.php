@@ -36,10 +36,8 @@ if ( is_wp_error( $result ) ) {
 
 Mantia_E2E::step( '2. Switch active group_id between two pencas' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ SetActive First' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
-Mantia_E2E::send( $persona, 'crear penca __E2E__ SetActive Second' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ SetActive First' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ SetActive Second' );
 
 $user_id = (int) Mantia_Repository::find_user_by_phone( $persona['phone'] )->ID;
 $groups  = Mantia_Repository::user_groups_to_array( $user_id );

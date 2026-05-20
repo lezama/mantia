@@ -1,1 +1,82 @@
-{"persona":"tincho-organizer","ran_at":"2026-05-19T00:00:00Z","framing":"UX-maturity-density","findings":[]}
+{
+  "persona": "tincho-organizer",
+  "round": 5,
+  "ran_at": "2026-05-19T00:00:00Z",
+  "framing": "UX-maturity-density",
+  "findings": [
+    {
+      "severity": "verificado-cerrado",
+      "label": "opener compacto y con 3 botones",
+      "evidence": "hola → 'Hola. Soy Mantia. Armás una penca...' + botones Crear/Tengo código/Ayuda. Densidad correcta: 1 frase de qué es + 1 CTA.",
+      "step": 1
+    },
+    {
+      "severity": "verificado-cerrado",
+      "label": "creación de penca en 2 pasos limpios",
+      "evidence": "crear penca → list picker de competencias → ✅ creó penca + autopredijo 8 partidos + invita a compartir. Buen onboarding.",
+      "step": 2
+    },
+    {
+      "severity": "verificado-cerrado",
+      "label": "post_title del organizador = 'Tincho'",
+      "evidence": "state-query 999900020 → display_name: 'Tincho'. Captura correcta cuando el primer mensaje es 'hola' (router path).",
+      "step": 3
+    },
+    {
+      "severity": "nuevo-voz-rota",
+      "label": "LLM alucina 'no tengo permisos' al recibir invite-code en primer mensaje",
+      "evidence": "Juan envía 'Hola me quiero sumar a Penca del barrio · 5dcc8c52532cd3141b58cd25' → LLM responde 'Uy, no tengo permisos para sumarte automáticamente'. Reintentos con sólo el código y con 'Me sumo a...' devuelven la misma excusa fabricada. El usuario Juan ni siquiera se crea en DB (state: exists:false). La voz del bot inventa un obstáculo técnico que no existe.",
+      "step": 4,
+      "blocking": true
+    },
+    {
+      "severity": "nuevo-necesita-explicacion",
+      "label": "dos códigos distintos para la misma penca",
+      "evidence": "state-query muestra view_token '5dcc8c52532cd3141b58cd25' (hex). La wa.me share-link usa slug 'PENCADELBARRIOETSSC'. El primer código NO funciona como código de invitación (lo intercepta el LLM); el segundo sí lo entiende el router. UX-density: el organizador no debería tener que entender la diferencia entre view_token y slug-code.",
+      "step": 4
+    },
+    {
+      "severity": "nuevo-info-faltante",
+      "label": "name capture rota al unirse por código",
+      "evidence": "Juan se unió con push_name='Juan' → DB display_name='QA'. Pablo se unió con push_name='Pablo' → DB display_name='QA'. El reply del bot dice 'Pablo (vos)' pero persiste 'QA'. Inconsistencia entre lo que ve el usuario y lo que queda guardado.",
+      "step": 5,
+      "blocking": true
+    },
+    {
+      "severity": "verificado-cerrado",
+      "label": "mis pencas con plural correcto",
+      "evidence": "Con 1 jugador: '1 jugador · 8 pronósticos'. Con 3 jugadores: '3 jugadores · 8 pronósticos'. Plurales bien resueltos.",
+      "step": 8
+    },
+    {
+      "severity": "nuevo-necesita-explicacion",
+      "label": "'8 pronósticos' es ambiguo con 3 jugadores",
+      "evidence": "Con 3 jugadores que cada uno cargó 8 predicciones, el contador sigue diciendo '8 pronósticos'. ¿Son partidos con al menos un pronóstico? ¿Pronósticos del usuario actual? El organizador no puede distinguir 'hay 8 partidos' vs 'se cargaron 24 pronósticos'. Density issue: el número es exacto pero la métrica no se autodescribe.",
+      "step": 8
+    },
+    {
+      "severity": "verificado-cerrado",
+      "label": "compartir NO leakea 'Tu link privado'",
+      "evidence": "Reply de 'compartir' solo muestra share-link público (wa.me con slug). R3 fix sigue válido en R5.",
+      "step": 9
+    },
+    {
+      "severity": "nuevo-info-faltante",
+      "label": "tabla vacía no muestra roster",
+      "evidence": "Tincho pide 'tabla' → 'Todavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.' OK que no haya puntos, pero el organizador (3 jugadores en la penca) no ve quiénes están adentro. Oportunidad: 'todavía no hay puntos · jugadores en la penca: Tincho, Juan, Pablo'.",
+      "step": 10
+    },
+    {
+      "severity": "excelencia",
+      "label": "'como va la penca' (LLM) respeta estado real",
+      "evidence": "Reply: 'Todavía no hay puntos. Cuando se jueguen los primeros partidos, aparece el ranking acá. Mientras tanto: revisar pronósticos, sumar amigos.' Tono Tincho-friendly, sin alucinar puntos.",
+      "step": 12
+    },
+    {
+      "severity": "nuevo-voz-rota",
+      "label": "LLM rechaza 'quien no jugó' con la misma excusa de permisos",
+      "evidence": "Tincho pregunta 'quien no jugó' → 'Uh, no tengo permiso para esa función desde acá.' La data está disponible (es la penca de Tincho, él es admin). El bot fabrica una barrera de permisos en vez de responder o derivar al handler correcto. Es la 3ra vez en esta sesión que el LLM usa la excusa 'permisos'.",
+      "step": 11
+    }
+  ]
+}

@@ -323,8 +323,9 @@ final class Mantia_E2E {
 			wp_delete_post( (int) $pid, true );
 		}
 
-		// Delete groups this user owns where they are the only member.
-		$groups = (array) get_post_meta( $user_id, Mantia_Repository::META_GROUP_IDS, true );
+		// Delete groups this user is in where they are the only member.
+		// Post-Phase-6 the group list lives in user_meta on the wp_user.
+		$groups = (array) get_user_meta( $user_id, Mantia_Repository::META_GROUP_IDS, true );
 		foreach ( array_map( 'intval', $groups ) as $gid ) {
 			if ( $gid <= 0 ) continue;
 			$members = Mantia_Repository::group_members( $gid );
@@ -337,7 +338,8 @@ final class Mantia_E2E {
 			}
 		}
 
-		wp_delete_post( $user_id, true );
+		// Identity itself is a wp_user now, not a CPT post.
+		wp_delete_user( $user_id );
 	}
 
 	/**
@@ -594,6 +596,26 @@ final class Mantia_E2E {
 
 	public static function user_by_phone( string $phone ): ?WP_User {
 		return Mantia_Repository::find_user_by_phone( $phone );
+	}
+
+	/**
+	 * Bootstrap a penca via the WhatsApp flow in three turns:
+	 *   1. crear penca <name> → bot replies with competition picker
+	 *   2. mantia:newcomp:<competition_id> → bot asks for name
+	 *   3. <name> → bot confirms "Creaste *<name>* para ..."
+	 *
+	 * Test-friendly helper: the picker step doesn't reuse the name from
+	 * step 1 (handle_competition_picked_for_new ignores pending_create),
+	 * so the test has to send the name twice. Centralised here so each
+	 * ability/flow test doesn't repeat the dance.
+	 *
+	 * @return array The reply from the final 'name' turn (carries the
+	 *               "Creaste" confirmation + group context).
+	 */
+	public static function create_penca_via_chat( array $persona, string $name, string $competition_id = 'libertadores-semana' ): array {
+		self::send( $persona, 'crear penca ' . $name );
+		self::send( $persona, 'mantia:newcomp:' . $competition_id );
+		return self::send( $persona, $name );
 	}
 
 	public static function match_id_from_payload( array $result, int $index = 0 ): int {

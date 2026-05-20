@@ -34,6 +34,8 @@ $persona = array(
 Mantia_E2E::cleanup_persona( $persona );
 
 // Bootstrap a user with one penca in libertadores-semana.
+// Current flow: name → picker → name capture (3 turns) since the
+// competition-picker step doesn't reuse the earlier pending name.
 $boot = Mantia_E2E::send(
 	$persona,
 	'crear penca __E2E__ ADD Test'
@@ -41,7 +43,10 @@ $boot = Mantia_E2E::send(
 Mantia_E2E::assert_contains( $boot, 'torneo', 'creator picker shown' );
 
 $pick = Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
-Mantia_E2E::assert_contains( $pick, 'Creaste', 'penca created' );
+Mantia_E2E::assert_contains( $pick, 'cómo se va a llamar', 'asks for penca name after picking competition' );
+
+$name_reply = Mantia_E2E::send( $persona, '__E2E__ ADD Test' );
+Mantia_E2E::assert_contains( $name_reply, 'Creaste', 'penca created after name capture' );
 
 $user_id = Mantia_Repository::find_user_by_phone( $persona['phone'] )->ID;
 $group   = Mantia_Repository::user_groups_to_array( (int) $user_id )[0] ?? null;
@@ -117,6 +122,7 @@ Mantia_E2E::step( '4. Auto-routing: same score in N pencas at once' );
 // Create a second penca in the same competition for the same user.
 Mantia_E2E::send( $persona, 'crear penca __E2E__ ADD Second' );
 Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::send( $persona, '__E2E__ ADD Second' );
 
 $result = Mantia_E2E::call_ability( 'mantia/register-prediction', array(
 	'user_phone' => $persona['phone'],

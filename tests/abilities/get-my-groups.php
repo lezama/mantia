@@ -43,8 +43,7 @@ if ( is_wp_error( $result ) ) {
 
 Mantia_E2E::step( '2. One penca → user_id + active_group_id + groups[0]' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ MyGroups First' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ MyGroups First' );
 
 $result = Mantia_E2E::call_ability( 'mantia/get-my-groups', array(
 	'user_phone' => $persona['phone'],
@@ -62,8 +61,7 @@ Mantia_E2E::assert_true( ! empty( $group_0['invite_code'] ), 'group has invite_c
 
 Mantia_E2E::step( '3. Two pencas → groups[].length=2, active = latest' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ MyGroups Second' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ MyGroups Second' );
 
 $result = Mantia_E2E::call_ability( 'mantia/get-my-groups', array(
 	'user_phone' => $persona['phone'],

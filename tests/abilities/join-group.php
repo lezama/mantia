@@ -31,8 +31,7 @@ Mantia_E2E::cleanup_persona( $invitee );
 
 /* ──── Bootstrap: owner creates a penca, capture invite code ─────────── */
 
-Mantia_E2E::send( $owner, 'crear penca __E2E__ Join Target' );
-Mantia_E2E::send( $owner, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $owner, '__E2E__ Join Target' );
 
 $owner_id    = (int) Mantia_Repository::find_user_by_phone( $owner['phone'] )->ID;
 $owner_groups = Mantia_Repository::user_groups_to_array( $owner_id );

@@ -30,8 +30,7 @@ Mantia_E2E::assert_eq( 0, count( (array) $result['predictions'] ), 'no predictio
 
 Mantia_E2E::step( '2. After join + auto-fill → history populated' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ History' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ History' );
 
 $result = Mantia_E2E::call_ability( 'mantia/get-user-history', array(
 	'user_phone' => $persona['phone'],

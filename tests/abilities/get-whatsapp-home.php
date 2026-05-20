@@ -36,8 +36,7 @@ Mantia_E2E::assert_true( is_array( $result['upcoming'] ?? null ), 'upcoming surf
 
 Mantia_E2E::step( '2. With penca → active_group, standings, pending' );
 
-Mantia_E2E::send( $persona, 'crear penca __E2E__ Home' );
-Mantia_E2E::send( $persona, 'mantia:newcomp:libertadores-semana' );
+Mantia_E2E::create_penca_via_chat( $persona, '__E2E__ Home' );
 
 $result = Mantia_E2E::call_ability( 'mantia/get-whatsapp-home', array(
 	'user_phone'  => $persona['phone'],
