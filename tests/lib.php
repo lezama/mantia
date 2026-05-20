@@ -177,6 +177,169 @@ final class Mantia_E2E {
 		return false;
 	}
 
+	/* ──── Ability-driven development helpers ──────────────────────────── */
+
+	/**
+	 * Invoke an ability registered via wp_register_ability(). This is the
+	 * same call path the agent loop uses — input goes through schema
+	 * validation, the execute_callback runs, and the return value lands
+	 * here. Use this for ADD unit tests where you exercise one ability
+	 * in isolation and assert the output shape + business behavior.
+	 *
+	 * @return array|WP_Error
+	 */
+	public static function call_ability( string $name, array $input ) {
+		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $name ) : null;
+		if ( null === $ability ) {
+			++self::$failures;
+			self::log( "    ✗ FAIL: ability {$name} not registered" );
+			return new WP_Error( 'mantia_e2e_no_ability', "Ability not registered: {$name}" );
+		}
+		return $ability->execute( $input );
+	}
+
+	/**
+	 * Assert that an ability output matches its declared `output_schema`.
+	 * Walks `required` + `properties.type` enforcement — the common shape
+	 * checks an agent loop relies on. Skips deep validation (no jsonschema
+	 * dep) but catches missing keys + wrong primitive types.
+	 */
+	public static function assert_ability_output( string $ability_name, $result, string $label = '' ): bool {
+		++self::$assertions;
+		$label = '' !== $label ? $label : "{$ability_name} output";
+		if ( is_wp_error( $result ) ) {
+			++self::$failures;
+			self::log( "    ✗ FAIL: {$label} returned WP_Error: " . $result->get_error_message() );
+			return false;
+		}
+		if ( ! is_array( $result ) ) {
+			++self::$failures;
+			self::log( "    ✗ FAIL: {$label} not an array — got " . gettype( $result ) );
+			return false;
+		}
+
+		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $ability_name ) : null;
+		if ( null === $ability ) {
+			self::log( "    · {$label} — no schema (ability not loaded), passing" );
+			return true;
+		}
+		$schema = method_exists( $ability, 'get_output_schema' )
+			? $ability->get_output_schema()
+			: array();
+		if ( empty( $schema ) || ! is_array( $schema ) ) {
+			self::log( "    · {$label} — no output_schema declared, passing" );
+			return true;
+		}
+
+		$required   = (array) ( $schema['required'] ?? array() );
+		$properties = (array) ( $schema['properties'] ?? array() );
+		$missing    = array();
+		$wrong_type = array();
+		foreach ( $required as $key ) {
+			if ( ! array_key_exists( $key, $result ) ) {
+				$missing[] = $key;
+				continue;
+			}
+			$expected_type = (string) ( $properties[ $key ]['type'] ?? '' );
+			if ( '' === $expected_type ) {
+				continue;
+			}
+			$actual_type = self::json_type_of( $result[ $key ] );
+			if ( $expected_type !== $actual_type ) {
+				$wrong_type[] = "{$key}: schema={$expected_type}, got={$actual_type}";
+			}
+		}
+		if ( ! empty( $missing ) || ! empty( $wrong_type ) ) {
+			++self::$failures;
+			self::log( "    ✗ FAIL: {$label}" );
+			if ( ! empty( $missing ) ) {
+				self::log( "      missing required: " . implode( ', ', $missing ) );
+			}
+			if ( ! empty( $wrong_type ) ) {
+				self::log( "      type mismatch: " . implode( '; ', $wrong_type ) );
+			}
+			return false;
+		}
+		self::log( "    ✓ {$label} matches output_schema" );
+		return true;
+	}
+
+	private static function json_type_of( $value ): string {
+		if ( is_array( $value ) ) {
+			$is_list = array_keys( $value ) === range( 0, count( $value ) - 1 );
+			return $is_list ? 'array' : 'object';
+		}
+		if ( is_int( $value ) ) return 'integer';
+		if ( is_float( $value ) ) return 'number';
+		if ( is_bool( $value ) ) return 'boolean';
+		if ( is_string( $value ) ) return 'string';
+		if ( null === $value ) return 'null';
+		return 'unknown';
+	}
+
+	public static function assert_true( bool $condition, string $label ): bool {
+		++self::$assertions;
+		if ( $condition ) {
+			self::log( "    ✓ {$label}" );
+			return true;
+		}
+		++self::$failures;
+		self::log( "    ✗ FAIL: {$label}" );
+		return false;
+	}
+
+	public static function assert_not_null( $value, string $label ): bool {
+		return self::assert_true( null !== $value, $label );
+	}
+
+	/**
+	 * Delete a single persona's user, their groups, and predictions. Used
+	 * by ability/flow tests that want to start from a known-clean state
+	 * without nuking other E2E test data running in parallel.
+	 */
+	public static function cleanup_persona( array $persona ): void {
+		$phone = (string) ( $persona['phone'] ?? '' );
+		if ( '' === $phone ) {
+			return;
+		}
+		$user = Mantia_Repository::find_user_by_phone( $phone );
+		if ( ! $user ) {
+			return;
+		}
+		$user_id = (int) $user->ID;
+
+		// Delete this user's predictions across every group.
+		$pred_ids = get_posts( array(
+			'post_type'      => Mantia_CPTs::PREDICTION,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				array( 'key' => Mantia_Repository::META_USER_ID, 'value' => $user_id ),
+			),
+		) );
+		foreach ( $pred_ids as $pid ) {
+			wp_delete_post( (int) $pid, true );
+		}
+
+		// Delete groups this user owns where they are the only member.
+		$groups = (array) get_post_meta( $user_id, Mantia_Repository::META_GROUP_IDS, true );
+		foreach ( array_map( 'intval', $groups ) as $gid ) {
+			if ( $gid <= 0 ) continue;
+			$members = Mantia_Repository::group_members( $gid );
+			$has_other = false;
+			foreach ( $members as $m ) {
+				if ( (int) $m['id'] !== $user_id ) { $has_other = true; break; }
+			}
+			if ( ! $has_other ) {
+				wp_delete_post( $gid, true );
+			}
+		}
+
+		wp_delete_post( $user_id, true );
+	}
+
 	/**
 	 * GET a URL with a cache-busting param + assert 200 and optional body
 	 * substrings. The cache-buster matters: wp_remote_get going from the
