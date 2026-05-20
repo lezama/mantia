@@ -273,7 +273,13 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_home( $identity );
 		}
 
-		if ( preg_match( '/^(?:link|invitacion|compartir|share|invite)$/i', $lc ) ) {
+		// Match the share intent in any phrasing the user reaches for:
+		// "compartir mi penca", "mandame el link", "como invito amigos",
+		// "share the group", etc. R5 Don Roberto sent "compartir mi penca"
+		// and the LLM hallucinated the share message with a placeholder
+		// number. Catch it deterministically so the canonical share URL
+		// always wins over an LLM compose pass.
+		if ( preg_match( '/\b(?:link|invitaci[oó]n|compartir|share|invite|invitar)\b/iu', $lc ) ) {
 			return self::handle_share_link( $identity );
 		}
 
