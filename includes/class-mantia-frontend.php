@@ -2403,17 +2403,15 @@ JS;
 	 */
 	private static function user_avatar( int $user_id, int $size = 40, string $extra_class = '' ): string {
 		$cls = 'mantia-avatar' . ( '' !== $extra_class ? ' ' . $extra_class : '' );
-		if ( has_post_thumbnail( $user_id ) ) {
-			$url = (string) get_the_post_thumbnail_url( $user_id, array( $size * 2, $size * 2 ) );
-			if ( '' !== $url ) {
-				return sprintf(
-					'<img class="%s mantia-avatar-img" src="%s" width="%d" height="%d" alt="" loading="lazy">',
-					esc_attr( $cls ),
-					esc_url( $url ),
-					$size,
-					$size
-				);
-			}
+		$url = Mantia_Repository::user_avatar_url( $user_id );
+		if ( '' !== $url ) {
+			return sprintf(
+				'<img class="%s mantia-avatar-img" src="%s" width="%d" height="%d" alt="" loading="lazy">',
+				esc_attr( $cls ),
+				esc_url( $url ),
+				$size,
+				$size
+			);
 		}
 
 		$name = self::display_name_for( $user_id );
@@ -2465,15 +2463,7 @@ JS;
 	 * contacts list.
 	 */
 	private static function display_name_for( int $user_id ): string {
-		$title = (string) get_the_title( $user_id );
-		$phone = (string) get_post_meta( $user_id, Mantia_Repository::META_PHONE, true );
-		if ( '' !== $title && $title !== $phone ) {
-			return $title;
-		}
-		if ( '' !== $phone ) {
-			return Mantia_Repository::format_phone_for_display( $phone );
-		}
-		return __( 'Jugador', 'mantia' );
+		return Mantia_Repository::user_display_name( $user_id );
 	}
 
 	/**

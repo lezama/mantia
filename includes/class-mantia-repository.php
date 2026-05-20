@@ -57,47 +57,35 @@ final class Mantia_Repository {
 		return substr( (string) $invite_code, 0, 32 );
 	}
 
+	/**
+	 * Find-or-create a Mantia user. Identity lives in a wp_user (managed by
+	 * WA_Identity_Bridge); Mantia-specific per-user state (active group,
+	 * whatsapp recipient, etc.) lives in user_meta on the same row.
+	 *
+	 * Returns 0 on bad phone OR if wp_user creation failed (rate limit,
+	 * filter rejection). Callers must handle the 0 case — the WhatsApp
+	 * flow returns a generic "no pude identificarte, reintentá" reply.
+	 */
 	public static function get_or_create_user( string $phone, string $name = '', string $recipient = '' ): int {
 		$normalized = self::normalize_phone( $phone );
 		if ( '' === $normalized ) {
 			return 0;
 		}
 
-		$existing = self::find_user_by_phone( $normalized );
-		if ( $existing ) {
-			if ( '' !== $name ) {
-				wp_update_post(
-					array(
-						'ID'         => $existing->ID,
-						'post_title' => sanitize_text_field( $name ),
-					)
-				);
-			}
-			if ( '' !== $recipient ) {
-				update_post_meta( $existing->ID, self::META_WHATSAPP_RECIPIENT, sanitize_text_field( $recipient ) );
-			}
-			return (int) $existing->ID;
-		}
-
-		$post_id = wp_insert_post(
-			array(
-				'post_type'   => Mantia_CPTs::USER,
-				'post_status' => 'publish',
-				'post_title'  => '' !== $name ? sanitize_text_field( $name ) : $normalized,
-			),
-			true
-		);
-
-		if ( is_wp_error( $post_id ) ) {
+		$user = WA_Identity_Bridge::resolve_or_create( $normalized, $name );
+		if ( ! ( $user instanceof WP_User ) ) {
 			return 0;
 		}
 
-		update_post_meta( (int) $post_id, self::META_PHONE, $normalized );
 		if ( '' !== $recipient ) {
-			update_post_meta( (int) $post_id, self::META_WHATSAPP_RECIPIENT, sanitize_text_field( $recipient ) );
+			update_user_meta( $user->ID, self::META_WHATSAPP_RECIPIENT, sanitize_text_field( $recipient ) );
 		}
+		// Mirror the canonical phone into our own meta key too — most callers
+		// use META_PHONE for lookup and we want to keep both keys in sync so
+		// neither becomes the "wrong" source of truth.
+		update_user_meta( $user->ID, self::META_PHONE, $normalized );
 
-		return (int) $post_id;
+		return (int) $user->ID;
 	}
 
 	/**
@@ -125,24 +113,42 @@ final class Mantia_Repository {
 		return '+' . $head . ' ' . $grouped;
 	}
 
-	public static function find_user_by_phone( string $phone ): ?WP_Post {
+	/**
+	 * Resolve a user's display name, falling back through:
+	 *   1. wp_user.display_name (the canonical, WhatsApp profile.name source)
+	 *   2. Formatted phone (so unnamed users still appear as +598 99 139 203)
+	 *   3. Generic 'Jugador' label.
+	 *
+	 * Used everywhere we need to render a user's name in a UI surface.
+	 * Centralised so the fallback ladder stays consistent.
+	 */
+	public static function user_display_name( int $user_id ): string {
+		$user = get_user_by( 'id', $user_id );
+		if ( $user instanceof WP_User ) {
+			$name = (string) $user->display_name;
+			if ( '' !== $name ) {
+				return $name;
+			}
+		}
+		$phone = (string) get_user_meta( $user_id, self::META_PHONE, true );
+		if ( '' !== $phone ) {
+			return self::format_phone_for_display( $phone );
+		}
+		return __( 'Jugador', 'mantia' );
+	}
+
+	/**
+	 * Find a Mantia user by phone. Delegates to WA_Identity_Bridge so the
+	 * canonical META_PHONE meta key it uses (wa_phone_e164) is the source
+	 * of truth; we keep our own META_PHONE meta in sync as a Mantia-side
+	 * mirror for the few queries that filter by it directly.
+	 */
+	public static function find_user_by_phone( string $phone ): ?WP_User {
 		$normalized = self::normalize_phone( $phone );
 		if ( '' === $normalized ) {
 			return null;
 		}
-
-		$posts = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'any',
-				'posts_per_page' => 1,
-				'no_found_rows'  => true,
-				'meta_key'       => self::META_PHONE,
-				'meta_value'     => $normalized,
-			)
-		);
-
-		return $posts[0] ?? null;
+		return WA_Identity_Bridge::find_by_phone( $normalized );
 	}
 
 	public static function create_group( string $name, string $invite_code = '', string $slug = '', string $competition_id = '' ): int {
@@ -217,70 +223,57 @@ final class Mantia_Repository {
 		return $posts[0] ?? null;
 	}
 
+	/**
+	 * Legacy view / share tokens, now backed by user_meta. Phase 6 will
+	 * remove these — the magic-link bridge replaces them for /penca/me/.
+	 * Kept temporarily so existing URL handlers don't break mid-migration.
+	 */
 	public static function user_view_token( int $user_id ): string {
-		$token = (string) get_post_meta( $user_id, self::META_USER_VIEW_TOKEN, true );
+		$token = (string) get_user_meta( $user_id, self::META_USER_VIEW_TOKEN, true );
 		if ( '' === $token ) {
 			$token = bin2hex( random_bytes( 12 ) );
-			update_post_meta( $user_id, self::META_USER_VIEW_TOKEN, $token );
+			update_user_meta( $user_id, self::META_USER_VIEW_TOKEN, $token );
 		}
 		return $token;
 	}
 
-	public static function find_user_by_view_token( string $token ): ?WP_Post {
+	public static function find_user_by_view_token( string $token ): ?WP_User {
 		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
 		if ( strlen( $token ) < 16 ) {
 			return null;
 		}
-		$posts = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'publish',
-				'posts_per_page' => 1,
-				'no_found_rows'  => true,
-				'meta_key'       => self::META_USER_VIEW_TOKEN,
-				'meta_value'     => $token,
-			)
-		);
-		return $posts[0] ?? null;
+		$users = get_users( array(
+			'meta_key'   => self::META_USER_VIEW_TOKEN,
+			'meta_value' => $token,
+			'number'     => 1,
+			'fields'     => 'all',
+		) );
+		return $users[0] ?? null;
 	}
 
-	/**
-	 * Share token: an INDEPENDENTLY-random hex string distinct from the
-	 * user's view token. The two never overlap, which is the whole point
-	 * — `/penca/me/<view>/` is the private edit URL; `/penca/me/share/<share>/`
-	 * is the screenshotable read-only summary. If they shared a token,
-	 * anyone with the share link could land on the edit page by chopping
-	 * the URL.
-	 */
 	public static function user_share_token( int $user_id ): string {
-		$token = (string) get_post_meta( $user_id, self::META_USER_SHARE_TOKEN, true );
+		$token = (string) get_user_meta( $user_id, self::META_USER_SHARE_TOKEN, true );
 		if ( '' === $token ) {
-			// Loop to be paranoid about the (astronomical) chance of
-			// colliding with the view token — both are 24 hex chars.
 			do {
 				$token = bin2hex( random_bytes( 12 ) );
-			} while ( $token === (string) get_post_meta( $user_id, self::META_USER_VIEW_TOKEN, true ) );
-			update_post_meta( $user_id, self::META_USER_SHARE_TOKEN, $token );
+			} while ( $token === (string) get_user_meta( $user_id, self::META_USER_VIEW_TOKEN, true ) );
+			update_user_meta( $user_id, self::META_USER_SHARE_TOKEN, $token );
 		}
 		return $token;
 	}
 
-	public static function find_user_by_share_token( string $token ): ?WP_Post {
+	public static function find_user_by_share_token( string $token ): ?WP_User {
 		$token = preg_replace( '/[^a-f0-9]/i', '', $token );
 		if ( strlen( $token ) < 16 ) {
 			return null;
 		}
-		$posts = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'publish',
-				'posts_per_page' => 1,
-				'no_found_rows'  => true,
-				'meta_key'       => self::META_USER_SHARE_TOKEN,
-				'meta_value'     => $token,
-			)
-		);
-		return $posts[0] ?? null;
+		$users = get_users( array(
+			'meta_key'   => self::META_USER_SHARE_TOKEN,
+			'meta_value' => $token,
+			'number'     => 1,
+			'fields'     => 'all',
+		) );
+		return $users[0] ?? null;
 	}
 
 	/**
@@ -356,11 +349,13 @@ final class Mantia_Repository {
 	}
 
 	/**
-	 * Download an image and attach it to the given mantia_user post as
-	 * the featured image (post_thumbnail). The frontend already prefers
-	 * the thumbnail over the generated initials avatar, so the moment
-	 * openclawp surfaces inbound image messages, hooking into this is
-	 * enough to give users their real photo.
+	 * Download an image and stamp it as the user's avatar. Stored as
+	 * META_AVATAR_ATTACHMENT_ID on the wp_user; the frontend prefers
+	 * this over the generated initials avatar when present.
+	 *
+	 * (Previously this set a featured image on the mantia_user CPT; the
+	 * wp_user backing means we store the attachment id directly in
+	 * user_meta and let the frontend resolve it via wp_get_attachment_url.)
 	 *
 	 * @return int Attachment ID, or 0 on failure.
 	 */
@@ -368,7 +363,9 @@ final class Mantia_Repository {
 		if ( $user_id <= 0 || '' === $image_url ) {
 			return 0;
 		}
-		if ( get_post_type( $user_id ) !== Mantia_CPTs::USER ) {
+		// Verify the user exists in wp_users (any caller error here means
+		// we'd otherwise stamp orphan meta or leak an attachment).
+		if ( ! get_user_by( 'id', $user_id ) ) {
 			return 0;
 		}
 
@@ -406,7 +403,7 @@ final class Mantia_Repository {
 				'size'     => strlen( $body ),
 				'type'     => $content_type,
 			),
-			$user_id,
+			0, // No parent post — orphan attachments are fine for avatars.
 			sprintf( 'Avatar for mantia user %d', $user_id )
 		);
 		if ( is_wp_error( $attachment_id ) ) {
@@ -414,8 +411,19 @@ final class Mantia_Repository {
 			return 0;
 		}
 
-		set_post_thumbnail( $user_id, (int) $attachment_id );
+		update_user_meta( $user_id, self::META_AVATAR_ATTACHMENT_ID, (int) $attachment_id );
 		return (int) $attachment_id;
+	}
+
+	public const META_AVATAR_ATTACHMENT_ID = '_mantia_avatar_attachment_id';
+
+	/** Return the URL for the user's uploaded avatar, or '' if none set. */
+	public static function user_avatar_url( int $user_id ): string {
+		$attachment_id = (int) get_user_meta( $user_id, self::META_AVATAR_ATTACHMENT_ID, true );
+		if ( $attachment_id <= 0 ) {
+			return '';
+		}
+		return (string) wp_get_attachment_url( $attachment_id );
 	}
 
 	private static function guess_extension_from_content_type( string $content_type ): string {
@@ -440,32 +448,40 @@ final class Mantia_Repository {
 		if ( $group_id <= 0 ) {
 			return array();
 		}
-		$users = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'no_found_rows'  => true,
-			)
-		);
+		// Query wp_users that have this group_id in their META_GROUP_IDS.
+		// get_users meta_query handles the serialized-array LIKE match via
+		// the 'compare' => 'LIKE' fallback — fine at our scale (<100 members).
+		$users = get_users( array(
+			'meta_query' => array(
+				array(
+					'key'     => self::META_GROUP_IDS,
+					'value'   => sprintf( 'i:%d;', (int) $group_id ),
+					'compare' => 'LIKE',
+				),
+			),
+			'fields'     => 'all',
+			'number'     => -1,
+		) );
 		$members = array();
 		foreach ( $users as $u ) {
-			$groups = (array) get_post_meta( (int) $u->ID, self::META_GROUP_IDS, true );
+			// Double-check the LIKE match wasn't a false positive (e.g.
+			// group 12 substring-matching group 123). The serialized
+			// fragment 'i:12;' is unique within array values but better
+			// to verify properly.
+			$groups = (array) get_user_meta( (int) $u->ID, self::META_GROUP_IDS, true );
 			if ( ! in_array( $group_id, array_map( 'intval', $groups ), true ) ) {
 				continue;
 			}
-			$title   = (string) get_the_title( (int) $u->ID );
-			$phone   = (string) get_post_meta( (int) $u->ID, self::META_PHONE, true );
-			$has_name = '' !== $title && $title !== $phone;
-			// WhatsApp Cloud API delivers profile.name on every inbound
-			// message and Mantia stores it as post_title via
-			// get_or_create_user(). If we still don't have a name (user
-			// joined before the capture was wired, or the WA profile
-			// privacy hides it), fall back to the formatted phone instead
-			// of a generic "Jugador" — the number is something humans can
-			// match against their contacts.
+			$name  = (string) $u->display_name;
+			$phone = (string) get_user_meta( (int) $u->ID, self::META_PHONE, true );
+			// display_name comes from WhatsApp profile.name (refreshed by
+			// the bridge on every inbound). Without a real name (privacy-
+			// locked profile, or user joined before profile.name capture),
+			// fall back to the formatted phone — easier for humans to match
+			// against contacts than a generic "Jugador".
+			$has_name = '' !== $name && $name !== $phone && $name !== '+' . $phone;
 			if ( $has_name ) {
-				$display = $title;
+				$display = $name;
 			} elseif ( '' !== $phone ) {
 				$display = self::format_phone_for_display( $phone );
 			} else {
@@ -473,7 +489,7 @@ final class Mantia_Repository {
 			}
 			$members[] = array(
 				'id'           => (int) $u->ID,
-				'name'         => $title,
+				'name'         => $name,
 				'phone'        => $phone,
 				'display_name' => $display,
 			);
@@ -602,9 +618,9 @@ final class Mantia_Repository {
 		$already_member = in_array( (int) $group->ID, $groups, true );
 		if ( ! $already_member ) {
 			$groups[] = (int) $group->ID;
-			update_post_meta( $user_id, self::META_GROUP_IDS, array_values( $groups ) );
+			update_user_meta( $user_id, self::META_GROUP_IDS, array_values( $groups ) );
 		}
-		update_post_meta( $user_id, self::META_ACTIVE_GROUP_ID, (int) $group->ID );
+		update_user_meta( $user_id, self::META_ACTIVE_GROUP_ID, (int) $group->ID );
 
 		// Auto-fill predictions for every upcoming match in this penca's
 		// competition. Keeps users "in the game" the second they join —
@@ -831,7 +847,7 @@ final class Mantia_Repository {
 	}
 
 	public static function user_group_ids( int $user_id ): array {
-		$groups = get_post_meta( $user_id, self::META_GROUP_IDS, true );
+		$groups = get_user_meta( $user_id, self::META_GROUP_IDS, true );
 		if ( ! is_array( $groups ) ) {
 			return array();
 		}
@@ -840,7 +856,7 @@ final class Mantia_Repository {
 	}
 
 	public static function active_group_id_for_user( int $user_id ): int {
-		$active = (int) get_post_meta( $user_id, self::META_ACTIVE_GROUP_ID, true );
+		$active = (int) get_user_meta( $user_id, self::META_ACTIVE_GROUP_ID, true );
 		if ( $active > 0 ) {
 			return $active;
 		}
@@ -863,7 +879,7 @@ final class Mantia_Repository {
 			return new WP_Error( 'mantia_group_not_joined', __( 'Todavia no estas en ese grupo. Mandame el codigo de invitacion para unirte.', 'mantia' ) );
 		}
 
-		update_post_meta( $user_id, self::META_ACTIVE_GROUP_ID, $group_id );
+		update_user_meta( $user_id, self::META_ACTIVE_GROUP_ID, $group_id );
 
 		return array(
 			'user_id'      => $user_id,
@@ -1221,7 +1237,7 @@ final class Mantia_Repository {
 		$existing = self::find_prediction( $user_id, $match_id, $group_id );
 		$title    = sprintf(
 			'%s: %s %d-%d %s',
-			get_the_title( $user_id ),
+			self::user_display_name( $user_id ),
 			$match['home_team'],
 			$home_score,
 			$away_score,
@@ -1246,7 +1262,7 @@ final class Mantia_Repository {
 
 		$post_id = (int) $post_id;
 		update_post_meta( $post_id, self::META_USER_ID, $user_id );
-		update_post_meta( $post_id, self::META_USER_PHONE, (string) get_post_meta( $user_id, self::META_PHONE, true ) );
+		update_post_meta( $post_id, self::META_USER_PHONE, (string) get_user_meta( $user_id, self::META_PHONE, true ) );
 		update_post_meta( $post_id, self::META_MATCH_ID, $match_id );
 		update_post_meta( $post_id, self::META_GROUP_ID, $group_id );
 		update_post_meta( $post_id, self::META_PRED_HOME_SCORE, max( 0, $home_score ) );
@@ -1432,7 +1448,7 @@ final class Mantia_Repository {
 			'points'      => (int) get_post_meta( $prediction_id, self::META_POINTS, true ),
 			'reason'      => (string) get_post_meta( $prediction_id, self::META_SCORING_REASON, true ),
 			'scored'      => (bool) get_post_meta( $prediction_id, self::META_SCORED, true ),
-			'user_name'   => get_the_title( (int) get_post_meta( $prediction_id, self::META_USER_ID, true ) ),
+			'user_name'   => self::user_display_name( (int) get_post_meta( $prediction_id, self::META_USER_ID, true ) ),
 		);
 	}
 
@@ -1539,7 +1555,7 @@ final class Mantia_Repository {
 			if ( ! isset( $rows[ $user_id ] ) ) {
 				$rows[ $user_id ] = array(
 					'user_id'     => $user_id,
-					'name'        => get_the_title( $user_id ),
+					'name'        => self::user_display_name( $user_id ),
 					'points'      => 0,
 					'predictions' => 0,
 					'exacts'      => 0,
@@ -1601,14 +1617,14 @@ final class Mantia_Repository {
 	}
 
 	public static function users_missing_prediction_for_match( int $match_id, int $group_id = 0 ): array {
-		$users = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'no_found_rows'  => true,
-			)
-		);
+		// Query only WhatsApp-managed users — skip site admins / editors etc.
+		// They wouldn't have a phone in their meta anyway, but role-filtering
+		// is much cheaper than meta-existence.
+		$users = get_users( array(
+			'role'   => WA_Identity_Bridge::role_slug(),
+			'number' => -1,
+			'fields' => 'all',
+		) );
 
 		$out = array();
 		foreach ( $users as $user ) {
@@ -1629,9 +1645,9 @@ final class Mantia_Repository {
 			}
 			$out[] = array(
 				'user_id'   => $user_id,
-				'name'      => get_the_title( $user_id ),
-				'phone'     => (string) get_post_meta( $user_id, self::META_PHONE, true ),
-				'recipient' => (string) get_post_meta( $user_id, self::META_WHATSAPP_RECIPIENT, true ),
+				'name'      => self::user_display_name( $user_id ),
+				'phone'     => (string) get_user_meta( $user_id, self::META_PHONE, true ),
+				'recipient' => (string) get_user_meta( $user_id, self::META_WHATSAPP_RECIPIENT, true ),
 				'group_id'  => $active_group,
 			);
 		}

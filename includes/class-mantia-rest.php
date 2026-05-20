@@ -81,12 +81,12 @@ final class Mantia_Rest {
 		$home_score = (int) $request->get_param( 'home_score' );
 		$away_score = (int) $request->get_param( 'away_score' );
 
-		$user_post = Mantia_Repository::find_user_by_view_token( $token );
-		if ( ! $user_post ) {
+		$user = Mantia_Repository::find_user_by_view_token( $token );
+		if ( ! $user ) {
 			return self::error( 'invalid_token', __( 'Tu link privado ya no funciona. Pedile al bot uno nuevo.', 'mantia' ), 404 );
 		}
 
-		$phone = (string) get_post_meta( (int) $user_post->ID, Mantia_Repository::META_PHONE, true );
+		$phone = (string) get_user_meta( (int) $user->ID, Mantia_Repository::META_PHONE, true );
 		if ( '' === $phone ) {
 			return self::error( 'user_missing_phone', __( 'No puedo identificar el número del usuario.', 'mantia' ), 400 );
 		}

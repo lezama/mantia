@@ -922,20 +922,17 @@ final class Mantia_Abilities {
 	public static function get_daily_digest_targets( array $args = array() ): array {
 		unset( $args );
 		$targets = array();
-		$users   = get_posts(
-			array(
-				'post_type'      => Mantia_CPTs::USER,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'no_found_rows'  => true,
-			)
-		);
+		$users   = get_users( array(
+			'role'   => WA_Identity_Bridge::role_slug(),
+			'number' => -1,
+			'fields' => 'all',
+		) );
 
 		foreach ( $users as $user ) {
 			$user_id   = (int) $user->ID;
-			$recipient = (string) get_post_meta( $user_id, Mantia_Repository::META_WHATSAPP_RECIPIENT, true );
+			$recipient = (string) get_user_meta( $user_id, Mantia_Repository::META_WHATSAPP_RECIPIENT, true );
 			if ( '' === $recipient ) {
-				$recipient = (string) get_post_meta( $user_id, Mantia_Repository::META_PHONE, true );
+				$recipient = (string) get_user_meta( $user_id, Mantia_Repository::META_PHONE, true );
 			}
 			if ( '' === $recipient ) {
 				continue;

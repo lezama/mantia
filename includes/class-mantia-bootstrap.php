@@ -17,6 +17,23 @@ final class Mantia_Bootstrap {
 		}
 		self::$initialized = true;
 
+		// Wire the WhatsApp identity bridge BEFORE anything else so the role
+		// + endpoint + filters are in place by the time `init` fires. The
+		// bridge lives in-tree (includes/wa-identity-bridge/) but has zero
+		// Mantia deps — see its README for extraction notes.
+		require_once MANTIA_PATH . 'includes/wa-identity-bridge/class-wa-identity-bridge.php';
+
+		// Mantia branding for the bridge: dedicated role, /penca/auth/ endpoint,
+		// /penca/* path whitelist (anti open-redirect), and a placeholder email
+		// domain derived from the site host (default would be `wa.<host>`
+		// anyway — pin it explicitly so it survives a hypothetical host change).
+		add_filter( 'wa_identity_bridge_role_slug',           static fn (): string => 'mantia_player' );
+		add_filter( 'wa_identity_bridge_endpoint_path',       static fn (): string => 'penca/auth' );
+		add_filter( 'wa_identity_bridge_path_whitelist',      static fn (): array => array( '/penca/' ) );
+		add_filter( 'wa_identity_bridge_expired_redirect_url', static fn (): string => home_url( '/penca/expired/' ) );
+
+		WA_Identity_Bridge::boot();
+
 		add_action( 'init', array( 'Mantia_CPTs', 'register' ), 5 );
 		add_action( 'init', array( __CLASS__, 'register_blocks' ), 20 );
 		add_action( 'init', array( __CLASS__, 'maybe_run_upgrade' ), 25 );
