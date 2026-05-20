@@ -1347,8 +1347,12 @@ final class Mantia_Whatsapp_Flow {
 	private static function handle_home( array $identity ): array {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
+			$home_url = home_url( '/' );
 			return array(
-				'reply'       => "Hola, soy *Mantia* — la penca por WhatsApp.",
+				'reply'       => sprintf(
+					"Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.\n\nAcá por chat o desde la web: %s",
+					$home_url
+				),
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1438,6 +1442,14 @@ final class Mantia_Whatsapp_Flow {
 			),
 		);
 
+		// Cierre con link a la penca activa en la web — para que el user
+		// sepa que el chat y la web son la misma información, dos puertas.
+		$group_url = $active_id > 0 ? Mantia_Repository::group_view_url( $active_id ) : '';
+		if ( '' !== $group_url ) {
+			$lines[] = '';
+			$lines[] = sprintf( '🌐 Ver en la web: %s', $group_url );
+		}
+
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
@@ -1461,7 +1473,9 @@ final class Mantia_Whatsapp_Flow {
 			: ucfirst( $plural );
 
 		$lines = array(
-			'*Mantia* — pronósticos de fútbol por WhatsApp.',
+			'*Mantia* — pronósticos de fútbol con tus amigos.',
+			'',
+			sprintf( 'Funciona por chat o por la web: %s', home_url( '/' ) ),
 			'',
 			'*' . $plural_cap . '*',
 			sprintf( '• *%1$s %2$s <nombre>* — crear y obtener link', $new_adj, $noun ),
@@ -1717,6 +1731,12 @@ final class Mantia_Whatsapp_Flow {
 		$lines[] = '';
 		$lines[] = '_Tocá uno y te pido el marcador._';
 
+		$me_url = Mantia_Repository::user_view_url( $user_id );
+		if ( '' !== $me_url ) {
+			$lines[] = '';
+			$lines[] = sprintf( '🌐 Ver pendientes en la web: %s', $me_url );
+		}
+
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
@@ -1818,8 +1838,10 @@ final class Mantia_Whatsapp_Flow {
 		$rows  = Mantia_Leaderboard::rows( $active_id, 20 );
 
 		if ( empty( $rows ) ) {
+			$group_url = Mantia_Repository::group_view_url( $active_id );
+			$tail      = '' !== $group_url ? sprintf( "\n\n🌐 Ver en la web: %s", $group_url ) : '';
 			return array(
-				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.", $group['name'] ),
+				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.%s", $group['name'], $tail ),
 				'completed' => true,
 			);
 		}
@@ -1829,6 +1851,12 @@ final class Mantia_Whatsapp_Flow {
 		foreach ( $rows as $row ) {
 			$marker = (int) $row['user_id'] === $me_id ? ' ⬅' : '';
 			$lines[] = sprintf( '%d. %s — %d pts (%d exactos)%s', $row['rank'], $row['name'], $row['points'], $row['exacts'], $marker );
+		}
+
+		$group_url = Mantia_Repository::group_view_url( $active_id );
+		if ( '' !== $group_url ) {
+			$lines[] = '';
+			$lines[] = sprintf( '🌐 Tabla completa en la web: %s', $group_url );
 		}
 
 		return array(
@@ -1898,8 +1926,15 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
+		$me_url      = Mantia_Repository::user_view_url( (int) $user->ID );
+		$reply_lines = array( 'Tus pronósticos:' );
+		if ( '' !== $me_url ) {
+			$reply_lines[] = '';
+			$reply_lines[] = sprintf( '🌐 Todos en la web (link privado): %s', $me_url );
+		}
+
 		return array(
-			'reply'       => 'Tus pronósticos:',
+			'reply'       => implode( "\n", $reply_lines ),
 			'interactive' => array(
 				'type'         => 'list',
 				'button_label' => 'Ver',
@@ -2183,6 +2218,21 @@ final class Mantia_Whatsapp_Flow {
 				$pending_total
 			)
 			: "\n\n🎯 Ya pronosticaste todos los pendientes.";
+
+		// Append a web link to the first penca where the prediction landed.
+		// auto-routing may have fanned the score to multiple groups; one
+		// link is enough — the user lands on a page that links to the rest.
+		$first_group_id = 0;
+		foreach ( $groups as $g ) {
+			if ( is_array( $g ) && ! empty( $g['id'] ) ) {
+				$first_group_id = (int) $g['id'];
+				break;
+			}
+		}
+		$group_url = $first_group_id > 0 ? Mantia_Repository::group_view_url( $first_group_id ) : '';
+		if ( '' !== $group_url ) {
+			$tail .= sprintf( "\n\n🌐 Ver en la web: %s", $group_url );
+		}
 
 		$buttons = $pending_total > 0
 			? array(
