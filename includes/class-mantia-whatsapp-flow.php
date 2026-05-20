@@ -152,6 +152,27 @@ final class Mantia_Whatsapp_Flow {
 			$match_id = (int) substr( $raw, strlen( 'mantia:match:' ) );
 			return self::handle_match_detail( $match_id, $identity );
 		}
+		// Score picker tap: `mantia:score:<match_id>:<H>-<A>` writes the
+		// prediction directly. `:other` parks the match as pending so the
+		// next bare-score the user types lands on this match.
+		if ( str_starts_with( $raw, 'mantia:score:' ) ) {
+			$payload = substr( $raw, strlen( 'mantia:score:' ) );
+			$parts   = array_pad( explode( ':', $payload, 2 ), 2, '' );
+			$match_id = (int) $parts[0];
+			$score    = (string) $parts[1];
+			if ( $match_id > 0 && '' !== $identity['phone'] ) {
+				if ( 'other' === $score || 'otro' === $score ) {
+					self::stash_pending_match( $identity['phone'], $match_id );
+					return array(
+						'reply'     => 'Tipea el marcador. Ej *3-1*.',
+						'completed' => true,
+					);
+				}
+				if ( preg_match( '/^(\d{1,2})-(\d{1,2})$/', $score, $sc ) ) {
+					return self::handle_quick_score( $match_id, (int) $sc[1], (int) $sc[2], $identity );
+				}
+			}
+		}
 		if ( str_starts_with( $raw, 'mantia:competition:' ) ) {
 			$competition_id = substr( $raw, strlen( 'mantia:competition:' ) );
 			return self::handle_competition_chosen( $competition_id, $identity );
@@ -1211,6 +1232,16 @@ final class Mantia_Whatsapp_Flow {
 			? '_Tocá una para hacerla la activa._'
 			: '_Tocá para ver el detalle._';
 
+		// Web link belongs here (not the home) — users only need it when
+		// they're looking at their full collection of pencas, which is
+		// exactly this view. Keeping it off the home reduces noise on the
+		// 90% case where the user just wants to predict.
+		$me_url = Mantia_Repository::user_view_url( (int) $user->ID );
+		if ( '' !== $me_url ) {
+			$lines[] = '';
+			$lines[] = sprintf( '🌐 Ver en la web (link privado): %s', $me_url );
+		}
+
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
@@ -1317,7 +1348,7 @@ final class Mantia_Whatsapp_Flow {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
 			return array(
-				'reply'       => "Hola. Soy *Mantia*.\n\nArmás una *penca* (grupo de pronósticos) con tus amigos, cargás los marcadores de cada partido por acá, y gana quien más le pega. Todo por WhatsApp, sin app.\n\n¿Arrancamos?",
+				'reply'       => "Hola, soy *Mantia* — la penca por WhatsApp.",
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1331,7 +1362,7 @@ final class Mantia_Whatsapp_Flow {
 						),
 						array(
 							'id' => 'mantia:cmd:help',
-							'title' => '❓ Ayuda',
+							'title' => '❓ Cómo funciona',
 						),
 					),
 				),
@@ -1358,14 +1389,16 @@ final class Mantia_Whatsapp_Flow {
 
 		$lines = array();
 		if ( ! empty( $active['name'] ) ) {
-			$lines[] = sprintf( 'Activa: *%s*', $active['name'] );
-			$lines[] = sprintf( '%s • codigo `%s`', $active['competition_name'] ?? '', $active['invite_code'] );
+			$comp_label = ! empty( $active['competition_name'] ) ? sprintf( ' · %s', $active['competition_name'] ) : '';
+			$lines[]    = sprintf( 'Activa: *%s*%s', $active['name'], $comp_label );
 		} else {
 			$lines[] = sprintf( 'Todavía no tenes %s %s.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ), Mantia_Vocab::word( 'active_adj', $identity['phone'] ?? '' ) );
 		}
 
-		if ( count( $groups ) > 1 ) {
-			$lines[] = sprintf( 'Tenés %d %s en total. Escribí *mis pencas* para verlas.', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
+		// Only nudge to "mis pencas" once the count is large enough that they
+		// might genuinely lose track. With 2-3 they remember what they have.
+		if ( count( $groups ) > 3 ) {
+			$lines[] = sprintf( 'Tenés %d %s — *mis pencas* para verlas.', count( $groups ), Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
 		}
 
 		if ( ! empty( $standings ) ) {
@@ -1378,14 +1411,14 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( ! empty( $upcoming ) ) {
 			$lines[] = '';
-			$lines[] = 'Próximos partidos (48h):';
+			$lines[] = 'Próximos partidos:';
 			foreach ( array_slice( $upcoming, 0, 3 ) as $m ) {
-				$kickoff = ! empty( $m['kickoff_gmt'] ) ? ' — ' . $m['kickoff_gmt'] . ' GMT' : '';
+				$kickoff = self::format_kickoff( (string) ( $m['kickoff_gmt'] ?? '' ) );
 				$lines[] = sprintf(
 					'  • %s vs %s%s',
 					Mantia_Frontend::normalize_team_name( (string) $m['home_team'] ),
 					Mantia_Frontend::normalize_team_name( (string) $m['away_team'] ),
-					$kickoff
+					'' !== $kickoff ? ' — ' . $kickoff : ''
 				);
 			}
 		}
@@ -1404,13 +1437,6 @@ final class Mantia_Whatsapp_Flow {
 				'title' => '📊 Tabla',
 			),
 		);
-
-		$me_url = Mantia_Repository::user_view_url( $user_id );
-		if ( '' !== $me_url ) {
-			$lines[] = '';
-			$lines[] = sprintf( '🌐 Ver tus %s en la web (link privado):', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) );
-			$lines[] = $me_url;
-		}
 
 		return array(
 			'reply'       => implode( "\n", $lines ),
@@ -1478,8 +1504,17 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		$rows = array();
-		foreach ( array_slice( $upcoming, 0, 10 ) as $m ) {
+		// Group rows into date sections (Hoy / Mañana / weekday / Próxima semana)
+		// so a fixture-heavy week — Libertadores has 4-5 matches per day during
+		// matchdays — doesn't dump everything into one anonymous list. The user
+		// reads the section header before scanning the rows below it.
+		$buckets   = array(); // bucket_label => array of rows
+		$bucket_order = array();
+		$rows_total = 0;
+		foreach ( $upcoming as $m ) {
+			if ( $rows_total >= 10 ) {
+				break; // WhatsApp caps interactive lists at 10 rows total.
+			}
 			$predicted = '';
 			if ( $user && $active_id > 0 ) {
 				$p = Mantia_Repository::find_prediction( (int) $user->ID, (int) $m['id'], $active_id );
@@ -1491,10 +1526,27 @@ final class Mantia_Whatsapp_Flow {
 					$predicted = '○ sin pronóstico';
 				}
 			}
-			$rows[] = array(
+			$kickoff_str = self::format_kickoff( (string) $m['kickoff_gmt'] );
+			$bucket      = self::date_bucket_label( (string) $m['kickoff_gmt'] );
+			if ( ! isset( $buckets[ $bucket ] ) ) {
+				$buckets[ $bucket ] = array();
+				$bucket_order[]    = $bucket;
+			}
+			$buckets[ $bucket ][] = array(
 				'id'          => 'mantia:match:' . (int) $m['id'],
 				'title'       => self::format_matchup( (string) $m['home_team'], (string) $m['away_team'] ),
-				'description' => trim( self::format_kickoff( (string) $m['kickoff_gmt'] ) . ( $predicted ? ' • ' . $predicted : '' ) ),
+				// Within a bucket the day is redundant — show just the time
+				// + prediction status so the line stays scannable.
+				'description' => trim( self::time_only( (string) $m['kickoff_gmt'] ) . ( $predicted ? ' • ' . $predicted : '' ) ),
+			);
+			++$rows_total;
+		}
+
+		$sections = array();
+		foreach ( $bucket_order as $bucket ) {
+			$sections[] = array(
+				'title' => self::truncate_title( $bucket, 24 ),
+				'rows'  => $buckets[ $bucket ],
 			);
 		}
 
@@ -1508,15 +1560,64 @@ final class Mantia_Whatsapp_Flow {
 				'type'         => 'list',
 				'header'       => $header,
 				'button_label' => 'Ver partidos',
-				'sections'     => array(
-					array(
-						'title' => 'Próximos partidos',
-						'rows' => $rows,
-					),
-				),
+				'sections'     => $sections,
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * Classify a kickoff into a human-friendly bucket label for the WhatsApp
+	 * list section header. Buckets: Hoy / Mañana / weekday name within the
+	 * next 7 days / "Próxima semana" after that. Times are evaluated in
+	 * Uruguay local time (UTC-3) — same offset format_kickoff() uses.
+	 */
+	private static function date_bucket_label( string $gmt ): string {
+		if ( '' === $gmt ) {
+			return 'Próximos';
+		}
+		$ts = strtotime( $gmt . ( str_ends_with( $gmt, 'Z' ) ? '' : ' UTC' ) );
+		if ( false === $ts ) {
+			return 'Próximos';
+		}
+		static $days   = array( 'dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb' );
+		static $months = array( 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic' );
+
+		$now_local       = time() - 3 * HOUR_IN_SECONDS;
+		$match_local     = $ts - 3 * HOUR_IN_SECONDS;
+		$today_midnight  = (int) strtotime( gmdate( 'Y-m-d', $now_local ) . ' 00:00:00 UTC' );
+		$match_midnight  = (int) strtotime( gmdate( 'Y-m-d', $match_local ) . ' 00:00:00 UTC' );
+		$delta_days      = (int) round( ( $match_midnight - $today_midnight ) / DAY_IN_SECONDS );
+
+		if ( $delta_days <= 0 ) {
+			return 'Hoy';
+		}
+		if ( 1 === $delta_days ) {
+			return 'Mañana';
+		}
+		if ( $delta_days <= 6 ) {
+			$dow = (int) gmdate( 'w', $match_local );
+			$d   = (int) gmdate( 'j', $match_local );
+			$m   = (int) gmdate( 'n', $match_local ) - 1;
+			return sprintf( '%s %d %s', $days[ $dow ], $d, $months[ $m ] );
+		}
+		return 'Próxima semana';
+	}
+
+	/**
+	 * Render just the HH:MM (Uruguay time) for a UTC kickoff. Used inside
+	 * a date-bucketed section where the day name is already in the section
+	 * header — repeating "mié 21 may" on every row would be redundant.
+	 */
+	private static function time_only( string $gmt ): string {
+		if ( '' === $gmt ) {
+			return '';
+		}
+		$ts = strtotime( $gmt . ( str_ends_with( $gmt, 'Z' ) ? '' : ' UTC' ) );
+		if ( false === $ts ) {
+			return '';
+		}
+		return gmdate( 'H:i', $ts - 3 * HOUR_IN_SECONDS );
 	}
 
 	private static function handle_pending( array $identity ): array {
@@ -1867,48 +1968,125 @@ final class Mantia_Whatsapp_Flow {
 				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
 				$lines[] = sprintf( 'Tu pronóstico: *%d-%d*', $ph, $pa );
 			}
-		} elseif ( 'scheduled' === $status ) {
-			// Surface (but don't auto-apply) a stashed score from a recent
-			// bare-score message. R4 Don Roberto reported that tapping a
-			// match auto-confirmed the score he'd typed minutes earlier —
-			// felt like the bot did something behind his back. Now we tell
-			// him the score is waiting and let him re-send it to confirm.
-			$pending_score = $user_id > 0 ? get_transient( self::pending_score_key( $identity['phone'] ) ) : null;
+
+			return array(
+				'reply'       => implode( "\n", $lines ),
+				'interactive' => array(
+					'type'    => 'button',
+					'buttons' => array(
+						array( 'id' => 'mantia:cmd:matches', 'title' => '📅 Otros partidos' ),
+						array( 'id' => 'mantia:cmd:pending', 'title' => '⏳ Pendientes' ),
+						array( 'id' => 'mantia:cmd:home', 'title' => '🏠 Home' ),
+					),
+				),
+				'completed' => true,
+			);
+		}
+
+		if ( 'scheduled' === $status ) {
+			$current_score = null;
 			if ( $any_prediction ) {
-				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
-				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
-				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — mandame uno nuevo (ej *2-1*).', $ph, $pa );
-			} elseif ( is_array( $pending_score ) && 2 === count( $pending_score ) ) {
-				$lines[] = sprintf( 'Mandame el marcador (tenés *%d-%d* esperando — re-mandalo si era para este partido).', (int) $pending_score[0], (int) $pending_score[1] );
+				$current_score = array(
+					(int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true ),
+					(int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true ),
+				);
+				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — tocá para cambiarlo.', $current_score[0], $current_score[1] );
 			} else {
-				$lines[] = 'Mandame el marcador. Ej *2-1*.';
+				$lines[] = 'Tocá un marcador o escribí el tuyo (ej *3-1*).';
 			}
 			if ( $user_id > 0 ) {
 				self::stash_pending_match( $identity['phone'], $match_id );
 			}
+
+			return array(
+				'reply'       => implode( "\n", $lines ),
+				'interactive' => self::score_picker_payload( $match_id, $home_name, $away_name, $current_score ),
+				'completed'   => true,
+			);
 		}
 
+		// Match already kicked off but not finished yet — show meta + nav.
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
-					array(
-						'id' => 'mantia:cmd:matches',
-						'title' => '📅 Otros partidos',
-					),
-					array(
-						'id' => 'mantia:cmd:pending',
-						'title' => '⏳ Pendientes',
-					),
-					array(
-						'id' => 'mantia:cmd:home',
-						'title' => '🏠 Home',
-					),
+					array( 'id' => 'mantia:cmd:matches', 'title' => '📅 Otros partidos' ),
+					array( 'id' => 'mantia:cmd:pending', 'title' => '⏳ Pendientes' ),
+					array( 'id' => 'mantia:cmd:home', 'title' => '🏠 Home' ),
 				),
 			),
 			'completed' => true,
 		);
+	}
+
+	/**
+	 * Build the score-picker WhatsApp list for a scheduled match. 9 common
+	 * scorelines cover ~85% of real football results; the 10th row is the
+	 * "Otro" escape hatch that keeps the bare-score regex path intact for
+	 * unusual scores like 4-3.
+	 *
+	 * The currently-predicted score is marked with ✓ in the row description
+	 * — gives users a clear visual anchor when re-opening a match they've
+	 * already predicted.
+	 *
+	 * @param array{0:int,1:int}|null $current_score The score the user already
+	 *                                               picked, if any.
+	 */
+	private static function score_picker_payload( int $match_id, string $home_name, string $away_name, ?array $current_score ): array {
+		$common = array(
+			array( 0, 0 ),
+			array( 1, 0 ),
+			array( 0, 1 ),
+			array( 1, 1 ),
+			array( 2, 0 ),
+			array( 0, 2 ),
+			array( 2, 1 ),
+			array( 1, 2 ),
+			array( 2, 2 ),
+		);
+
+		$rows = array();
+		foreach ( $common as $sc ) {
+			$h    = $sc[0];
+			$a    = $sc[1];
+			$tag  = '';
+			if ( null !== $current_score && $current_score[0] === $h && $current_score[1] === $a ) {
+				$tag = '✓ ';
+			}
+			$desc = self::truncate_title(
+				$tag . self::score_outcome_label( $h, $a, $home_name, $away_name ),
+				72
+			);
+			$rows[] = array(
+				'id'          => sprintf( 'mantia:score:%d:%d-%d', $match_id, $h, $a ),
+				'title'       => sprintf( '%d - %d', $h, $a ),
+				'description' => $desc,
+			);
+		}
+		$rows[] = array(
+			'id'          => sprintf( 'mantia:score:%d:other', $match_id ),
+			'title'       => '📝 Otro marcador',
+			'description' => 'Escribilo (ej *3-1*)',
+		);
+
+		return array(
+			'type'         => 'list',
+			'button_label' => 'Elegir marcador',
+			'sections'     => array(
+				array(
+					'title' => 'Marcadores comunes',
+					'rows'  => $rows,
+				),
+			),
+		);
+	}
+
+	private static function score_outcome_label( int $h, int $a, string $home, string $away ): string {
+		if ( $h === $a ) {
+			return 0 === $h ? 'Empate sin goles' : sprintf( 'Empate %d-%d', $h, $a );
+		}
+		return sprintf( 'Gana %s', $h > $a ? $home : $away );
 	}
 
 	private static function pending_match_key( string $phone ): string {
@@ -1987,24 +2165,42 @@ final class Mantia_Whatsapp_Flow {
 			? ''
 			: sprintf( ' en %s', implode( ', ', array_map( static fn ( string $n ): string => '*' . $n . '*', $names ) ) );
 
+		// Close the loop: tell the user how many predictions they still owe
+		// across all of their pencas. Reuses pending_by_competition() — same
+		// number the user would see on /pendientes — so the count is exact.
+		$user             = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		$pending_total    = 0;
+		if ( $user ) {
+			$buckets = self::pending_by_competition( (int) $user->ID, 24 * 60 );
+			foreach ( $buckets as $b ) {
+				$pending_total += count( $b['matches'] );
+			}
+		}
+		$tail = $pending_total > 0
+			? sprintf(
+				"\n\nTe %s *%d* sin pronóstico.",
+				1 === $pending_total ? 'queda' : 'quedan',
+				$pending_total
+			)
+			: "\n\n🎯 Ya pronosticaste todos los pendientes.";
+
+		$buttons = $pending_total > 0
+			? array(
+				array( 'id' => 'mantia:cmd:pending', 'title' => '⏳ Pendientes' ),
+				array( 'id' => 'mantia:cmd:matches', 'title' => '📅 Otros partidos' ),
+				array( 'id' => 'mantia:cmd:home', 'title' => '🏠 Resumen' ),
+			)
+			: array(
+				array( 'id' => 'mantia:cmd:leaderboard', 'title' => '📊 Tabla' ),
+				array( 'id' => 'mantia:cmd:matches', 'title' => '📅 Próximos' ),
+				array( 'id' => 'mantia:cmd:home', 'title' => '🏠 Resumen' ),
+			);
+
 		return array(
-			'reply'       => sprintf( '✅ Anotado%s: %s %d - %d %s', $where, $home_t, $home, $away, $away_t ),
+			'reply'       => sprintf( '✅ Anotado%s: %s %d - %d %s%s', $where, $home_t, $home, $away, $away_t, $tail ),
 			'interactive' => array(
 				'type'    => 'button',
-				'buttons' => array(
-					array(
-						'id' => 'mantia:cmd:pending',
-						'title' => '⏳ Más pendientes',
-					),
-					array(
-						'id' => 'mantia:cmd:matches',
-						'title' => '📅 Otros partidos',
-					),
-					array(
-						'id' => 'mantia:cmd:home',
-						'title' => '🏠 Resumen',
-					),
-				),
+				'buttons' => $buttons,
 			),
 			'completed' => true,
 		);
