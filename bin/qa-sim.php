@@ -67,32 +67,25 @@ function qa_session_key( string $phone ): string {
 }
 
 /**
- * Mantia returns an array from openclawp_pre_chat_turn whenever the
- * deterministic router matched. If the array is identical to the
- * runner's result reply, we know the LLM didn't run — useful for the
- * "via" field in the result.
+ * Heuristic classifier: did the deterministic router or the LLM produce
+ * this reply? Replaying the filter to find out (the previous approach)
+ * was catastrophic — Mantia's router has side effects (joins groups,
+ * persists predictions) and replaying it doubled up every state change.
+ * R5 caught it: user joined via invite code, the classify-replay re-fired
+ * join_group with a hardcoded "QA" name and rewrote the user's post_title.
+ *
+ * Instead, infer from the runner result:
+ * - Interactive payload present → almost certainly router (the LLM hardly
+ *   ever produces structured button/list payloads).
+ * - Very short elapsed_ms (< 100) → router-only path.
+ * Both heuristics together are conservative; mis-classify edge cases as
+ * "llm" so debugging never blames the wrong layer.
  */
-function qa_classify_via( array $runner_result, string $phone, string $message ): string {
-	// Replay the filter ourselves to see whether the deterministic path
-	// would have caught the message. If it would have AND the reply
-	// matches, classify as "router". Otherwise the LLM ran.
-	$preflight = apply_filters(
-		'openclawp_pre_chat_turn',
-		null,
-		array(
-			'agent_slug'      => Mantia_Agent::SLUG,
-			'message'         => $message,
-			'session_id'      => '',
-			'user_id'         => 0,
-			'runtime_context' => array(
-				'client_context' => array(
-					'sender_id'   => $phone,
-					'sender_name' => 'QA',
-				),
-			),
-		)
-	);
-	if ( is_array( $preflight ) && '' !== (string) ( $preflight['reply'] ?? '' ) ) {
+function qa_classify_via( array $runner_result, int $elapsed_ms ): string {
+	if ( ! empty( $runner_result['interactive'] ) ) {
+		return 'router';
+	}
+	if ( $elapsed_ms < 100 ) {
 		return 'router';
 	}
 	return 'llm';
@@ -147,7 +140,7 @@ function qa_op_send( array $op ): array {
 	// >300ms with an empty interactive payload is almost certainly LLM.
 	// We classify by replaying the filter — accurate even when the LLM
 	// happens to be fast (e.g., short reply, warm cache).
-	$via = qa_classify_via( $result, $phone, $msg );
+	$via = qa_classify_via( $result, $elapsed );
 
 	return array(
 		'type'        => 'send',
