@@ -1032,14 +1032,51 @@ final class Mantia_Repository {
 		);
 	}
 
-	public static function group_view_url( int $group_id ): string {
-		$token = self::group_view_token( $group_id );
-		return home_url( '/penca/g/' . $token );
+	/**
+	 * Build a magic-link URL to a group's web view, scoped to a specific
+	 * user (so the click auto-logs them in). Path is /penca/g/<slug>/ —
+	 * stable + cacheable, no token in the visible URL after redemption.
+	 *
+	 * If $user_id is 0 (workflow callers, public previews), falls back to
+	 * the slug-only path with no auth — the public preview pages still
+	 * render but in anonymous mode.
+	 */
+	public static function group_view_url( int $group_id, int $for_user_id = 0 ): string {
+		$slug = (string) get_post_meta( $group_id, self::META_GROUP_SLUG, true );
+		if ( '' === $slug ) {
+			$slug = (string) sanitize_title( (string) get_the_title( $group_id ) );
+		}
+		$path = '/penca/g/' . $slug . '/';
+		if ( $for_user_id <= 0 ) {
+			return home_url( $path );
+		}
+		$user = get_user_by( 'id', $for_user_id );
+		if ( ! $user ) {
+			return home_url( $path );
+		}
+		$phone = (string) get_user_meta( $for_user_id, self::META_PHONE, true );
+		$url = WA_Identity_Bridge::sign_link(
+			array( 'phone' => $phone, 'name' => $user->display_name ),
+			$path
+		);
+		return '' !== $url ? $url : home_url( $path );
 	}
 
+	/**
+	 * Magic-link to the user's own /penca/me/ page. Requires $user_id —
+	 * /penca/me/ is auth-gated and has no anonymous preview.
+	 */
 	public static function user_view_url( int $user_id ): string {
-		$token = self::user_view_token( $user_id );
-		return home_url( '/penca/me/' . $token );
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
+			return '';
+		}
+		$phone = (string) get_user_meta( $user_id, self::META_PHONE, true );
+		$url = WA_Identity_Bridge::sign_link(
+			array( 'phone' => $phone, 'name' => $user->display_name ),
+			'/penca/me/'
+		);
+		return $url;
 	}
 
 	public static function competition_view_url( string $competition_id ): string {

@@ -65,7 +65,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 5;
+	private const DB_VERSION        = 6;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -96,7 +96,9 @@ final class Mantia_Bootstrap {
 
 		// v5: PWA rewrite regexes added optional trailing slash. Flush so
 		// the new patterns take effect without re-activating the plugin.
-		if ( $current < 5 ) {
+		// v6: WA_Identity_Bridge added /penca/auth/ endpoint — same flush
+		// covers both.
+		if ( $current < 6 ) {
 			flush_rewrite_rules();
 		}
 

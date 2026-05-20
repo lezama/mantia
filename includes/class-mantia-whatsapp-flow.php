@@ -1449,7 +1449,8 @@ final class Mantia_Whatsapp_Flow {
 
 		// Cierre con link a la penca activa en la web — para que el user
 		// sepa que el chat y la web son la misma información, dos puertas.
-		$group_url = $active_id > 0 ? Mantia_Repository::group_view_url( $active_id ) : '';
+		// Magic-link tied to the user so the click auto-logs them in.
+		$group_url = $active_id > 0 ? Mantia_Repository::group_view_url( $active_id, $user_id ) : '';
 		if ( '' !== $group_url ) {
 			$lines[] = '';
 			$lines[] = sprintf( '🌐 Ver en la web: %s', $group_url );
@@ -1843,7 +1844,7 @@ final class Mantia_Whatsapp_Flow {
 		$rows  = Mantia_Leaderboard::rows( $active_id, 20 );
 
 		if ( empty( $rows ) ) {
-			$group_url = Mantia_Repository::group_view_url( $active_id );
+			$group_url = Mantia_Repository::group_view_url( $active_id, (int) $user->ID );
 			$tail      = '' !== $group_url ? sprintf( "\n\n🌐 Ver en la web: %s", $group_url ) : '';
 			return array(
 				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.%s", $group['name'], $tail ),
@@ -1858,7 +1859,7 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = sprintf( '%d. %s — %d pts (%d exactos)%s', $row['rank'], $row['name'], $row['points'], $row['exacts'], $marker );
 		}
 
-		$group_url = Mantia_Repository::group_view_url( $active_id );
+		$group_url = Mantia_Repository::group_view_url( $active_id, (int) $user->ID );
 		if ( '' !== $group_url ) {
 			$lines[] = '';
 			$lines[] = sprintf( '🌐 Tabla completa en la web: %s', $group_url );
@@ -2234,7 +2235,10 @@ final class Mantia_Whatsapp_Flow {
 				break;
 			}
 		}
-		$group_url = $first_group_id > 0 ? Mantia_Repository::group_view_url( $first_group_id ) : '';
+		$user_id_for_link = $user ? (int) $user->ID : 0;
+		$group_url        = $first_group_id > 0
+			? Mantia_Repository::group_view_url( $first_group_id, $user_id_for_link )
+			: '';
 		if ( '' !== $group_url ) {
 			$tail .= sprintf( "\n\n🌐 Ver en la web: %s", $group_url );
 		}
