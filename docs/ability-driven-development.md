@@ -47,15 +47,26 @@ neither.
 
 ## Ability unit tests — the recipe
 
-Five examples ship in `tests/abilities/`, one per archetype:
+All 16 Mantia abilities have a test in `tests/abilities/`:
 
-| File | Ability | Archetype | Highlights |
-|---|---|---|---|
-| [`register-prediction.php`](../tests/abilities/register-prediction.php) | `mantia/register-prediction` | State-changing (canonical) | Resolver fallback, auto-routing to N pencas, schema enforcement |
-| [`join-group.php`](../tests/abilities/join-group.php) | `mantia/join-group` | State-changing | Side-effect coverage (membership + active group + name capture), idempotency on re-join |
-| [`create-group.php`](../tests/abilities/create-group.php) | `mantia/create-group` | State-changing | Required-field validation, competition whitelist, default fallback, distinct invite codes |
-| [`get-standings.php`](../tests/abilities/get-standings.php) | `mantia/get-standings` | Read-only (canonical) | Scope variants, phone → active-group resolver, limit clamp, graceful empty |
-| [`get-my-groups.php`](../tests/abilities/get-my-groups.php) | `mantia/get-my-groups` | Read-only | Stable error code for cold user, is_active flag consistency |
+| Ability | Archetype | Highlights |
+|---|---|---|
+| [register-prediction](../tests/abilities/register-prediction.php) | State / canonical | Resolver fallback, auto-routing to N pencas |
+| [join-group](../tests/abilities/join-group.php) | State / side-effect | Membership + active group + name capture, idempotency |
+| [create-group](../tests/abilities/create-group.php) | State / validation | Required-field, competition whitelist, default fallback |
+| [set-active-group](../tests/abilities/set-active-group.php) | State / dual-mode | group_id branch + invite_code branch + cold-user error |
+| [resolve-match](../tests/abilities/resolve-match.php) | State / workflow | Manufactures fixture + asserts scoring rules fire |
+| [get-standings](../tests/abilities/get-standings.php) | Read / canonical | Scope variants, phone → active-group, limit clamp |
+| [get-my-groups](../tests/abilities/get-my-groups.php) | Read / error | Stable error code for cold user, is_active consistency |
+| [get-upcoming-matches](../tests/abilities/get-upcoming-matches.php) | Read / tagged | has_prediction flag accuracy with + without user |
+| [get-match-result](../tests/abilities/get-match-result.php) | Read / id-required | Empty match for unknown id (not error) |
+| [get-user-history](../tests/abilities/get-user-history.php) | Read / list | Cold user empty + auto-fill populates |
+| [get-whatsapp-home](../tests/abilities/get-whatsapp-home.php) | Read / composite | Cold vs authed paths, has_prediction tagging, pending cap |
+| [score-prediction](../tests/abilities/score-prediction.php) | Pure function | 5/3/1/0 rules across exact / diff / winner / miss / draw |
+| [get-finished-unresolved-matches](../tests/abilities/get-finished-unresolved-matches.php) | Read / no-input | Each entry has scoreable shape |
+| [fetch-fifa-result](../tests/abilities/fetch-fifa-result.php) | Read / external | Graceful for bad + good ids (no exception) |
+| [get-match-reminder-targets](../tests/abilities/get-match-reminder-targets.php) | Read / workflow | dedupe_key present, hours_ahead respected |
+| [get-daily-digest-targets](../tests/abilities/get-daily-digest-targets.php) | Read / workflow | One-per-user invariant, dedupe_key present |
 
 Pattern (from `register-prediction.php`):
 
