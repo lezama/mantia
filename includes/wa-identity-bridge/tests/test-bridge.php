@@ -141,6 +141,81 @@ echo "\n[role]\n";
 $slug = WA_Identity_Bridge::role_slug();
 $ok( null !== get_role( $slug ), "role '$slug' registered" );
 
+// --- resolver helpers ---
+echo "\n[resolver]\n";
+
+$test_phone = '88880009999';
+$test_name  = 'Bridge Resolver Test';
+
+// Clean up any leftover from a prior failed run.
+$leftover = WA_Identity_Bridge::find_by_phone( $test_phone );
+if ( $leftover ) {
+	wp_delete_user( $leftover->ID );
+}
+
+$user = WA_Identity_Bridge::resolve_or_create( $test_phone, $test_name );
+$ok( $user instanceof WP_User, 'resolve_or_create returns WP_User' );
+$ok( in_array( $slug, (array) $user->roles, true ), 'created user has WhatsApp role' );
+$ok( $user->display_name === $test_name, 'display_name matches input' );
+$ok( get_user_meta( $user->ID, WA_Identity_Bridge_User_Resolver::META_PHONE, true ) === $test_phone, 'phone meta stamped' );
+
+// Idempotency.
+$user2 = WA_Identity_Bridge::resolve_or_create( $test_phone, $test_name );
+$ok( $user2->ID === $user->ID, 'second call returns same user' );
+
+// display_name refresh.
+$user3 = WA_Identity_Bridge::resolve_or_create( $test_phone, 'Renamed' );
+$ok( $user3->display_name === 'Renamed', 'display_name refreshed on subsequent calls' );
+
+// Empty name does NOT clobber.
+$user4 = WA_Identity_Bridge::resolve_or_create( $test_phone, '' );
+$ok( $user4->display_name === 'Renamed', 'empty name does NOT clobber existing display_name' );
+
+// find_by_phone hits.
+$found = WA_Identity_Bridge::find_by_phone( $test_phone );
+$ok( $found instanceof WP_User && $found->ID === $user->ID, 'find_by_phone resolves the same user' );
+
+// Bad phone.
+$bad = WA_Identity_Bridge::resolve_or_create( '12' );
+$ok( is_wp_error( $bad ), 'too-short phone returns WP_Error' );
+
+wp_delete_user( $user->ID );
+
+// --- default redemption handler (resolver-driven login on click) ---
+echo "\n[default redemption]\n";
+
+$leftover = WA_Identity_Bridge::find_by_phone( '88880008888' );
+if ( $leftover ) {
+	wp_delete_user( $leftover->ID );
+}
+
+// Simulate the action firing as the endpoint would.
+wp_set_current_user( 0 );
+do_action( 'wa_identity_bridge_redemption', array( 'phone' => '88880008888', 'name' => 'Default Flow' ), '/penca/me/' );
+$cur = wp_get_current_user();
+$ok( $cur && $cur->ID > 0 && '88880008888' === get_user_meta( $cur->ID, WA_Identity_Bridge_User_Resolver::META_PHONE, true ), 'default handler created+logged in user from payload' );
+if ( $cur && $cur->ID > 0 ) {
+	wp_delete_user( $cur->ID );
+}
+wp_set_current_user( 0 );
+
+// Verify it bails when a consumer hook already logged someone in.
+$consumer_user = WA_Identity_Bridge::resolve_or_create( '88880007777', 'Consumer Owned' );
+add_action( 'wa_identity_bridge_redemption', function () use ( $consumer_user ) {
+	WA_Identity_Bridge::login_as( $consumer_user->ID );
+}, 5, 0 );
+do_action( 'wa_identity_bridge_redemption', array( 'phone' => '88880006666', 'name' => 'Should Be Ignored' ), '/penca/me/' );
+$cur = wp_get_current_user();
+$ok( $cur && $cur->ID === $consumer_user->ID, 'default handler defers to consumer hook' );
+// Make sure the phone 88880006666 was NOT silently created in the background.
+$ignored = WA_Identity_Bridge::find_by_phone( '88880006666' );
+$ok( null === $ignored, 'default handler did not create user when consumer already logged in' );
+wp_delete_user( $consumer_user->ID );
+wp_set_current_user( 0 );
+remove_all_actions( 'wa_identity_bridge_redemption' );
+// Re-attach the default we just removed so the rest of the suite is clean.
+add_action( 'wa_identity_bridge_redemption', array( 'WA_Identity_Bridge', 'default_redemption_handler' ), 1000, 2 );
+
 echo "\nResult: $passed passed, $failed failed\n";
 if ( $failed > 0 ) {
 	exit( 1 );

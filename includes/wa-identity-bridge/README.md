@@ -12,22 +12,68 @@ self-contained — extractable to its own repo with `git subtree split
 --prefix=includes/wa-identity-bridge` whenever a second consumer
 appears.
 
-## What it does (and what it doesn't)
+## What it does
 
-It **provides**:
-- Signed, expiring URLs the bot can ship in chat messages.
-- A redemption endpoint that verifies the signature, fires an action
-  hook for the consumer to log the user in, and redirects cleanly.
-- A dedicated WP role (default `whatsapp_user`) with password login +
-  wp-admin blocked, so users entering via magic link can't escape into
-  the dashboard.
+Two layers, both optional:
 
-It **does not**:
-- Manage your canonical identity model. Most managed WP hosts (wpcom
-  Atomic among them) rate-limit `wp_insert_user`. Eagerly materialising
-  a WP_User for every WhatsApp inbound burns that budget on traffic
-  that may never visit the web. Keep your canonical user in a CPT or
-  custom table; lazily promote to a WP_User on the first redemption.
+1. **Signed URL primitive** — `sign_link(payload, path)` /
+   `verify_link(token)`. Consumer-defined opaque payload, library
+   handles HMAC, expiry, path-binding, single-use enforcement.
+
+2. **User resolver** — `resolve_or_create(phone, name)` returns a
+   WP_User keyed by phone, creating one with the configured role +
+   placeholder email if it doesn't exist yet. Consumers without a
+   canonical identity model get find-or-create + lazy-on-click for
+   free; consumers with one (a CPT, custom table) hook the redemption
+   action and call `login_as()` themselves.
+
+Plus: a dedicated WP role (default `whatsapp_user`) with password login
++ wp-admin blocked, so users entering via magic link can't escape into
+the dashboard.
+
+### Two ways to use it
+
+**Simple consumer (no existing identity model):**
+```php
+add_filter( 'wa_identity_bridge_role_slug', fn () => 'bot_user' );
+add_filter( 'wa_identity_bridge_path_whitelist', fn () => array( '/app/' ) );
+WA_Identity_Bridge::boot();
+
+// Bot sends a link — payload includes 'phone' so the default redemption
+// handler will find-or-create + log in automatically on click:
+$url = WA_Identity_Bridge::sign_link(
+    array( 'phone' => $phone, 'name' => $name ),
+    '/app/dashboard/'
+);
+```
+
+**Consumer with existing identity:**
+```php
+WA_Identity_Bridge::boot();
+
+// Attach your own redemption handler at default priority so it wins
+// over the library's auto-resolve fallback:
+add_action( 'wa_identity_bridge_redemption', function ( $payload, $path ) {
+    $phone = (string) ( $payload['phone'] ?? '' );
+    $user  = my_plugin_find_or_create_wp_user_by_phone( $phone );
+    if ( $user ) {
+        WA_Identity_Bridge::login_as( $user->ID );
+    }
+}, 10, 2 );
+```
+
+### Why the resolver is optional
+
+Most managed WP hosts (wpcom Atomic among them) reject inserts with
+non-public TLDs in `user_email` — `.local`, `.invalid`, etc. silently
+fail with "Not enough data to create this user". The library defaults
+the placeholder domain to `wa.<your-site-host>` to inherit a valid TLD;
+override via `wa_identity_bridge_email_domain` if your host is stricter.
+
+Eagerly materialising a WP_User on every WhatsApp inbound is fine for
+most workloads, but if you have bursty unauthenticated traffic and care
+about every byte of wp_users table, leave the user resolver off and
+keep your canonical identity in a CPT or custom table.
 
 ## Public API
 
@@ -50,6 +96,11 @@ $payload = WA_Identity_Bridge::verify_link( $token, $expected_path );
 WA_Identity_Bridge::login_as( $user_id );
 // wp_set_current_user + wp_set_auth_cookie + fires
 // 'wa_identity_bridge_logged_in' for audit hooks.
+
+// Optional user resolver — use either at chat time (eager) or let the
+// library's default redemption handler call it lazily on click:
+$user = WA_Identity_Bridge::resolve_or_create( $phone, $name );
+$user = WA_Identity_Bridge::find_by_phone( $phone ); // never creates
 ```
 
 ## The redemption hook
@@ -95,13 +146,16 @@ All optional; defaults are sane for single-consumer installs.
 | `wa_identity_bridge_default_single_use` | `false` | Single-use for `sign_link()` calls without `single_use`. |
 | `wa_identity_bridge_block_wp_login` | `true` | Block password login + wp-admin for the role. |
 | `wa_identity_bridge_expired_redirect_url` | `home_url('/')` | Where to send users whose token failed verification. |
+| `wa_identity_bridge_user_login_prefix` | `''` | Prefix prepended to phone before storing as `user_login` (use to namespace if multiple consumers share an install). |
+| `wa_identity_bridge_email_domain` | `wa.<site-host>` | Domain for the placeholder `user_email`. Avoid non-public TLDs (`.local`, `.invalid`) — they're rejected by Atomic-platform-style filters. |
 
 ## Actions
 
 | Action | Args | Purpose |
 |---|---|---|
-| `wa_identity_bridge_redemption` | `$payload, $path` | Fires on every valid token redemption. Consumer hooks here for identity resolution + `login_as()`. |
+| `wa_identity_bridge_redemption` | `$payload, $path` | Fires on every valid token redemption. Consumer hooks at priority ≤ 999 to pre-empt the default auto-resolve-and-login behaviour. |
 | `wa_identity_bridge_logged_in` | `$user_id` | Fires after `login_as()` succeeds. Useful for audit logs. |
+| `wa_identity_bridge_user_created` | `$user_id, $phone_e164, $display_name` | Fires once per user, immediately after a successful `wp_insert_user` from the resolver. Use to seed domain-specific state. |
 
 ## Token format
 
