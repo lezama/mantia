@@ -320,6 +320,19 @@ final class Mantia_Frontend {
 				</section>
 			<?php endif; ?>
 
+			<?php
+			// Logged-in shortcut: when the magic-link cookie is set, surface
+			// "Mis pencas" as the most prominent affordance. The QR + Abrir
+			// WhatsApp pair stays for the "fui a la home en otra máquina"
+			// case (escanear con el celu del bot, mandar hola).
+			if ( get_current_user_id() > 0 ) :
+				$me_url = home_url( '/penca/me/' );
+				?>
+				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $me_url ); ?>">
+					<?php esc_html_e( '📋 Mis pencas', 'mantia' ); ?>
+				</a>
+			<?php endif; ?>
+
 			<?php if ( '' !== $ranking_url ) : ?>
 				<a class="mantia-pill mantia-pill-ghost" href="<?php echo esc_url( $ranking_url ); ?>">
 					<?php echo esc_html( $ranking_label ); ?>
