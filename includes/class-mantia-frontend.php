@@ -473,14 +473,59 @@ final class Mantia_Frontend {
 				</p>
 			</section>
 
-			<?php if ( ! empty( $group['share_url'] ) ) : ?>
+			<?php
+			// Two-mode CTA on the group page:
+			//   - Members (the common case post-Phase 5 — magic-link sets
+			//     current_user) get a "Compartir" button that opens WhatsApp's
+			//     share-to-contacts picker with the invite card pre-filled.
+			//   - Non-members (someone who landed via a public link without
+			//     auth) see the original "Sumate" CTA that posts the join
+			//     message to the bot.
+			$current_uid = get_current_user_id();
+			$is_member   = false;
+			if ( $current_uid > 0 ) {
+				foreach ( $members as $m ) {
+					if ( (int) $m['id'] === $current_uid ) {
+						$is_member = true;
+						break;
+					}
+				}
+			}
+			$invite_code = (string) ( $group['invite_code'] ?? '' );
+			?>
+			<?php if ( $is_member && '' !== $invite_code ) : ?>
+				<?php
+				// Share-with-contacts: wa.me with no phone opens WhatsApp's
+				// contact picker. The text mirrors the invite card the bot
+				// already sends so people pasting from web get the same
+				// rich-preview link in their friends' chats.
+				$share_landing = home_url( '/penca/sumate/' . $invite_code . '/' );
+				$share_text    = sprintf(
+					"🏆 Sumate a %s\n\nTocá el link para sumarte:\n%s",
+					$group['name'],
+					$share_landing
+				);
+				$share_wa = 'https://wa.me/?text=' . rawurlencode( $share_text );
+				?>
+				<section class="mantia-cta-section">
+					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $share_wa ); ?>">
+						<?php
+						printf(
+							/* translators: %s: invite code. */
+							esc_html__( '📤 Invitar amigos · código %s', 'mantia' ),
+							esc_html( $invite_code )
+						);
+						?>
+					</a>
+				</section>
+			<?php elseif ( ! empty( $group['share_url'] ) ) : ?>
 				<section class="mantia-cta-section">
 					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $group['share_url'] ); ?>">
 						<?php
 						printf(
 							/* translators: %s: invite code. */
 							esc_html__( 'Sumate · código %s', 'mantia' ),
-							esc_html( (string) $group['invite_code'] )
+							esc_html( $invite_code )
 						);
 						?>
 					</a>
