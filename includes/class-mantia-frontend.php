@@ -74,8 +74,13 @@ final class Mantia_Frontend {
 			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-icon&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
+		// Join landing — gated by invite_code (random, non-guessable). The
+		// old /penca/g/<slug>/sumate/ shape leaked existence + bypassed the
+		// invite_code gate via slug guessing; this shape requires knowing
+		// the code, which is the only secret that actually matters for
+		// admission.
 		add_rewrite_rule(
-			'^penca/g/([a-f0-9]+)/sumate/?$',
+			'^penca/sumate/([A-Z0-9_-]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=join-landing&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
@@ -444,7 +449,11 @@ final class Mantia_Frontend {
 		$create_url = self::create_penca_wa_url();
 		$members    = Mantia_Repository::group_members( $group_id );
 
-		$share_url = home_url( '/penca/g/' . $token . '/compartir/' );
+		// Share URL for the group view. Uses the group's slug (Phase 5 cutover)
+		// instead of the view-token segment that the original $token argument
+		// carried. /compartir/ is rendered by the same group page in a
+		// screenshot-friendly variant.
+		$share_url = home_url( '/penca/g/' . $token_or_slug . '/compartir/' );
 
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $group['name'] ) );
@@ -881,8 +890,12 @@ final class Mantia_Frontend {
 	 * code prefilled. The OG scraper sees the tags + image; the user
 	 * never lingers on this page.
 	 */
-	private static function render_join_landing( string $token ): string {
-		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+	private static function render_join_landing( string $invite_code ): string {
+		// Resolve by invite_code — the only secret a recipient should need
+		// to know to act on the invitation. Slug-based resolution was a
+		// privacy leak because slugs are guessable from the penca name.
+		$invite_code = Mantia_Repository::normalize_invite_code( $invite_code );
+		$group_post  = Mantia_Repository::find_group_by_invite_code( $invite_code );
 		if ( ! $group_post ) {
 			status_header( 404 );
 			return self::render_not_found( __( 'Esta invitación ya no funciona.', 'mantia' ) );
@@ -893,9 +906,8 @@ final class Mantia_Frontend {
 		$wa_target = (string) ( $group['share_url'] ?? '' );
 		if ( '' === $wa_target ) {
 			// Fall back to whatever wa.me URL we can build from the code.
-			$bot   = Mantia_Repository::bot_phone_e164();
-			$code  = (string) ( $group['invite_code'] ?? '' );
-			$wa_target = ( '' !== $bot && '' !== $code ) ? sprintf( 'https://wa.me/%s?text=%s', $bot, rawurlencode( $code ) ) : home_url( '/' );
+			$bot       = Mantia_Repository::bot_phone_e164();
+			$wa_target = ( '' !== $bot ) ? sprintf( 'https://wa.me/%s?text=%s', $bot, rawurlencode( $invite_code ) ) : home_url( '/' );
 		}
 
 		$comp_name = (string) ( $group['competition_name'] ?? '' );
@@ -905,8 +917,10 @@ final class Mantia_Frontend {
 			. ( '' !== $comp_name ? ' · ' : '' )
 			. sprintf( _n( '%d jugador', '%d jugadores', count( $members ), 'mantia' ), count( $members ) )
 		);
-		$og_image  = home_url( '/penca/g/' . $token . '/og/' );
-		$page_url  = home_url( '/penca/g/' . $token . '/sumate/' );
+		// OG image still uses the group view token — it's a static asset URL.
+		$view_token = Mantia_Repository::group_view_token( $group_id );
+		$og_image   = home_url( '/penca/g/' . $view_token . '/og/' );
+		$page_url   = home_url( '/penca/sumate/' . $invite_code . '/' );
 
 		ob_start();
 		?>

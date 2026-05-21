@@ -828,16 +828,20 @@ final class Mantia_Whatsapp_Flow {
 	}
 
 	/**
-	 * Build the /penca/g/<token>/sumate/ landing URL when we have a view
-	 * token on the group, otherwise empty. The landing handles OG preview
-	 * for WhatsApp + 302 to wa.me.
+	 * Build the /penca/sumate/<INVITE_CODE>/ landing URL. The page handles
+	 * OG preview for WhatsApp + 302s to wa.me with the code prefilled.
+	 *
+	 * Uses invite_code (random + non-guessable) rather than the group slug.
+	 * The slug shape leaked existence + bypassed the invite_code gate via
+	 * guessing — "Los Cinicos" → /penca/g/los-cinicos/sumate/ → anyone
+	 * who could guess the name could see and join.
 	 */
 	private static function build_join_landing_url( array $group ): string {
-		$view_url = (string) ( $group['view_url'] ?? '' );
-		if ( '' === $view_url ) {
+		$code = (string) ( $group['invite_code'] ?? '' );
+		if ( '' === $code ) {
 			return '';
 		}
-		return rtrim( $view_url, '/' ) . '/sumate/';
+		return home_url( '/penca/sumate/' . $code . '/' );
 	}
 
 	/**
