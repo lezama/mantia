@@ -1,58 +1,53 @@
 {
-  "source": "conmebol-libertadores-2026-md5-real",
-  "note": "Copa Libertadores 2026 — Fecha 5 de fase de grupos. Partidos reales tomados de prensa (El País, La República, DAZN) para que la app no se sienta inventada durante testing. Cuando esto vaya a producción de verdad hay que enganchar un fetcher (API-Football o similar).",
+  "source": "conmebol-libertadores-2026-md5-real-v2",
+  "note": "Copa Libertadores 2026 — Fecha 5 fase de grupos. Data real verificada: 2 partidos finished (ayer mié 21 ART) con resultados oficiales, 3 scheduled (hoy jue 22 ART) con horarios verificados (Peñarol confirmado por usuario, otros desde ESPN/La Nación/El Observador). Para prod real hay que enganchar fetcher.",
   "competition_id": "libertadores-2026",
   "matches": [
     {
-      "external_id": "libertadores-2026-md5-real-001",
+      "external_id": "libertadores-2026-md5-r-001",
       "home_team": "Independiente Santa Fe",
       "away_team": "Atlético Platense",
       "kickoff_gmt": "2026-05-22 00:30:00",
       "phase": "Group stage Matchday 5",
-      "status": "scheduled",
+      "status": "finished",
+      "home_score": 2,
+      "away_score": 1,
       "competition_id": "libertadores-2026"
     },
     {
-      "external_id": "libertadores-2026-md5-real-002",
+      "external_id": "libertadores-2026-md5-r-002",
       "home_team": "Always Ready",
       "away_team": "Mirassol",
       "kickoff_gmt": "2026-05-22 01:00:00",
       "phase": "Group stage Matchday 5",
-      "status": "scheduled",
+      "status": "finished",
+      "home_score": 1,
+      "away_score": 2,
       "competition_id": "libertadores-2026"
     },
     {
-      "external_id": "libertadores-2026-md5-real-003",
-      "home_team": "Boca Juniors",
-      "away_team": "Cruzeiro",
-      "kickoff_gmt": "2026-05-22 01:30:00",
+      "external_id": "libertadores-2026-md5-r-003",
+      "home_team": "Deportivo La Guaira",
+      "away_team": "Independiente Rivadavia",
+      "kickoff_gmt": "2026-05-22 22:00:00",
       "phase": "Group stage Matchday 5",
       "status": "scheduled",
       "competition_id": "libertadores-2026"
     },
     {
-      "external_id": "libertadores-2026-md5-real-004",
-      "home_team": "Deportivo La Guaira",
-      "away_team": "Independiente Rivadavia",
+      "external_id": "libertadores-2026-md5-r-004",
+      "home_team": "Universidad Católica",
+      "away_team": "Barcelona SC",
       "kickoff_gmt": "2026-05-23 00:30:00",
       "phase": "Group stage Matchday 5",
       "status": "scheduled",
       "competition_id": "libertadores-2026"
     },
     {
-      "external_id": "libertadores-2026-md5-real-005",
-      "home_team": "Universidad Católica",
-      "away_team": "Barcelona SC",
-      "kickoff_gmt": "2026-05-23 01:00:00",
-      "phase": "Group stage Matchday 5",
-      "status": "scheduled",
-      "competition_id": "libertadores-2026"
-    },
-    {
-      "external_id": "libertadores-2026-md5-real-006",
+      "external_id": "libertadores-2026-md5-r-005",
       "home_team": "Peñarol",
       "away_team": "Corinthians",
-      "kickoff_gmt": "2026-05-23 01:30:00",
+      "kickoff_gmt": "2026-05-23 00:30:00",
       "phase": "Group stage Matchday 5",
       "status": "scheduled",
       "competition_id": "libertadores-2026"
