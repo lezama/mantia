@@ -2028,7 +2028,16 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		if ( 'scheduled' === $status ) {
+		// "scheduled" in meta status doesn't auto-flip to "in_progress" on
+		// kickoff — status only changes when a workflow marks it finished.
+		// So a match can read $status === 'scheduled' but be 2 hours into
+		// the second half. Use the kickoff_ts vs now check to decide if
+		// the picker should appear at all.
+		$kickoff_ts    = (int) ( $match['kickoff_ts'] ?? 0 );
+		$can_predict   = 'scheduled' === $status && $kickoff_ts > 0 && $kickoff_ts > time();
+		$kicked_off    = 'scheduled' === $status && $kickoff_ts > 0 && $kickoff_ts <= time();
+
+		if ( $can_predict ) {
 			$current_score = null;
 			if ( $any_prediction ) {
 				$current_score = array(
@@ -2050,7 +2059,18 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// Match already kicked off but not finished yet — show meta + nav.
+		// Match already kicked off (scheduled-in-meta but past kickoff_ts)
+		// OR finished but unresolved. Show what the user predicted, mark
+		// it as locked, and give nav buttons — no picker.
+		if ( $kicked_off ) {
+			$lines[] = '⏱️ Ya arrancó — pronóstico bloqueado.';
+			if ( $any_prediction ) {
+				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
+				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );
+				$lines[] = sprintf( 'Tu pronóstico: *%d-%d*', $ph, $pa );
+			}
+		}
+
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
