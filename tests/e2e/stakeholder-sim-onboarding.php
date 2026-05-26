@@ -123,7 +123,11 @@ $alice_turns = array(
 	'__E2E__ MundialAlice',
 	'partidos',
 	'tabla',
-	'mi pronostico',
+	// "mi pronostico" intentionally NOT in the canonical sim — it's
+	// a fuzzy intent that routes through Mantia_Intent_Classifier (LLM)
+	// in production. The LLM isn't configured in wp-env, so capturing
+	// it here produced a "(null — fell through to LLM)" dead bubble.
+	// Coverage for the LLM path lives in tests/e2e/intent-classifier.php.
 );
 foreach ( $alice_turns as $msg ) {
 	$send_turn( $alice, $msg );

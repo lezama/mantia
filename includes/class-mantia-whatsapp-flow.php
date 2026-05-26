@@ -794,6 +794,15 @@ final class Mantia_Whatsapp_Flow {
 			? sprintf( 'Listo, %s %s: *%s*.', $noun, $activa, $g['name'] )
 			: sprintf( 'Listo, te sume a *%s*. Esa queda como tu %s %s.', $g['name'], $noun, $activa );
 
+		// Ship a forwardable invite card to the joiner too — previously
+		// only the creator got one (stakeholder-sim rule 2: asymmetric
+		// onboarding between creator and joiner). Bob can now long-press
+		// → Forward the card to invite his own contacts to the same pool.
+		// Skip on already_member: re-joins shouldn't spam a fresh card.
+		$card_sent = empty( $result['already_member'] )
+			? self::send_invite_card( $identity['recipient'], $g )
+			: false;
+
 		$lines = array( $intro );
 		if ( $autofilled > 0 ) {
 			$lines[] = sprintf(
@@ -804,7 +813,10 @@ final class Mantia_Whatsapp_Flow {
 		$lines[] = '';
 		$lines = array_merge( $lines, self::member_lines( (int) $g['id'], $me_id ) );
 
-		if ( '' !== ( $g['share_url'] ?? '' ) ) {
+		if ( $card_sent ) {
+			$lines[] = '';
+			$lines[] = '_↑ Reenviá la tarjeta de arriba para sumar más amigos._';
+		} elseif ( '' !== ( $g['share_url'] ?? '' ) ) {
 			$lines[] = '';
 			$lines[] = 'Para invitar amigos, reenviá este link:';
 			$lines[] = $g['share_url'];
@@ -955,7 +967,7 @@ final class Mantia_Whatsapp_Flow {
 		if ( $card_sent ) {
 			$lines[] = '_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._';
 		} elseif ( '' !== $share_url ) {
-			$lines[] = '_Compartí este link con tus amigos para que se sumen:_';
+			$lines[] = '_🔗 Compartí este link con tus amigos para que se sumen:_';
 			$lines[] = $share_url;
 		} else {
 			$lines[] = sprintf( '_Compartí el código *%s* con tus amigos para que se sumen._', $group['invite_code'] );
@@ -1027,14 +1039,25 @@ final class Mantia_Whatsapp_Flow {
 	 * `$kind` is a free-form label ("invite_card", "avatar_confirm", …)
 	 * that lets the harness tag captured outbounds for review — so the
 	 * stakeholder-sim agent can see "[to Alice · invite_card] …" instead
-	 * of an unlabeled bubble it has to guess the role of.
+	 * of an unlabeled bubble it has to guess the role of. The `'reply'`
+	 * default is a placeholder for future direct sends — today every
+	 * handler reply goes through the openclawp dispatcher (via the
+	 * `reply` field of the return array), not this wrapper. Concrete
+	 * side-effect sends should always pass an explicit kind.
 	 */
 	private static function send_outbound_text( string $recipient, string $body, string $kind = 'reply' ): bool {
+		// Short-circuit empty recipient BEFORE the filter fires — otherwise
+		// the e2e recorder captures empty-recipient bubbles that nobody
+		// could have received (filter result decides success/failure, not
+		// the guard). Cheap to reject here so the transcript stays clean.
+		if ( '' === $recipient ) {
+			return false;
+		}
 		$intercept = apply_filters( 'mantia_outbound_text', null, $recipient, $body, $kind );
 		if ( null !== $intercept ) {
 			return (bool) $intercept;
 		}
-		if ( '' === $recipient || ! class_exists( 'OpenclaWP_Whatsapp' ) || ! method_exists( 'OpenclaWP_Whatsapp', 'send_text_message' ) ) {
+		if ( ! class_exists( 'OpenclaWP_Whatsapp' ) || ! method_exists( 'OpenclaWP_Whatsapp', 'send_text_message' ) ) {
 			return false;
 		}
 		return (bool) OpenclaWP_Whatsapp::send_text_message( $recipient, $body );
@@ -1116,10 +1139,19 @@ final class Mantia_Whatsapp_Flow {
 	 *
 	 * @return array<int,string>
 	 */
-	private static function member_lines( int $group_id, int $current_user_id ): array {
+	private static function member_lines( int $group_id, int $current_user_id, bool $include_share_nudge = true ): array {
 		$members = Mantia_Repository::group_members( $group_id );
 		if ( count( $members ) <= 1 ) {
-			return array( '👥 Solo vos por ahora. Compartí el link con tus amigos para sumarlos.' );
+			// When the calling reply already nudges the user to share
+			// (post-create + post-share both lead with "Reenviá la
+			// tarjeta…" or "_Compartí este link…_"), repeating "Compartí
+			// el link con tus amigos para sumarlos" here is just noise.
+			// Pass false from those contexts to suppress the second nudge.
+			return array(
+				$include_share_nudge
+					? '👥 Solo vos por ahora. Compartí el link con tus amigos para sumarlos.'
+					: '👥 Solo vos por ahora.'
+			);
 		}
 		$lines = array( sprintf( '👥 Quiénes están (%d):', count( $members ) ) );
 		foreach ( $members as $m ) {
@@ -1591,17 +1623,12 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = '_↑ Reenviá la tarjeta de arriba a tus amigos._';
 			$lines[] = '';
 		}
-		$lines = array_merge(
-			$lines,
-			array(
-				sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
-				sprintf(
-					'👥 %d en %s %s',
-					count( Mantia_Repository::group_members( $active ) ),
-					Mantia_Vocab::word( 'article', $identity['phone'] ?? '' ),
-					$noun
-				),
-			)
+		$lines[] = sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' );
+		$lines[] = sprintf(
+			'👥 %d en %s %s',
+			count( Mantia_Repository::group_members( $active ) ),
+			Mantia_Vocab::word( 'article', $identity['phone'] ?? '' ),
+			$noun
 		);
 
 		if ( '' !== $share ) {
@@ -1890,13 +1917,18 @@ final class Mantia_Whatsapp_Flow {
 		if ( 1 === $delta_days ) {
 			return 'Mañana';
 		}
-		if ( $delta_days <= 6 ) {
-			$dow = (int) gmdate( 'w', $match_local );
-			$d   = (int) gmdate( 'j', $match_local );
-			$m   = (int) gmdate( 'n', $match_local ) - 1;
-			return sprintf( '%s %d %s', $days[ $dow ], $d, $months[ $m ] );
-		}
-		return 'Próxima semana';
+		// Everything else gets a per-day section header. The previous
+		// "Próxima semana" catch-all dumped 4-10 rows into a single
+		// timeless list — readers couldn't tell which day each HH:MM
+		// belonged to (Mundial transcript surfaced "22:00 → 01:00 →
+		// 14:00" without separators). With per-day buckets each section
+		// reads as one calendar day; WhatsApp's 10-row list cap still
+		// applies so a fixture-heavy week renders as a few small
+		// sections instead of one giant one.
+		$dow = (int) gmdate( 'w', $match_local );
+		$d   = (int) gmdate( 'j', $match_local );
+		$m   = (int) gmdate( 'n', $match_local ) - 1;
+		return sprintf( '%s %d %s', $days[ $dow ], $d, $months[ $m ] );
 	}
 
 	/**
@@ -2143,7 +2175,7 @@ final class Mantia_Whatsapp_Flow {
 				$tail = '';
 			}
 			return array(
-				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.%s", $group['name'], $tail ),
+				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos.%s", $group['name'], $tail ),
 				'completed' => true,
 			);
 		}
