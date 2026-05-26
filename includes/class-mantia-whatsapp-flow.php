@@ -928,11 +928,14 @@ final class Mantia_Whatsapp_Flow {
 		// Send the forwardable invitation card FIRST (will appear upper in
 		// the chat — slightly older). It's self-contained: no "vos creaste"
 		// context, so a friend who receives a long-press-and-forward of it
-		// reads a clean invitation.
-		self::send_invite_card( $identity['recipient'], $group );
+		// reads a clean invitation. The return value matters: if the card
+		// send silently fails (empty recipient, OpenclaWP_Whatsapp down,
+		// transient WhatsApp API glitch), the confirmation below MUST NOT
+		// tell the user to "forward the card above" — that's a say-do
+		// mismatch that confuses users into thinking the bot is broken.
+		$card_sent = self::send_invite_card( $identity['recipient'], $group );
 
 		// The bot's reply to the creator (lower in chat = newest = visible).
-		// Explains what they should do next: forward the card above.
 		$lines = array(
 			sprintf( '✅ Creaste *%s* para %s.', $group['name'], $group['competition_name'] ),
 		);
@@ -943,7 +946,21 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 		$lines[] = '';
-		$lines[] = '_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._';
+
+		// Share-link rendering depends on whether the card shipped:
+		//   - card shipped → point at it ("tarjeta de arriba ↑")
+		//   - card failed but we have a landing URL → inline it so the
+		//     confirmation is self-contained
+		//   - no landing URL either → fall back to the invite code
+		$share_url = self::build_join_landing_url( $group );
+		if ( $card_sent ) {
+			$lines[] = '_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._';
+		} elseif ( '' !== $share_url ) {
+			$lines[] = '_Compartí este link con tus amigos para que se sumen:_';
+			$lines[] = $share_url;
+		} else {
+			$lines[] = sprintf( '_Compartí el código *%s* con tus amigos para que se sumen._', $group['invite_code'] );
+		}
 		$lines[] = '';
 		// Roster only here (no private link inline) — this reply lives right
 		// next to the forwardable invite card, and any line that looks
@@ -1530,8 +1547,11 @@ final class Mantia_Whatsapp_Flow {
 
 		// Push a fresh invitation card the user can long-press → Forward.
 		// Lives in its own bubble (above the bot's reply with buttons) so a
-		// forward carries only the card, not the bot context.
-		self::send_invite_card( $identity['recipient'], $group );
+		// forward carries only the card, not the bot context. Capture the
+		// return value — if the send fails silently we must NOT prefix the
+		// reply with "↑ Reenviá la tarjeta de arriba" (no card exists to
+		// reference). The wa.me link below is the fallback either way.
+		$card_sent = self::send_invite_card( $identity['recipient'], $group );
 
 		// Reply intentionally compact: a one-line context + the wa.me
 		// share URL. Don't include `📱 Tu link privado:` here (that's the
@@ -1540,16 +1560,22 @@ final class Mantia_Whatsapp_Flow {
 		// Don't include `🌐 Ver standings en la web:` either — the wa.me
 		// link is the one-tap join, and Standings can live on the group
 		// page once recipients join.
-		$lines = array(
-			'_↑ Reenviá la tarjeta de arriba a tus amigos._',
-			'',
-			sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
-			sprintf(
-				'👥 %d en %s %s',
-				count( Mantia_Repository::group_members( $active ) ),
-				Mantia_Vocab::word( 'article', $identity['phone'] ?? '' ),
-				$noun
-			),
+		$lines = array();
+		if ( $card_sent ) {
+			$lines[] = '_↑ Reenviá la tarjeta de arriba a tus amigos._';
+			$lines[] = '';
+		}
+		$lines = array_merge(
+			$lines,
+			array(
+				sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
+				sprintf(
+					'👥 %d en %s %s',
+					count( Mantia_Repository::group_members( $active ) ),
+					Mantia_Vocab::word( 'article', $identity['phone'] ?? '' ),
+					$noun
+				),
+			)
 		);
 
 		if ( '' !== $share ) {
