@@ -26,7 +26,7 @@ Mantia_Competitions::seed_defaults();
 
 $comps = array_keys( Mantia_Competitions::all() );
 Mantia_E2E::assert_true( in_array( 'mundial-2026', $comps, true ), 'mundial-2026 registered' );
-Mantia_E2E::assert_true( in_array( 'mundial-semana', $comps, true ), 'mundial-semana view registered' );
+Mantia_E2E::assert_true( ! in_array( 'mundial-semana', $comps, true ), 'mundial-semana removed in v11' );
 
 /* ─────────────────────────────────────────────────────────────────────── */
 Mantia_E2E::step( '1. Stub the FIFA Results payload — 3 matches, 1 finished, 1 TBD' );
@@ -106,12 +106,10 @@ if ( $mexico ) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────── */
-Mantia_E2E::step( '5. Mundial-semana view picks up upcoming matches via parent linkage' );
+Mantia_E2E::step( '5. mundial-2026 upcoming-matches lookup picks up the FIFA stub' );
 /* ─────────────────────────────────────────────────────────────────────── */
-// upcoming_matches_for_competition('mundial-semana') uses storage_id() to
-// resolve to the parent 'mundial-2026'. Argentina-France match is in 2026
-// so it shouldn't show in a 7-day window from now — verify the storage
-// linkage instead by checking the parent slug returns ≥ 1 match.
+// Argentina-France is in 2026 so it shouldn't show in a 7-day window from
+// now — open the window wide (2 years) to verify the data path works.
 $mundial_matches = Mantia_Repository::upcoming_matches_for_competition( 'mundial-2026', 24 * 365 * 2 );
 $mundial_ids     = array_map( static fn( $m ) => (int) $m['id'], $mundial_matches );
 Mantia_E2E::assert_true( ! empty( $mundial_ids ), 'mundial-2026 has ≥1 upcoming match after sync' );

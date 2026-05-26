@@ -62,16 +62,6 @@ final class Mantia_Competitions {
 				'sort'        => 10,
 				'aliases'     => array( 'mundial', 'world cup', 'copa del mundo', 'fifa', 'wc26' ),
 			),
-			array(
-				'slug'        => 'mundial-semana',
-				'name'        => 'Mundial semanal',
-				'emoji'       => '📆',
-				'description' => 'Solo partidos del Mundial en los próximos 7 días',
-				'parent_slug' => 'mundial-2026',
-				'window_days' => 7,
-				'sort'        => 11,
-				'aliases'     => array( 'mundial semana', 'mundial esta semana' ),
-			),
 		);
 	}
 
@@ -90,6 +80,11 @@ final class Mantia_Competitions {
 		'sudamericana-2026',
 		'liga-uy-2026',
 		'custom',
+		// v11: weekly view of the Mundial. Confusing UX — sat empty most
+		// of the year and made users think the bot had no Mundial data.
+		// Parent `mundial-2026` stays; users can still pick the global
+		// view from the picker.
+		'mundial-semana',
 	);
 
 	/**

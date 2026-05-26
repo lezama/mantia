@@ -70,7 +70,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 10;
+	private const DB_VERSION        = 11;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -117,9 +117,11 @@ final class Mantia_Bootstrap {
 			flush_rewrite_rules();
 		}
 
-		// v9: Mundial 2026 reinstated. Seed the competition rows (mundial-
-		// 2026 + mundial-semana view) and pull the fixture from FIFA's
-		// official endpoint. The pull is best-effort — if the network is
+		// v9: Mundial 2026 reinstated. Seed the competition row
+		// (mundial-2026) and pull the fixture from FIFA's official
+		// endpoint. The mundial-semana weekly sub-view was also seeded
+		// here originally but was removed in v11. The pull is best-
+		// effort — if the network is
 		// down at upgrade time, the competition still exists and the
 		// admin can re-trigger via wp eval-file or the sync-fifa-fixture
 		// ability.
@@ -127,6 +129,36 @@ final class Mantia_Bootstrap {
 			Mantia_Competitions::seed_defaults();
 			if ( class_exists( 'Mantia_Fifa_Fixture' ) ) {
 				Mantia_Fifa_Fixture::sync( 'mundial-2026' );
+			}
+		}
+
+		// v11: `mundial-semana` removed from default_seed() (weekly view
+		// was confusing UX — sat empty most of the year). The v4 loop
+		// below only fires for installs at < 4, so installs at 4–10 need
+		// a separate pass to actually clear the slug. Same idempotent
+		// iteration over REMOVED_COMPETITION_SLUGS — finds nothing on
+		// fresh installs, finds mundial-semana on upgrading installs.
+		if ( $current < 11 ) {
+			foreach ( Mantia_Competitions::REMOVED_COMPETITION_SLUGS as $slug ) {
+				$comp = Mantia_Competitions::find_post( $slug );
+				if ( ! $comp ) {
+					continue;
+				}
+				$match_ids = get_posts(
+					array(
+						'post_type'      => Mantia_CPTs::MATCH,
+						'post_status'    => 'any',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+						'no_found_rows'  => true,
+						'meta_key'       => Mantia_Competitions::META_KEY,
+						'meta_value'     => $slug,
+					)
+				);
+				foreach ( $match_ids as $mid ) {
+					wp_delete_post( (int) $mid, true );
+				}
+				wp_delete_post( (int) $comp->ID, true );
 			}
 		}
 
