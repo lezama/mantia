@@ -224,6 +224,74 @@ final class Mantia_E2E {
 		}
 	}
 
+	/* ----------------------- Outbound side-effect capture ---------------------- */
+
+	/** @var array<int,array{to:string,body:string,kind:string}> */
+	private static array $outbound_log = array();
+
+	/** @var bool */
+	private static bool $outbound_recorder_installed = false;
+
+	/**
+	 * Install the e2e outbound recorder. Any side-effect WhatsApp message
+	 * sent via Mantia_Whatsapp_Flow::send_outbound_text() (invite cards,
+	 * avatar confirmations, anything else routed through the wrapper)
+	 * gets captured into self::$outbound_log instead of being shipped to
+	 * the real WhatsApp Cloud API. Tests can then interleave the captured
+	 * outbounds into their transcript so the reviewer sees the FULL set
+	 * of bubbles each persona received — not just the bot's direct reply.
+	 *
+	 * Idempotent. Call once at the top of an e2e test that wants the
+	 * fuller view; the existing reply-only tests are unaffected.
+	 */
+	public static function install_outbound_recorder(): void {
+		if ( self::$outbound_recorder_installed ) {
+			return;
+		}
+		self::$outbound_recorder_installed = true;
+		self::$outbound_log = array();
+		add_filter(
+			'mantia_outbound_text',
+			static function ( $intercept, string $recipient, string $body, string $kind ) {
+				// Respect an upstream filter that already decided (e.g. a
+				// test-injected failure at lower priority returning false).
+				// Without this guard we'd silently turn every simulated
+				// failure into a success and the transcript would mask the
+				// say-do bug class this whole recorder exists to surface.
+				if ( null !== $intercept ) {
+					return $intercept;
+				}
+				Mantia_E2E::record_outbound( $recipient, $body, $kind );
+				return true; // Mark intercepted with success — no real HTTP fires.
+			},
+			10,
+			4
+		);
+	}
+
+	/** Push one captured outbound onto the queue. Public so the filter can call it. */
+	public static function record_outbound( string $recipient, string $body, string $kind ): void {
+		self::$outbound_log[] = array(
+			'to'   => $recipient,
+			'body' => $body,
+			'kind' => $kind,
+		);
+	}
+
+	/**
+	 * Pop and return everything captured since the last consume_outbound()
+	 * call. Tests typically call this immediately after `send()` to grab
+	 * any side-effect outbounds that fired during that turn and stitch
+	 * them into the transcript in time order.
+	 *
+	 * @return array<int,array{to:string,body:string,kind:string}>
+	 */
+	public static function consume_outbound(): array {
+		$items = self::$outbound_log;
+		self::$outbound_log = array();
+		return $items;
+	}
+
 	/* --------------------------------- Personas -------------------------------- */
 
 	public static function persona( string $name, int $slot = 1 ): array {

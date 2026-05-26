@@ -33,54 +33,90 @@ Mantia_E2E::step( '0. Clean slate + Mundial fixture must be present' );
 Mantia_E2E::cleanup();
 Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
+// Install the outbound recorder BEFORE creating personas. Without this,
+// side-effect sends (invite cards, avatar confirms) silently no-op
+// against an unconfigured WhatsApp Cloud API in the test env, and the
+// reviewer ends up reading a transcript that's missing half the
+// bubbles the real user saw. The recorder intercepts every send via
+// Mantia_Whatsapp_Flow::send_outbound_text() and queues it for the
+// transcript renderer below.
+Mantia_E2E::install_outbound_recorder();
+
 $alice = Mantia_E2E::persona( 'Alice', 1 );
+$bob   = Mantia_E2E::persona( 'Bob',   2 );
+$phone_to_name = array(
+	$alice['phone'] => $alice['name'],
+	$bob['phone']   => $bob['name'],
+);
 
 $transcript = array();
 // Scrub test-only noise so the reviewer doesn't flag false positives on
 // scaffolding it can't know about. Today: the __E2E__ persona name
 // prefix. Add more entries when a new test-internal token surfaces in
 // user-visible copy.
-$scrub_test_noise = static function( string $s ): string {
+$scrub_test_noise = static function ( string $s ): string {
 	return preg_replace( '/__E2E__\s*/', '', $s );
 };
-$capture = static function( string $who, string $msg, ?array $interactive = null ) use ( &$transcript, $scrub_test_noise ): void {
-	$transcript[] = sprintf( '[%s] %s', $who, $scrub_test_noise( $msg ) );
-	// Capture interactive payloads (buttons + list rows) so the reviewer
-	// has the FULL surface, not just the reply text. Without this it
-	// flags "Tocá un partido…" as a dangling instruction when the actual
-	// UI has a tappable list below it.
-	if ( is_array( $interactive ) && ! empty( $interactive ) ) {
-		$type = (string) ( $interactive['type'] ?? '' );
-		if ( ! empty( $interactive['buttons'] ) ) {
-			foreach ( $interactive['buttons'] as $b ) {
-				$transcript[] = '   [button] ' . $scrub_test_noise( (string) ( $b['title'] ?? '' ) );
+$render_interactive = static function ( ?array $interactive ) use ( &$transcript, $scrub_test_noise ): void {
+	if ( ! is_array( $interactive ) || empty( $interactive ) ) {
+		return;
+	}
+	$type = (string) ( $interactive['type'] ?? '' );
+	if ( ! empty( $interactive['buttons'] ) ) {
+		foreach ( $interactive['buttons'] as $b ) {
+			$transcript[] = '   [button] ' . $scrub_test_noise( (string) ( $b['title'] ?? '' ) );
+		}
+	}
+	if ( ! empty( $interactive['sections'] ) ) {
+		foreach ( $interactive['sections'] as $s ) {
+			$section_title = (string) ( $s['title'] ?? '' );
+			if ( '' !== $section_title ) {
+				$transcript[] = '   [section] ' . $scrub_test_noise( $section_title );
+			}
+			foreach ( $s['rows'] ?? array() as $row ) {
+				$transcript[] = sprintf(
+					'     [row] %s — %s',
+					$scrub_test_noise( (string) ( $row['title'] ?? '' ) ),
+					$scrub_test_noise( (string) ( $row['description'] ?? '' ) )
+				);
 			}
 		}
-		if ( ! empty( $interactive['sections'] ) ) {
-			foreach ( $interactive['sections'] as $s ) {
-				$section_title = (string) ( $s['title'] ?? '' );
-				if ( '' !== $section_title ) {
-					$transcript[] = '   [section] ' . $scrub_test_noise( $section_title );
-				}
-				foreach ( $s['rows'] ?? array() as $row ) {
-					$transcript[] = sprintf(
-						'     [row] %s — %s',
-						$scrub_test_noise( (string) ( $row['title'] ?? '' ) ),
-						$scrub_test_noise( (string) ( $row['description'] ?? '' ) )
-					);
-				}
-			}
-		}
-		if ( '' !== $type && empty( $interactive['buttons'] ) && empty( $interactive['sections'] ) ) {
-			$transcript[] = sprintf( '   [interactive %s — empty]', $type );
+	}
+	if ( '' !== $type && empty( $interactive['buttons'] ) && empty( $interactive['sections'] ) ) {
+		$transcript[] = sprintf( '   [interactive %s — empty]', $type );
+	}
+};
+// Render every captured outbound side-effect for the persona — interleaved
+// BEFORE the bot's main reply since the side-effect ships first chronologically.
+$drain_outbounds = static function () use ( &$transcript, $scrub_test_noise, $phone_to_name ): void {
+	foreach ( Mantia_E2E::consume_outbound() as $out ) {
+		$name = $phone_to_name[ $out['to'] ] ?? $out['to'];
+		$transcript[] = sprintf( '[to %s · %s]', $name, $out['kind'] );
+		foreach ( explode( "\n", $scrub_test_noise( $out['body'] ) ) as $line ) {
+			$transcript[] = '   ' . $line;
 		}
 	}
 };
+// One unified send-and-capture used by every turn for every persona.
+// Each turn emits in time order: the inbound message → any side-effect
+// outbounds the handler shipped → the bot's main reply to the inbound
+// persona. The "[from <name>]" / "[to <name> · <kind>]" tags let the
+// reviewer follow each persona's thread independently.
+$send_turn = static function ( array $persona, string $msg ) use ( &$transcript, $scrub_test_noise, $render_interactive, $drain_outbounds ): array {
+	$transcript[] = sprintf( '[from %s] %s', $persona['name'], $scrub_test_noise( $msg ) );
+	$r = Mantia_E2E::send( $persona, $msg );
+	$drain_outbounds();
+	$reply       = (string) ( $r['reply'] ?? '' );
+	$interactive = is_array( $r ) ? ( $r['interactive'] ?? null ) : null;
+	$transcript[] = sprintf( '[to %s · reply] %s', $persona['name'], $scrub_test_noise( $reply ) );
+	$render_interactive( $interactive );
+	return is_array( $r ) ? $r : array();
+};
 
 /* ─────────────────────────────────────────────────────────────────────── */
-Mantia_E2E::step( '1. Drive the canonical Matías flow' );
+Mantia_E2E::step( '1. Drive the canonical Matías flow (Alice creates a Mundial pool)' );
 /* ─────────────────────────────────────────────────────────────────────── */
-$turns = array(
+$alice_turns = array(
 	'hola',
 	'mantia:cmd:new-penca',
 	'mantia:newcomp:mundial-2026',
@@ -89,16 +125,38 @@ $turns = array(
 	'tabla',
 	'mi pronostico',
 );
-foreach ( $turns as $msg ) {
-	$capture( 'user', $msg );
-	$r           = Mantia_E2E::send( $alice, $msg );
-	$reply       = (string) ( $r['reply'] ?? '' );
-	$interactive = is_array( $r ) ? ( $r['interactive'] ?? null ) : null;
-	$capture( 'bot', $reply, $interactive );
+foreach ( $alice_turns as $msg ) {
+	$send_turn( $alice, $msg );
 }
 
 /* ─────────────────────────────────────────────────────────────────────── */
-Mantia_E2E::step( '2. Inline lived-UX asserts' );
+Mantia_E2E::step( '2. Bob joins Alice\'s pool via the invite code (cross-thread context)' );
+/* ─────────────────────────────────────────────────────────────────────── */
+// Pull the invite code from Alice's just-created group. The reviewer's
+// transcript shows it appearing in an [to Alice · invite_card] bubble
+// during step 1 — Bob receiving it on a different channel (WhatsApp
+// group forward) is modeled by us reading the code here and feeding
+// it as Bob's first content message.
+$alice_user_id   = (int) ( Mantia_E2E::user_by_phone( $alice['phone'] )->ID ?? 0 );
+$alice_group_id  = $alice_user_id > 0 ? Mantia_Repository::active_group_id_for_user( $alice_user_id ) : 0;
+$invite_code     = '';
+if ( $alice_group_id > 0 ) {
+	$alice_group = Mantia_Repository::group_to_array( $alice_group_id );
+	$invite_code = (string) ( $alice_group['invite_code'] ?? '' );
+}
+Mantia_E2E::assert_true( '' !== $invite_code, 'Alice\'s invite code exists (Bob needs it to join)' );
+
+$bob_turns = array(
+	'hola',
+	'mantia:cmd:have-code',
+	$invite_code,
+);
+foreach ( $bob_turns as $msg ) {
+	$send_turn( $bob, $msg );
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
+Mantia_E2E::step( '3. Inline lived-UX asserts' );
 /* ─────────────────────────────────────────────────────────────────────── */
 $transcript_str = implode( "\n", $transcript );
 
@@ -122,10 +180,13 @@ $asked_phone = (bool) preg_match( '/teléfono|telefono|n[uú]mero de wh|c[oó]di
 Mantia_E2E::assert_true( ! $asked_phone, 'bot never re-asks for the phone it already has' );
 
 // Rule 3 — say-do consistency: locate the bot replies by content rather
-// than fixed index (interactive-payload capture shifts the numbering).
-$find_bot_reply_containing = static function( string $needle ) use ( $transcript ): string {
+// than fixed index (interactive-payload capture + multi-persona threads
+// shift the numbering). Now matches both legacy `[bot]` lines and the
+// new `[to <name> · reply]` prefix.
+$find_bot_reply_containing = static function ( string $needle ) use ( $transcript ): string {
 	foreach ( $transcript as $line ) {
-		if ( 0 === strpos( $line, '[bot] ' ) && false !== stripos( $line, $needle ) ) {
+		$is_reply = 0 === strpos( $line, '[bot] ' ) || (bool) preg_match( '/^\[to [^\]]+ · reply\]/', $line );
+		if ( $is_reply && false !== stripos( $line, $needle ) ) {
 			return $line;
 		}
 	}
@@ -135,6 +196,70 @@ $create_reply   = $find_bot_reply_containing( 'Creaste' );
 $partidos_reply = $find_bot_reply_containing( 'Tocá un partido' );
 Mantia_E2E::assert_true( false !== stripos( $create_reply, 'Mundial 2026' ), 'create reply mentions Mundial 2026' );
 Mantia_E2E::assert_true( false === stripos( $partidos_reply, 'Libertadores' ), 'partidos reply does NOT show Libertadores after creating a Mundial penca' );
+
+// Rule 3 — say-do consistency: when the bot's reply references a card
+// "above" (Reenviá la tarjeta de arriba ↑ or ↑ Reenviá la tarjeta), an
+// actual [to <name> · invite_card] outbound MUST exist immediately
+// before that reply in the transcript. Without this check the regression
+// the user reported on 2026-05-26 (no card delivered but the reply
+// pointed at one) would not have been caught.
+$say_do_card_break = '';
+foreach ( $transcript as $i => $line ) {
+	$mentions_card_above = false !== stripos( $line, 'tarjeta de arriba' );
+	$is_reply_line       = (bool) preg_match( '/^\[to [^\]]+ · reply\]/', $line );
+	if ( ! ( $mentions_card_above && $is_reply_line ) ) {
+		continue;
+	}
+	// Walk backwards looking for the most recent invite_card outbound
+	// before any earlier `[from …]` (a new turn boundary).
+	$found_card = false;
+	for ( $j = $i - 1; $j >= 0; $j-- ) {
+		if ( 0 === strpos( $transcript[ $j ], '[from ' ) ) {
+			break;
+		}
+		if ( 0 === strpos( $transcript[ $j ], '[to ' ) && false !== strpos( $transcript[ $j ], '· invite_card]' ) ) {
+			$found_card = true;
+			break;
+		}
+	}
+	if ( ! $found_card ) {
+		$say_do_card_break = $line;
+		break;
+	}
+}
+Mantia_E2E::assert_true(
+	'' === $say_do_card_break,
+	'reply mentioning "tarjeta de arriba" has a real invite_card outbound preceding it (' . ( '' === $say_do_card_break ? 'ok' : 'break: ' . substr( $say_do_card_break, 0, 80 ) ) . ')'
+);
+
+/* ─────────────────────────────────────────────────────────────────────── */
+Mantia_E2E::step( '4. Failure-path: when send_invite_card returns false, reply must inline the link instead of pointing at a phantom card' );
+/* ─────────────────────────────────────────────────────────────────────── */
+// Simulate the production bug: install a one-shot filter that fails
+// every subsequent invite_card outbound. The recorder respects the
+// upstream non-null return so the failure actually sticks.
+$fail_invite_card = static function ( $intercept, string $recipient, string $body, string $kind ) {
+	if ( 'invite_card' === $kind ) {
+		return false;
+	}
+	return $intercept;
+};
+add_filter( 'mantia_outbound_text', $fail_invite_card, 5, 4 );
+
+// Alice already has a penca → mantia:cmd:share-link re-runs send_invite_card.
+$share_r     = Mantia_E2E::send( $alice, 'mantia:cmd:share-link' );
+$share_reply = (string) ( $share_r['reply'] ?? '' );
+
+remove_filter( 'mantia_outbound_text', $fail_invite_card, 5 );
+
+Mantia_E2E::assert_true(
+	false === stripos( $share_reply, 'tarjeta de arriba' ),
+	'share-link reply omits "tarjeta de arriba" when send_invite_card returned false'
+);
+Mantia_E2E::assert_true(
+	false !== stripos( $share_reply, 'wa.me' ) || false !== stripos( $share_reply, 'sumate/' ) || false !== stripos( $share_reply, 'Código:' ),
+	'share-link reply still provides a share artifact (wa.me link, sumate URL, or invite code) on send failure'
+);
 
 // Rule 5 — empty-state actionable: tabla pre-results suggests next step.
 $tabla_reply = $find_bot_reply_containing( 'Todavía no hay puntos' );
@@ -152,17 +277,25 @@ if ( $is_empty_tabla ) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────── */
-Mantia_E2E::step( '3. Dump full transcript for offline review' );
+Mantia_E2E::step( '5. Dump full transcript for offline review' );
 /* ─────────────────────────────────────────────────────────────────────── */
 $out_dir = dirname( __DIR__ ) . '/qa-output';
 if ( ! is_dir( $out_dir ) ) {
 	mkdir( $out_dir, 0775, true );
 }
 $out_path = $out_dir . '/stakeholder-sim-onboarding.txt';
-$body  = "=== scenario: stakeholder-sim onboarding (Matías canonical) ===\n";
+$body  = "=== scenario: stakeholder-sim onboarding — multi-persona (Alice creates, Bob joins) ===\n";
 $body .= "captured: " . gmdate( 'c' ) . "\n";
-$body .= "persona phone: " . $alice['phone'] . " (logged in via WA bridge in the harness)\n";
-$body .= "default competition at capture time: " . Mantia_Competitions::default_id() . "\n\n";
+$body .= "personas:\n";
+$body .= "  Alice — phone " . $alice['phone'] . " (creator, logged in via WA bridge)\n";
+$body .= "  Bob   — phone " . $bob['phone']   . " (invited, joins via Alice's code)\n";
+$body .= "default competition at capture time: " . Mantia_Competitions::default_id() . "\n";
+$body .= "\nTranscript format:\n";
+$body .= "  [from <name>] <msg>          — message from that persona to the bot\n";
+$body .= "  [to <name> · reply] <msg>    — bot's main reply (the one the user typed against)\n";
+$body .= "  [to <name> · <kind>] <msg>   — bot's side-effect outbound (invite_card, avatar_confirm, …)\n";
+$body .= "  [button] / [section] / [row] — interactive payload on the preceding bot bubble\n";
+$body .= "\n";
 $body .= $transcript_str . "\n";
 file_put_contents( $out_path, $body );
 fwrite( STDOUT, "    · transcript dumped to: $out_path\n" );

@@ -74,12 +74,11 @@ final class Mantia_Whatsapp_Flow {
 
 		// Confirm to the user. Stays inside the 24h service window since
 		// they just messaged us, so no template cost.
-		if ( class_exists( 'OpenclaWP_Whatsapp' ) && method_exists( 'OpenclaWP_Whatsapp', 'send_text_message' ) ) {
-			OpenclaWP_Whatsapp::send_text_message(
-				$phone,
-				'📸 Foto guardada como tu avatar. La van a ver tus compañeros en la web.'
-			);
-		}
+		self::send_outbound_text(
+			$phone,
+			'📸 Foto guardada como tu avatar. La van a ver tus compañeros en la web.',
+			'avatar_confirm'
+		);
 	}
 
 	public static function user_initiated_only(): bool {
@@ -1004,14 +1003,41 @@ final class Mantia_Whatsapp_Flow {
 	 * confirmation + buttons.
 	 */
 	private static function send_invite_card( string $recipient, array $group ): bool {
-		if ( '' === $recipient || ! class_exists( 'OpenclaWP_Whatsapp' ) ) {
+		if ( '' === $recipient ) {
 			return false;
 		}
 		$lines = self::build_invite_card_lines( $group );
 		if ( empty( $lines ) ) {
 			return false;
 		}
-		return (bool) OpenclaWP_Whatsapp::send_text_message( $recipient, implode( "\n", $lines ) );
+		return self::send_outbound_text( $recipient, implode( "\n", $lines ), 'invite_card' );
+	}
+
+	/**
+	 * Central outbound-text wrapper. All side-effect "ship a message to
+	 * a WhatsApp recipient" calls in this class must go through here, so
+	 * the e2e harness can intercept and capture them in transcripts.
+	 *
+	 * The `mantia_outbound_text` filter is the e2e capture seam: returning
+	 * anything other than null short-circuits the real send and the bool
+	 * value is treated as the success status. In production no consumer
+	 * attaches, the filter returns the original null, and we fall through
+	 * to `OpenclaWP_Whatsapp::send_text_message`.
+	 *
+	 * `$kind` is a free-form label ("invite_card", "avatar_confirm", …)
+	 * that lets the harness tag captured outbounds for review — so the
+	 * stakeholder-sim agent can see "[to Alice · invite_card] …" instead
+	 * of an unlabeled bubble it has to guess the role of.
+	 */
+	private static function send_outbound_text( string $recipient, string $body, string $kind = 'reply' ): bool {
+		$intercept = apply_filters( 'mantia_outbound_text', null, $recipient, $body, $kind );
+		if ( null !== $intercept ) {
+			return (bool) $intercept;
+		}
+		if ( '' === $recipient || ! class_exists( 'OpenclaWP_Whatsapp' ) || ! method_exists( 'OpenclaWP_Whatsapp', 'send_text_message' ) ) {
+			return false;
+		}
+		return (bool) OpenclaWP_Whatsapp::send_text_message( $recipient, $body );
 	}
 
 	/**

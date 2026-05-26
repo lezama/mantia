@@ -10,22 +10,39 @@ Your job is to audit a transcript file for **lived UX issues** — the kind of t
 
 ## Inputs
 
-The user gives you a path to a transcript file in this shape:
+The user gives you a path to a transcript file in this shape (current multi-persona format):
 
 ```
 === scenario: <name> ===
-[user] hola
-[bot] Hola, soy *Mantia*…
-[user] mantia:cmd:new-penca
-[bot] Listo. ¿Para qué torneo es tu penca?
-…
+personas:
+  Alice — phone 999900001 (creator, logged in via WA bridge)
+  Bob   — phone 999900002 (invited, joins via Alice's code)
+
+[from Alice] hola
+[to Alice · reply] Hola, soy *Mantia*…
+   [button] ➕ Crear penca
+[from Alice] MundialAlice
+[to Alice · invite_card]
+   🏆 *Sumate a MundialAlice*
+   …
+[to Alice · reply] ✅ Creaste *MundialAlice* …
+[from Bob] hola
+[to Bob · reply] …
 ```
 
-The transcript is verbatim — the same bytes the user saw on their phone. Read it linearly, like you're scrolling the chat.
+The transcript is verbatim — the same bytes each persona saw on their phone, with every bubble tagged by recipient and kind. **Read each thread independently first** (mentally filter to `[from Alice]` + `[to Alice · …]`, then again for Bob), THEN read the whole thing chronologically to spot cross-thread issues. A real user only sees their own thread; you have privileged access to all of them so you can catch breakage no single user could.
 
-## Six lived-UX rules
+Key markers:
+- `[from <name>]` — message the persona sent to the bot.
+- `[to <name> · reply]` — bot's main reply to that persona's last message.
+- `[to <name> · invite_card]` / `[to <name> · avatar_confirm]` / etc. — **side-effect outbounds** the bot shipped on its own during the same turn. These were invisible in the old transcript format; their presence (or absence) is what catches bugs like "the reply says 'Reenviá la tarjeta de arriba ↑' but no card was actually sent" (real bug, 2026-05-26).
+- `   [button]` / `   [section]` / `     [row]` — interactive payload on the preceding bot bubble.
 
-For each `[bot]` reply, check:
+Legacy transcripts may still use `[user]` / `[bot]` without persona tagging — handle both formats. When the transcript has only one persona, the six rules below still apply; rule 7 (cross-thread coherence) is no-op.
+
+## Seven lived-UX rules
+
+For each bot bubble (`[to <name> · reply]` or legacy `[bot]`), check:
 
 ### 1. **Intimidación visual** — no walls of opaque text
 
@@ -41,6 +58,7 @@ For each `[bot]` reply, check:
 
 - "Listo, creé MundialMatias1 para 🌎 Mundial 2026" → next `partidos` reply must list Mundial matches, not Libertadores. If the say-do break happens because the active-group wasn't switched to the just-created penca, flag it.
 - "Te aviso cuando juegue tu equipo" → must actually trigger a workflow ping. (Out of transcript scope, but flag the promise.)
+- **Reply references a "tarjeta" / message above** → confirm a corresponding `[to <name> · invite_card]` (or `· avatar_confirm`, etc.) bubble actually exists immediately before the reply in this persona's thread. "Reenviá la tarjeta de arriba ↑" with no preceding `[to <name> · invite_card]` line is the exact say-do break that surfaced on 2026-05-26 as "no me pasó la tarjeta para compartir".
 - Confirmations that don't match the underlying state are the single most corrosive UX failure for a bot — users stop trusting it.
 
 ### 4. **Redundancia / "ya sé eso"**
@@ -59,6 +77,15 @@ For each `[bot]` reply, check:
 
 - "Hola" → "Hola, ¿en qué te ayudo?" is a fail (the user knows what Mantia is by now if they got here).
 - Confirmation-of-confirmation: "Listo, lo guardé. ¿Querés guardarlo?" is a fail.
+
+### 7. **Cross-thread coherence** — multi-persona consistency
+
+When the transcript contains multiple personas (creator + invitee, or any other multi-thread scenario), check:
+
+- **Group state is consistent across threads.** After Bob joins via `[from Bob] <invite_code>`, the bot's `[to Bob · reply]` should show `Quiénes están (2): Alice + Bob` — same count Alice would see if she asked. A mismatch here means the join wrote one persona's state but the bot is rendering against stale state for the other.
+- **Names are stable per-persona.** Alice's display name in Bob's roster must match the name Alice's own bubbles use. If Alice appears as "Alice" in her own thread but as a raw phone number `+598…` in Bob's roster, that's a profile-resolution gap.
+- **Cross-thread privacy.** Leak-prone tokens (Alice's `/me/` private edit URL, magic-link blobs with `wa_auth_t=`) must never appear in another persona's thread. Search Bob's bubbles for anything that should only be Alice's.
+- **Promises across threads land.** If Alice's reply says "Te aviso cuando se sume alguien", a `[to Alice · …]` notification should appear in her thread after `[from Bob] <invite_code>` lands. Missing notifications are silent UX failures.
 
 ## Output format
 
