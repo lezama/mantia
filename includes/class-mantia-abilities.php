@@ -104,6 +104,28 @@ final class Mantia_Abilities {
 	 *
 	 * Returns true on allow, WP_Error on deny.
 	 */
+	/**
+	 * Resolve the caller's phone from args, OR fall back to the WP
+	 * current_user's META_PHONE when args don't include it. The WA
+	 * bridge wp_set_current_user()s the verified phone-owner before
+	 * the agent loop fires, so the current_user is the truthful
+	 * identity. An LLM that omits user_phone in a tool call should
+	 * NOT make the bot ask the user for their number — we already
+	 * have it. Returns the resolved phone (or '' for no-current-user
+	 * contexts like cron / CLI).
+	 */
+	private static function resolve_caller_phone( array $args ): string {
+		$arg_phone = (string) ( $args['user_phone'] ?? '' );
+		if ( '' !== $arg_phone ) {
+			return $arg_phone;
+		}
+		$current_id = (int) get_current_user_id();
+		if ( $current_id <= 0 ) {
+			return '';
+		}
+		return (string) get_user_meta( $current_id, Mantia_Repository::META_PHONE, true );
+	}
+
 	private static function check_caller_phone( array $args ) {
 		if ( ! isset( $args['user_phone'] ) || '' === (string) $args['user_phone'] ) {
 			return true;
@@ -198,8 +220,9 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
+		$args['user_phone'] = self::resolve_caller_phone( $args );
 		$user_id = Mantia_Repository::get_or_create_user(
-			(string) ( $args['user_phone'] ?? '' ),
+			$args['user_phone'],
 			(string) ( $args['user_name'] ?? '' ),
 			(string) ( $args['whatsapp_recipient'] ?? '' )
 		);
@@ -387,6 +410,7 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return array( 'group_id' => 0, 'scope' => 'group', 'needs_group' => true, 'standings' => array(), 'error' => $gate->get_error_code() );
 		}
+		$args['user_phone'] = self::resolve_caller_phone( $args );
 		$scope    = (string) ( $args['scope'] ?? 'group' );
 		$group_id = isset( $args['group_id'] ) ? (int) $args['group_id'] : 0;
 
@@ -451,6 +475,7 @@ final class Mantia_Abilities {
 			// flags that would leak the other user's state.
 			unset( $args['user_phone'] );
 		}
+		$args['user_phone'] = self::resolve_caller_phone( $args );
 		$hours  = isset( $args['hours_ahead'] ) ? max( 1, min( 240, (int) $args['hours_ahead'] ) ) : 48;
 		$user   = ! empty( $args['user_phone'] ) ? Mantia_Repository::find_user_by_phone( (string) $args['user_phone'] ) : null;
 		$group  = $user ? Mantia_Repository::active_group_id_for_user( (int) $user->ID ) : 0;
@@ -522,8 +547,9 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
+		$args['user_phone'] = self::resolve_caller_phone( $args );
 		return Mantia_Repository::join_group(
-			(string) ( $args['user_phone'] ?? '' ),
+			$args['user_phone'],
 			(string) ( $args['invite_code'] ?? '' ),
 			(string) ( $args['user_name'] ?? '' ),
 			(string) ( $args['whatsapp_recipient'] ?? '' )
@@ -535,7 +561,7 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
-		$phone = (string) ( $args['user_phone'] ?? '' );
+		$phone = self::resolve_caller_phone( $args );
 		$user  = Mantia_Repository::find_user_by_phone( $phone );
 		if ( ! $user ) {
 			return new WP_Error(
@@ -630,7 +656,8 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
-		$phone   = (string) ( $args['user_phone'] ?? '' );
+		$phone              = self::resolve_caller_phone( $args );
+		$args['user_phone'] = $phone;
 		$user_id = Mantia_Repository::get_or_create_user(
 			$phone,
 			(string) ( $args['user_name'] ?? '' ),
@@ -735,7 +762,7 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
-		$phone = (string) ( $args['user_phone'] ?? '' );
+		$phone = self::resolve_caller_phone( $args );
 		$user  = Mantia_Repository::find_user_by_phone( $phone );
 		if ( ! $user ) {
 			return new WP_Error(
@@ -791,6 +818,7 @@ final class Mantia_Abilities {
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}
+		$args['user_phone'] = self::resolve_caller_phone( $args );
 		if ( ! empty( $args['invite_code'] ) ) {
 			return Mantia_Repository::join_group(
 				(string) ( $args['user_phone'] ?? '' ),
@@ -847,6 +875,7 @@ final class Mantia_Abilities {
 	}
 
 	public static function get_whatsapp_home( array $args ): array {
+		$args['user_phone'] = $args['user_phone'] ?? self::resolve_caller_phone( $args );
 		$gate = self::check_caller_phone( $args );
 		if ( is_wp_error( $gate ) ) {
 			// Return the SAME shape as the no-user / needs_group branch so

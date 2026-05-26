@@ -1918,12 +1918,9 @@ final class Mantia_Whatsapp_Flow {
 
 		$lines[] = '';
 		$lines[] = '_Tocá uno y te pido el marcador._';
-
-		$me_url = Mantia_Repository::user_view_url( $user_id );
-		if ( '' !== $me_url ) {
-			$lines[] = '';
-			$lines[] = sprintf( '🌐 Ver pendientes en la web: %s', $me_url );
-		}
+		// No web link: the interactive list below IS the picker. Dropping
+		// the giant magic-link removes ~400 chars from the chat bubble
+		// (per stakeholder feedback "no creo que haga falta el link aca").
 
 		return array(
 			'reply'       => implode( "\n", $lines ),
