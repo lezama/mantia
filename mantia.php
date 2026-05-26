@@ -6,6 +6,7 @@
  * Author: Automattic
  * Text Domain: mantia
  * Requires PHP: 8.1
+ * Requires Plugins: wa-identity-bridge
  *
  * @package Mantia
  */

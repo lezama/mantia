@@ -3,7 +3,8 @@
 	"plugins": [
 		".",
 		"Automattic/agents-api#main",
-		"lezama/openclawp#main"
+		"lezama/openclawp#main",
+		"lezama/wa-identity-bridge#main"
 	],
 	"config": {
 		"WP_DEBUG": true,

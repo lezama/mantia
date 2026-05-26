@@ -17,11 +17,16 @@ final class Mantia_Bootstrap {
 		}
 		self::$initialized = true;
 
-		// Wire the WhatsApp identity bridge BEFORE anything else so the role
-		// + endpoint + filters are in place by the time `init` fires. The
-		// bridge lives in-tree (includes/wa-identity-bridge/) but has zero
-		// Mantia deps — see its README for extraction notes.
-		require_once MANTIA_PATH . 'includes/wa-identity-bridge/class-wa-identity-bridge.php';
+		// The WhatsApp identity bridge was extracted to a standalone plugin
+		// (github.com/lezama/wa-identity-bridge). We don't load classes
+		// in-tree any more — the standalone plugin owns the source. If it
+		// isn't installed/activated, fall back to limited mode: CPTs and
+		// public blocks still work, but the conversational flow that
+		// depends on signed magic-links is disabled.
+		if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
+			add_action( 'admin_notices', array( __CLASS__, 'render_dependency_notice' ) );
+			return;
+		}
 
 		// Mantia branding for the bridge: dedicated role, /pronostico/auth/ endpoint,
 		// /pronostico/* path whitelist (anti open-redirect), and a placeholder email
@@ -65,7 +70,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 9;
+	private const DB_VERSION        = 10;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -103,7 +108,12 @@ final class Mantia_Bootstrap {
 		// upgrading from <=v6 stop trying to serve the old paths.
 		// v8: added /pronostico/g/<token>/calendar.ics subscribable feed —
 		// new rewrite rule needs a flush to register on existing installs.
-		if ( $current < 8 ) {
+		// v10: WA_Identity_Bridge moved from in-tree to standalone plugin.
+		// The endpoint now registers from the wa-identity-bridge plugin's
+		// own init hook — flush so existing installs stop serving the
+		// stale in-tree rewrite (and so the new one takes effect even if
+		// the standalone plugin activated AFTER Mantia did this cycle).
+		if ( $current < 10 ) {
 			flush_rewrite_rules();
 		}
 
@@ -174,6 +184,9 @@ final class Mantia_Bootstrap {
 		}
 		if ( ! class_exists( 'OpenclaWP_Bootstrap' ) ) {
 			$missing[] = 'openclaWP';
+		}
+		if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
+			$missing[] = 'wa-identity-bridge';
 		}
 
 		if ( empty( $missing ) ) {
