@@ -713,7 +713,7 @@ final class Mantia_Whatsapp_Flow {
 					),
 					array(
 						'id' => 'mantia:cmd:matches',
-						'title' => '📅 Partidos',
+						'title' => '📅 Ver y pronosticar',
 					),
 					array(
 						'id' => 'mantia:cmd:help',
@@ -993,7 +993,7 @@ final class Mantia_Whatsapp_Flow {
 					),
 					array(
 						'id' => 'mantia:cmd:matches',
-						'title' => '📅 Partidos',
+						'title' => '📅 Ver y pronosticar',
 					),
 					array(
 						'id' => 'mantia:cmd:help',
@@ -1737,7 +1737,7 @@ final class Mantia_Whatsapp_Flow {
 		$buttons = array(
 			array(
 				'id' => 'mantia:cmd:matches',
-				'title' => '📅 Partidos',
+				'title' => '📅 Ver y pronosticar',
 			),
 			array(
 				'id' => 'mantia:cmd:pending',
@@ -2200,7 +2200,7 @@ final class Mantia_Whatsapp_Flow {
 				'buttons' => array(
 					array(
 						'id' => 'mantia:cmd:matches',
-						'title' => '📅 Partidos',
+						'title' => '📅 Ver y pronosticar',
 					),
 					array(
 						'id' => 'mantia:cmd:my-predictions',
