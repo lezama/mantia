@@ -1,0 +1,51 @@
+=== scenario: stakeholder-sim onboarding (Matías canonical) ===
+captured: 2026-05-26T16:58:49+00:00
+persona phone: 999900001 (logged in via WA bridge in the harness)
+default competition at capture time: libertadores-2026
+
+[user] hola
+[bot] Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.
+   [button] ➕ Crear penca
+   [button] 🔑 Tengo código
+   [button] ❓ Cómo funciona
+[user] mantia:cmd:new-penca
+[bot] Listo. ¿Para qué torneo es tu penca?
+   [section] Competencias
+     [row] 🌎 Mundial 2026 — FIFA World Cup 2026 (US/Canada/Mexico) — torneo completo
+     [row] 📆 Mundial semanal — Solo partidos del Mundial en los próximos 7 días
+     [row] 🥇 Libertadores 2026 — Copa Libertadores — torneo completo
+     [row] 📆 Libertadores semanal — Solo partidos de Libertadores en los próximos 7 días
+[user] mantia:newcomp:mundial-2026
+[bot] *🌎 Mundial 2026* — ¿cómo se va a llamar tu penca?
+
+Mandame un nombre cortito (ej: *Los Pibes*) y la creo. Mandá *cancelar* si cambiaste de idea.
+[user] MundialAlice
+[bot] ✅ Creaste *MundialAlice* para 🌎 Mundial 2026.
+
+_Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sumen tus amigos._
+
+👥 Solo vos por ahora. Compartí el link con tus amigos para sumarlos.
+   [button] 📤 Compartir
+   [button] 📅 Partidos
+   [button] ❓ Ayuda
+[user] partidos
+[bot] Tocá un partido para ver detalle o cargar pronóstico:
+   [section] Próxima semana
+     [row] Saudi Arabia vs Uruguay — 19:00 • ○ sin pronóstico
+     [row] IR Iran vs New Zealand — 22:00 • ○ sin pronóstico
+     [row] France vs Senegal — 16:00 • ○ sin pronóstico
+     [row] Iraq vs Norway — 19:00 • ○ sin pronóstico
+     [row] Argentina vs Algeria — 22:00 • ○ sin pronóstico
+     [row] Austria vs Jordan — 01:00 • ○ sin pronóstico
+     [row] Portugal vs Congo DR — 14:00 • ○ sin pronóstico
+     [row] England vs Croatia — 17:00 • ○ sin pronóstico
+     [row] Ghana vs Panama — 20:00 • ○ sin pronóstico
+     [row] Uzbekistan vs Colombia — 23:00 • ○ sin pronóstico
+[user] tabla
+[bot] *MundialAlice*
+
+Todavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.
+
+Te faltan *50* pronósticos. Mandame *pendientes* para pronosticarlos.
+[user] mi pronostico
+[bot] (null — fell through to LLM)

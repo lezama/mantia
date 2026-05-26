@@ -300,8 +300,14 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		// Broad match: "mis predicciones", "cuales son mis predicciones?",
-		// "ver mis pronosticos", "que prediji", "mi historial" — anything
-		// that's clearly asking about the user's own predictions.
+		// "ver mis pronosticos", "que prediji", "mi historial" — kept
+		// as a deterministic shortcut for the most common plural phrasings
+		// (one fewer LLM call → lower latency on the hot path). Long-tail
+		// phrasings like "mi pronostico" (singular), "que jugué el otro
+		// día", "mostrame lo que puse" — those flow to the LLM agent loop,
+		// which calls mantia/get-user-history. Don't grow this regex to
+		// cover every natural variation; LLM classification is the
+		// long-term answer for fuzzy intent.
 		if ( preg_match( '/\b(?:mis\s+(?:pronostic[oa]s|prediccion(?:es)?|preds?|jugadas)|que\s+(?:prediji|pronostique)|mi\s+historial|^\s*historial\s*\??$|^\s*jugadas\s*\??$)\b/iu', $lc ) ) {
 			return self::handle_my_predictions( $identity );
 		}
@@ -329,7 +335,42 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_join( $group, $identity );
 		}
 
+		// LLM intent classifier — last stop before the agent loop. Maps
+		// natural-language phrasings ("dame la tabla por favor", "mi
+		// pronóstico para hoy", "qué onda con el grupo") to canonical
+		// intents the deterministic handlers above already cover. Replaces
+		// the regex-bloat trap of growing alternations forever. Returns
+		// null on no key / not enabled / unclassified — we fall through
+		// to the full LLM agent loop as before.
+		$intent = Mantia_Intent_Classifier::classify( $plain );
+		if ( null !== $intent && 'chitchat' !== $intent ) {
+			$handled = self::dispatch_intent( $intent, $identity );
+			if ( null !== $handled ) {
+				return $handled;
+			}
+		}
+
 		return null;
+	}
+
+	/**
+	 * Map a classified intent slug to the matching deterministic handler.
+	 * Returns null if we don't have a handler for the intent (which means
+	 * the classifier mislabeled — fall through to the LLM agent loop).
+	 */
+	private static function dispatch_intent( string $intent, array $identity ): ?array {
+		switch ( $intent ) {
+			case 'home':           return self::handle_home( $identity );
+			case 'help':           return self::handle_help( $identity );
+			case 'tabla':          return self::handle_leaderboard( $identity );
+			case 'pendientes':     return self::handle_pending( $identity );
+			case 'partidos':       return self::handle_matches( $identity );
+			case 'mis_pencas':     return self::handle_my_groups( $identity );
+			case 'consenso':       return self::handle_consensus( $identity );
+			case 'share':          return self::handle_share_link( $identity );
+			case 'my_predictions': return self::handle_my_predictions( $identity );
+			default:               return null; // bulk_back needs a team arg, cancel is handled upstream — let the LLM agent take these.
+		}
 	}
 
 	/**
@@ -1529,12 +1570,12 @@ final class Mantia_Whatsapp_Flow {
 	private static function handle_home( array $identity ): array {
 		$user = '' !== $identity['phone'] ? Mantia_Repository::find_user_by_phone( $identity['phone'] ) : null;
 		if ( ! $user ) {
-			$home_url = home_url( '/' );
+			// No web URL: the three interactive buttons below ARE the CTA.
+			// Leaking home_url() into a chat bubble surfaces "localhost"
+			// on dev and "mantia3.wpcomstaging.com" on staging — both
+			// intimidate without adding value (stakeholder-sim flagged).
 			return array(
-				'reply'       => sprintf(
-					"Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.\n\nAcá por chat o desde la web: %s",
-					$home_url
-				),
+				'reply'       => 'Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.',
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -2025,11 +2066,13 @@ final class Mantia_Whatsapp_Flow {
 		if ( empty( $rows ) ) {
 			// Pre-results state: instead of dropping a URL (intimidante per
 			// stakeholder feedback), surface what's PENDIENTE so the user
-			// has an actionable next step inline. Count un-predicted matches
-			// in the active group's competition.
+			// has an actionable next step inline. Widen the lookahead to a
+			// year — for Mundial-class fixtures the next match can be 30+
+			// days out and a tight window returns 0 pendings even when the
+			// user hasn't predicted anything.
 			$comp_id  = Mantia_Repository::group_competition_id( $active_id );
 			$upcoming = '' !== $comp_id
-				? Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 14 )
+				? Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 365 )
 				: array();
 			$pending  = 0;
 			foreach ( $upcoming as $m ) {
@@ -2037,9 +2080,16 @@ final class Mantia_Whatsapp_Flow {
 					$pending++;
 				}
 			}
-			$tail = $pending > 0
-				? sprintf( "\n\nTe faltan *%d* %s. Mandame *pendientes* para pronosticarlos.", $pending, $pending === 1 ? 'pronóstico' : 'pronósticos' )
-				: '';
+			$total_upcoming = count( $upcoming );
+			if ( $pending > 0 ) {
+				$tail = sprintf( "\n\nTe faltan *%d* %s. Mandame *pendientes* para pronosticarlos.", $pending, $pending === 1 ? 'pronóstico' : 'pronósticos' );
+			} elseif ( $total_upcoming > 0 ) {
+				// All predicted, no results yet — celebrate the diligence
+				// instead of leaving them with "nothing happened" energy.
+				$tail = sprintf( "\n\nYa pronosticaste los *%d* partidos que vienen. Cuando termine alguno, los puntos aparecen acá.", $total_upcoming );
+			} else {
+				$tail = '';
+			}
 			return array(
 				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.%s", $group['name'], $tail ),
 				'completed' => true,
@@ -2106,8 +2156,12 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$history = Mantia_Repository::user_history( (int) $user->ID, $active_id );
 		if ( empty( $history ) ) {
+			// Consistent next-step with `tabla`'s empty-state nudge: both
+			// point to *pendientes* (single CTA, no fork). The previous
+			// "escribi *partidos*" was redundant — partidos and pendientes
+			// land on the same picker UX for unpredicted matches.
 			return array(
-				'reply'     => 'Todavía no cargaste pronósticos. Escribi *partidos* y elegí uno.',
+				'reply'     => 'Todavía no cargaste pronósticos. Mandame *pendientes* y elegí uno.',
 				'completed' => true,
 			);
 		}

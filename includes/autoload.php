@@ -20,6 +20,7 @@ spl_autoload_register(
 			'Mantia_Competitions'    => 'class-mantia-competitions.php',
 			'Mantia_CPTs'            => 'class-mantia-cpts.php',
 			'Mantia_Fifa_Fixture'    => 'class-mantia-fifa-fixture.php',
+			'Mantia_Intent_Classifier' => 'class-mantia-intent-classifier.php',
 			'Mantia_Fixture_Seeder'  => 'class-mantia-fixture-seeder.php',
 			'Mantia_Frontend'        => 'class-mantia-frontend.php',
 			'Mantia_Leaderboard'     => 'class-mantia-leaderboard.php',
