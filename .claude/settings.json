@@ -22,6 +22,16 @@
             "description": "Reminder when touching the plugin entry: Version header and MANTIA_VERSION constant must stay in lockstep. The lint workflow checks the invariant; this is a friendly nudge so we never get there."
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(printf '%s' \"${CLAUDE_TOOL_INPUT:-}\" | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"command\",\"\"))' 2>/dev/null || true); if echo \"$CMD\" | grep -qE 'rsync\\b.*--delete\\b'; then echo \"🚨 rsync --delete detected. Sanity-check before running:\"; echo \"   • Confirm there is exactly ONE source dir (multiple sources flatten paths)\"; echo \"   • Confirm the destination ends with the right subdir\"; echo \"   • Strongly consider --dry-run on the same command first\"; echo \"   command: $CMD\"; fi",
+            "description": "Guard rail before destructive rsync. The May 26 mantia3 outage was caused by `rsync -avz --delete mantia.php includes/ blocks/ tools/ …` flattening paths and wiping autoload.php from the server. This hook surfaces the command + a checklist BEFORE Claude runs it, so a misshapen invocation gets caught at the prompt instead of at the 500."
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -37,6 +47,11 @@
             "type": "command",
             "command": "if [[ \"$CLAUDE_FILE_PATHS\" == *.php ]]; then for f in $CLAUDE_FILE_PATHS; do if [[ \"$f\" == *.php ]] && [[ -f \"$f\" ]]; then OUT=$(php -l \"$f\" 2>&1); if echo \"$OUT\" | grep -qi 'parse error'; then echo \"⚠️  Parse error in $f:\"; echo \"$OUT\" | tail -3; fi; fi; done; fi",
             "description": "Run `php -l` on edited PHP files and surface only Parse errors. Catches syntax issues immediately rather than after a deploy + 500."
+          },
+          {
+            "type": "command",
+            "command": "for f in $CLAUDE_FILE_PATHS; do if [[ \"$f\" == */class-mantia-bootstrap.php ]] && [[ -f \"$f\" ]]; then DBV=$(grep -oE 'private const DB_VERSION\\s*=\\s*[0-9]+' \"$f\" | grep -oE '[0-9]+' | head -1); if [[ -n \"$DBV\" ]] && ! grep -qE \"if \\(\\s*\\\\\\$current\\s*<\\s*$DBV\\b\" \"$f\"; then echo \"⚠️  DB_VERSION is $DBV but no matching \\`if ( \\$current < $DBV )\\` migration block found in maybe_run_upgrade(). A version bump without a block ships a no-op migration that's hard to recover from.\"; fi; fi; done",
+            "description": "Whenever class-mantia-bootstrap.php is edited, confirm the DB_VERSION constant has a matching `if ( $current < N )` block in maybe_run_upgrade(). Forgetting the block ships a silent no-op migration that's hard to recover from — the install marks itself at the new version, so the upgrade never runs."
           }
         ]
       }
