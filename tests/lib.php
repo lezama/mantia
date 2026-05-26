@@ -41,6 +41,16 @@ final class Mantia_E2E {
 		// inside an ->execute() with a WP_Error→array cast fatal.
 		self::login_as_admin();
 
+		// Install the outbound recorder by default so every test runs in
+		// a realistic "side-effect outbounds succeed" environment. Without
+		// this, the empty WhatsApp Cloud API credentials in wp-env would
+		// make send_invite_card() silently return false, and any test
+		// asserting on the "Reenviá la tarjeta…" copy would fail because
+		// the production-correct fallback path kicks in. The recorder
+		// also lets tests opt INTO the failure path via a higher-priority
+		// filter that returns false for specific outbound kinds.
+		self::install_outbound_recorder();
+
 		// Production auto-fills predictions for every match in a penca's
 		// competition when a user joins. That's the right UX default but
 		// most scenarios in this suite want to exercise the manual
