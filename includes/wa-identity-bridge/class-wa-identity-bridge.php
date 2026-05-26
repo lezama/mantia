@@ -32,19 +32,31 @@
 
 defined( 'ABSPATH' ) || exit;
 
-// Coexistence guard: if the standalone wa-identity-bridge plugin is
-// active on this install OR our classes are already loaded (alphabetical
-// plugin load order can race either way), skip our in-tree copy so we
-// don't redeclare the classes. Mantia's bootstrap still calls ::boot()
-// against whichever copy loaded first — public API is identical.
-if ( defined( 'WA_IDENTITY_BRIDGE_LOADED' ) || class_exists( 'WA_Identity_Bridge', false ) ) {
+// Coexistence guard: a vendored copy of this file may live both in a
+// consumer plugin (Mantia's in-tree includes/wa-identity-bridge/) AND
+// in the standalone wa-identity-bridge plugin. Plugin load order can
+// race either way. Whichever require_once runs first wins; the second
+// no-ops here.
+//
+// CRITICAL: the class declaration below is wrapped in
+// `if ( ! class_exists() )` *intentionally*. Top-level final-class
+// declarations are hoisted at compile time, which would make the guard
+// at this line return true before the require_once chain ever runs.
+// Wrapping the class declaration in a conditional disables hoisting and
+// makes this runtime guard correct.
+if ( class_exists( 'WA_Identity_Bridge', false ) ) {
 	return;
 }
-define( 'WA_IDENTITY_BRIDGE_LOADED', true );
 
 require_once __DIR__ . '/class-wa-identity-bridge-magic-link.php';
 require_once __DIR__ . '/class-wa-identity-bridge-role.php';
 require_once __DIR__ . '/class-wa-identity-bridge-user-resolver.php';
+
+if ( ! defined( 'WA_IDENTITY_BRIDGE_LOADED' ) ) {
+	define( 'WA_IDENTITY_BRIDGE_LOADED', true );
+}
+
+if ( ! class_exists( 'WA_Identity_Bridge', false ) ) :
 
 final class WA_Identity_Bridge {
 
@@ -189,3 +201,5 @@ final class WA_Identity_Bridge {
 		}
 	}
 }
+
+endif; // class_exists guard
