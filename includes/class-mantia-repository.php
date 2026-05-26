@@ -1090,24 +1090,30 @@ final class Mantia_Repository {
 	 * render but in anonymous mode.
 	 */
 	public static function group_view_url( int $group_id, int $for_user_id = 0 ): string {
-		$slug = (string) get_post_meta( $group_id, self::META_GROUP_SLUG, true );
-		if ( '' === $slug ) {
-			$slug = (string) sanitize_title( (string) get_the_title( $group_id ) );
+		// Group pages are PUBLIC by view-token (24-char hex). No auth dance
+		// needed — the token IS the credential. Previous magic-link form
+		// (wa_auth_t=eyJk…) produced ~400-char URLs that intimidate users
+		// when the bot drops one in chat; replaced by the short token URL
+		// + optional `?as=<share_token>` for "highlight my row" on a known
+		// recipient. The share_token is short (24 hex), single-purpose,
+		// and can't be transformed into edit access.
+		$view_token = self::group_view_token( $group_id );
+		if ( '' === $view_token ) {
+			// No token yet (group never had one minted) — fall back to slug.
+			$slug = (string) get_post_meta( $group_id, self::META_GROUP_SLUG, true );
+			if ( '' === $slug ) {
+				$slug = (string) sanitize_title( (string) get_the_title( $group_id ) );
+			}
+			return home_url( '/pronostico/g/' . $slug . '/' );
 		}
-		$path = '/pronostico/g/' . $slug . '/';
-		if ( $for_user_id <= 0 ) {
-			return home_url( $path );
+		$url = home_url( '/pronostico/g/' . $view_token . '/' );
+		if ( $for_user_id > 0 ) {
+			$share = self::user_share_token( $for_user_id );
+			if ( '' !== $share ) {
+				$url .= '?as=' . $share;
+			}
 		}
-		$user = get_user_by( 'id', $for_user_id );
-		if ( ! $user ) {
-			return home_url( $path );
-		}
-		$phone = (string) get_user_meta( $for_user_id, self::META_PHONE, true );
-		$url = WA_Identity_Bridge::sign_link(
-			array( 'phone' => $phone, 'name' => $user->display_name ),
-			$path
-		);
-		return '' !== $url ? $url : home_url( $path );
+		return $url;
 	}
 
 	/**

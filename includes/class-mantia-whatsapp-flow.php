@@ -2026,8 +2026,23 @@ final class Mantia_Whatsapp_Flow {
 		$rows  = Mantia_Leaderboard::rows( $active_id, 20 );
 
 		if ( empty( $rows ) ) {
-			$group_url = Mantia_Repository::group_view_url( $active_id, (int) $user->ID );
-			$tail      = '' !== $group_url ? sprintf( "\n\n🌐 Ver en la web: %s", $group_url ) : '';
+			// Pre-results state: instead of dropping a URL (intimidante per
+			// stakeholder feedback), surface what's PENDIENTE so the user
+			// has an actionable next step inline. Count un-predicted matches
+			// in the active group's competition.
+			$comp_id  = Mantia_Repository::group_competition_id( $active_id );
+			$upcoming = '' !== $comp_id
+				? Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 14 )
+				: array();
+			$pending  = 0;
+			foreach ( $upcoming as $m ) {
+				if ( ! Mantia_Repository::find_prediction( (int) $user->ID, (int) $m['id'], $active_id ) ) {
+					$pending++;
+				}
+			}
+			$tail = $pending > 0
+				? sprintf( "\n\nTe faltan *%d* %s. Mandame *pendientes* para pronosticarlos.", $pending, $pending === 1 ? 'pronóstico' : 'pronósticos' )
+				: '';
 			return array(
 				'reply'     => sprintf( "*%s*\n\nTodavía no hay puntos. Después de que se resuelvan los primeros partidos, aparecen acá.%s", $group['name'], $tail ),
 				'completed' => true,
