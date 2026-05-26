@@ -10,6 +10,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Aliases live on the CPT, not in code' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 Mantia_E2E::step( '0. Reset to seeded defaults' );
 Mantia_E2E::cleanup();
@@ -20,15 +21,24 @@ $mundial = Mantia_Competitions::get( 'mundial-2026' );
 Mantia_E2E::assert_eq( true, in_array( 'mundial', $mundial['aliases'], true ), 'mundial-2026 has "mundial" alias' );
 Mantia_E2E::assert_eq( true, in_array( 'fifa', $mundial['aliases'], true ), 'mundial-2026 has "fifa" alias' );
 
+// liga-uy-2026 / sudamericana-2026 are in REMOVED_COMPETITION_SLUGS, so
+// they're not in the seed anymore. Skip rather than fail if absent.
 $liga = Mantia_Competitions::get( 'liga-uy-2026' );
-Mantia_E2E::assert_eq( true, in_array( 'liga uruguaya', $liga['aliases'], true ), 'liga-uy-2026 has "liga uruguaya"' );
-Mantia_E2E::assert_eq( true, in_array( 'auf', $liga['aliases'], true ), 'liga-uy-2026 has "auf"' );
+if ( is_array( $liga ) && ! empty( $liga['aliases'] ) ) {
+	Mantia_E2E::assert_eq( true, in_array( 'liga uruguaya', $liga['aliases'], true ), 'liga-uy-2026 has "liga uruguaya"' );
+	Mantia_E2E::assert_eq( true, in_array( 'auf', $liga['aliases'], true ), 'liga-uy-2026 has "auf"' );
+}
 
 Mantia_E2E::step( '2. Resolver routes friendly hints to canonical slugs' );
 $r = new ReflectionClass( 'Mantia_Whatsapp_Flow' );
 $m = $r->getMethod( 'resolve_competition_hint' );
 $m->setAccessible( true );
 
+// Only assert resolver cases for competitions actually seeded in this
+// install. Removed competitions (liga-uy, sudamericana) would resolve to
+// the install default — not an interesting test signal.
+$has_liga = (bool) Mantia_Competitions::get( 'liga-uy-2026' );
+$has_suda = (bool) Mantia_Competitions::get( 'sudamericana-2026' );
 $cases = array(
 	'mundial'                  => 'mundial-2026',
 	'world cup'                => 'mundial-2026',
@@ -36,11 +46,15 @@ $cases = array(
 	'de Mundial 2026'          => 'mundial-2026',
 	'libertadores'             => 'libertadores-2026',
 	'libertadores semana'      => 'libertadores-semana',
-	'de la LigaUY 2026'        => 'liga-uy-2026',
-	'liga uruguaya'            => 'liga-uy-2026',
-	'auf'                      => 'liga-uy-2026',
-	'sudamericana'             => 'sudamericana-2026',
 );
+if ( $has_liga ) {
+	$cases['de la LigaUY 2026'] = 'liga-uy-2026';
+	$cases['liga uruguaya']     = 'liga-uy-2026';
+	$cases['auf']               = 'liga-uy-2026';
+}
+if ( $has_suda ) {
+	$cases['sudamericana'] = 'sudamericana-2026';
+}
 foreach ( $cases as $hint => $expected ) {
 	$got = $m->invoke( null, $hint );
 	Mantia_E2E::assert_eq( $expected, $got, "\"{$hint}\" → {$expected}" );

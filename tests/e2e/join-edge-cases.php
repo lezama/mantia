@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Join edge cases' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 Mantia_E2E::cleanup();
 Mantia_Competitions::seed_defaults();
@@ -54,7 +55,7 @@ Mantia_E2E::assert_not_contains( $r, 'sume a', 'no duplicate "sume" message' );
 
 // Bob's group list should still have exactly one entry for this group_id.
 $bob_post = Mantia_Repository::find_user_by_phone( $bob['phone'] );
-$bob_groups = (array) get_post_meta( (int) $bob_post->ID, Mantia_Repository::META_GROUP_IDS, true );
+$bob_groups = (array) get_user_meta( (int) $bob_post->ID, Mantia_Repository::META_GROUP_IDS, true );
 $dupes = array_filter( $bob_groups, static fn ( $g ): bool => (int) $g === $group_id );
 Mantia_E2E::assert_eq( 1, count( $dupes ), 'group_id not duplicated in user META_GROUP_IDS' );
 

@@ -1,6 +1,6 @@
 ---
 slug: competition-page
-title: Página de competition (/penca/libertadores-semana)
+title: Página de competition (/pronostico/libertadores-semana)
 type: web
 ---
 
@@ -11,7 +11,7 @@ partidos, y CTA para crear una penca privada.
 
 **Steps.**
 
-1. Navegar a `/penca/libertadores-semana/`.
+1. Navegar a `/pronostico/libertadores-semana/`.
 2. Verificar elements:
    - Eyebrow "PENCA · GLOBAL".
    - H1 "Libertadores semanal".
@@ -20,7 +20,7 @@ partidos, y CTA para crear una penca privada.
    - "RANKING GLOBAL" + "de N jugadores" (con N=número real, no 0).
    - "PRÓXIMOS PARTIDOS" agrupados por día con phase en el header.
    - CTA pink "Crear penca de Libertadores semanal".
-3. Mismo flow en `/penca/libertadores-2026/` (parent).
+3. Mismo flow en `/pronostico/libertadores-2026/` (parent).
 
 **Expected.**
 

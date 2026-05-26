@@ -54,6 +54,24 @@ final class Mantia_Competitions {
 				'sort'        => 21,
 				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores — esta semana' ),
 			),
+			array(
+				'slug'        => 'mundial-2026',
+				'name'        => 'Mundial 2026',
+				'emoji'       => '🌎',
+				'description' => 'FIFA World Cup 2026 (US/Canada/Mexico) — torneo completo',
+				'sort'        => 10,
+				'aliases'     => array( 'mundial', 'world cup', 'copa del mundo', 'fifa', 'wc26' ),
+			),
+			array(
+				'slug'        => 'mundial-semana',
+				'name'        => 'Mundial semanal',
+				'emoji'       => '📆',
+				'description' => 'Solo partidos del Mundial en los próximos 7 días',
+				'parent_slug' => 'mundial-2026',
+				'window_days' => 7,
+				'sort'        => 11,
+				'aliases'     => array( 'mundial semana', 'mundial esta semana' ),
+			),
 		);
 	}
 
@@ -61,9 +79,13 @@ final class Mantia_Competitions {
 	 * Slugs of competitions removed from the seed in past releases. The
 	 * upgrade runner (v4) deletes them + their matches from existing
 	 * installs so the bot picker doesn't surface dead options.
+	 *
+	 * NOTE: `mundial-2026` was here through v6 but was reinstated in v9
+	 * once Mantia_Fifa_Fixture::sync started populating its matches from
+	 * the official FIFA endpoint. The slug stays absent from this list
+	 * so the v4 deletion path doesn't fire against it on fresh upgrades.
 	 */
 	public const REMOVED_COMPETITION_SLUGS = array(
-		'mundial-2026',
 		'esta-semana',
 		'sudamericana-2026',
 		'liga-uy-2026',

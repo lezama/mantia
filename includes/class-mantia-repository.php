@@ -40,6 +40,13 @@ final class Mantia_Repository {
 	// the user's predictions still has this flag set.
 	public const META_AUTO_FILLED        = '_mantia_auto_filled';
 
+	// Sweepstake assignment (one team per user × group). The /sortear
+	// command shuffles teams from the group's competition and persists
+	// each member's draw here so workflows can push "your team plays today"
+	// reminders. Suffix the meta key with group_id so a user in N pencas
+	// can have N independent draws.
+	public const META_SWEEPSTAKE_TEAM    = '_mantia_sweepstake_team_';
+
 	public static function normalize_phone( string $phone ): string {
 		if ( str_contains( $phone, '@' ) ) {
 			$phone = preg_replace( '/^([^:@]+):\d+(@.*)$/', '$1$2', strtolower( $phone ) );
@@ -266,7 +273,7 @@ final class Mantia_Repository {
 
 	/**
 	 * Legacy view / share tokens, now backed by user_meta. Phase 6 will
-	 * remove these — the magic-link bridge replaces them for /penca/me/.
+	 * remove these — the magic-link bridge replaces them for /pronostico/me/.
 	 * Kept temporarily so existing URL handlers don't break mid-migration.
 	 */
 	public static function user_view_token( int $user_id ): string {
@@ -331,7 +338,7 @@ final class Mantia_Repository {
 
 	/**
 	 * Cross-group leaderboard for a competition: aggregates points per (user, group)
-	 * pair, returned sorted desc. Drives the public /penca/<competition> view.
+	 * pair, returned sorted desc. Drives the public /pronostico/<competition> view.
 	 */
 	public static function competition_leaderboard( string $competition_id, int $limit = 50 ): array {
 		$storage_id = Mantia_Competitions::storage_id( $competition_id );
@@ -1075,7 +1082,7 @@ final class Mantia_Repository {
 
 	/**
 	 * Build a magic-link URL to a group's web view, scoped to a specific
-	 * user (so the click auto-logs them in). Path is /penca/g/<slug>/ —
+	 * user (so the click auto-logs them in). Path is /pronostico/g/<slug>/ —
 	 * stable + cacheable, no token in the visible URL after redemption.
 	 *
 	 * If $user_id is 0 (workflow callers, public previews), falls back to
@@ -1087,7 +1094,7 @@ final class Mantia_Repository {
 		if ( '' === $slug ) {
 			$slug = (string) sanitize_title( (string) get_the_title( $group_id ) );
 		}
-		$path = '/penca/g/' . $slug . '/';
+		$path = '/pronostico/g/' . $slug . '/';
 		if ( $for_user_id <= 0 ) {
 			return home_url( $path );
 		}
@@ -1104,8 +1111,8 @@ final class Mantia_Repository {
 	}
 
 	/**
-	 * Magic-link to the user's own /penca/me/ page. Requires $user_id —
-	 * /penca/me/ is auth-gated and has no anonymous preview.
+	 * Magic-link to the user's own /pronostico/me/ page. Requires $user_id —
+	 * /pronostico/me/ is auth-gated and has no anonymous preview.
 	 */
 	public static function user_view_url( int $user_id ): string {
 		$user = get_user_by( 'id', $user_id );
@@ -1115,13 +1122,13 @@ final class Mantia_Repository {
 		$phone = (string) get_user_meta( $user_id, self::META_PHONE, true );
 		$url = WA_Identity_Bridge::sign_link(
 			array( 'phone' => $phone, 'name' => $user->display_name ),
-			'/penca/me/'
+			'/pronostico/me/'
 		);
 		return $url;
 	}
 
 	public static function competition_view_url( string $competition_id ): string {
-		return home_url( '/penca/' . $competition_id );
+		return home_url( '/pronostico/' . $competition_id );
 	}
 
 	public static function bot_phone_e164(): string {
@@ -1308,8 +1315,18 @@ final class Mantia_Repository {
 		if ( empty( $match ) ) {
 			return new WP_Error( 'mantia_match_not_found', __( 'No encuentro ese partido.', 'mantia' ) );
 		}
-		if ( 'scheduled' !== $match['status'] || (int) $match['kickoff_ts'] <= time() ) {
-			return new WP_Error( 'mantia_match_closed', __( 'Ese partido ya cerro para pronosticos.', 'mantia' ) );
+		// Predictions lock $lockout seconds before kickoff (default 10 min)
+		// so a user typing "2-1" at the 60-second mark doesn't race the
+		// match start. Tournament admins can shorten via the filter.
+		$lockout = (int) apply_filters( 'mantia_prediction_lockout_seconds', 600 );
+		if ( 'scheduled' !== $match['status'] || (int) $match['kickoff_ts'] <= ( time() + max( 0, $lockout ) ) ) {
+			// Distinguish the two cases — "already finished" vs "too late to
+			// edit before kickoff" — so the bot reply matches what the user
+			// actually saw (the match might not even have started yet).
+			$msg = ( 'scheduled' !== $match['status'] )
+				? __( 'Ese partido ya cerró para pronósticos.', 'mantia' )
+				: __( 'Ese partido cierra para pronósticos antes del arranque. Ya no se puede cambiar.', 'mantia' );
+			return new WP_Error( 'mantia_match_closed', $msg );
 		}
 
 		$existing = self::find_prediction( $user_id, $match_id, $group_id );
@@ -1343,8 +1360,14 @@ final class Mantia_Repository {
 		update_post_meta( $post_id, self::META_USER_PHONE, (string) get_user_meta( $user_id, self::META_PHONE, true ) );
 		update_post_meta( $post_id, self::META_MATCH_ID, $match_id );
 		update_post_meta( $post_id, self::META_GROUP_ID, $group_id );
-		update_post_meta( $post_id, self::META_PRED_HOME_SCORE, max( 0, $home_score ) );
-		update_post_meta( $post_id, self::META_PRED_AWAY_SCORE, max( 0, $away_score ) );
+		// Clamp scores to a sane range. Negative gets coerced to 0; the
+		// upper bound caps absurd values (record FIFA scoreline is 31-0)
+		// so an injection or fat-finger can't store 9999 and trip downstream
+		// integer overflow / point-multiplier paths. Filter for tournaments
+		// that need a higher cap (highly unlikely).
+		$score_cap = (int) apply_filters( 'mantia_max_score', 50 );
+		update_post_meta( $post_id, self::META_PRED_HOME_SCORE, max( 0, min( $score_cap, $home_score ) ) );
+		update_post_meta( $post_id, self::META_PRED_AWAY_SCORE, max( 0, min( $score_cap, $away_score ) ) );
 		update_post_meta( $post_id, self::META_SCORED, 0 );
 		// Track origin so /me/ can tell "this user has never edited"
 		// from "this user has actively predicted". Manual upserts
@@ -1480,6 +1503,89 @@ final class Mantia_Repository {
 		// "majority pick" without resorting.
 		arsort( $consensus );
 		return $consensus;
+	}
+
+	/**
+	 * Per-user predictions for a match in a group, sorted by display name.
+	 * Same privacy guard as group_consensus_for_match — empty pre-kickoff.
+	 *
+	 * Returned shape per row:
+	 *   array{
+	 *     user_id: int, name: string, home: int, away: int,
+	 *     exact: bool, diff: bool, winner: bool
+	 *   }
+	 *
+	 * The exact/diff/winner flags are computed against the match's REAL
+	 * score when it's finished (so the bot can mark "Bob 2-1 ✓ exact").
+	 * For matches that have kicked off but aren't finished yet, all flags
+	 * are false (no real score to compare against).
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function group_predictions_for_match( int $group_id, int $match_id ): array {
+		$match = self::match_to_array( $match_id );
+		if ( empty( $match ) ) {
+			return array();
+		}
+		// Privacy guard: predictions are private until kickoff.
+		if ( (int) $match['kickoff_ts'] > time() ) {
+			return array();
+		}
+
+		$predictions = get_posts(
+			array(
+				'post_type'      => Mantia_CPTs::PREDICTION,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+				'meta_query'     => array(
+					'relation' => 'AND',
+					array( 'key' => self::META_GROUP_ID, 'value' => $group_id ),
+					array( 'key' => self::META_MATCH_ID, 'value' => $match_id ),
+				),
+			)
+		);
+
+		$has_real = 'finished' === (string) $match['status']
+			&& null !== $match['home_score']
+			&& null !== $match['away_score'];
+		$real_home = $has_real ? (int) $match['home_score'] : null;
+		$real_away = $has_real ? (int) $match['away_score'] : null;
+
+		$rows = array();
+		foreach ( $predictions as $pred ) {
+			$uid  = (int) get_post_meta( (int) $pred->ID, self::META_USER_ID, true );
+			$home = (int) get_post_meta( (int) $pred->ID, self::META_PRED_HOME_SCORE, true );
+			$away = (int) get_post_meta( (int) $pred->ID, self::META_PRED_AWAY_SCORE, true );
+
+			$exact  = false;
+			$diff   = false;
+			$winner = false;
+			if ( $has_real ) {
+				$exact = ( $home === $real_home && $away === $real_away );
+				$diff  = ( ! $exact && ( $home - $away ) === ( $real_home - $real_away ) );
+				// Outcome match (home win / draw / away win) without exact or diff hit.
+				$pred_sign = $home <=> $away;
+				$real_sign = $real_home <=> $real_away;
+				$winner = ( ! $exact && ! $diff && $pred_sign === $real_sign );
+			}
+
+			$rows[] = array(
+				'user_id' => $uid,
+				'name'    => self::user_display_name( $uid ),
+				'home'    => $home,
+				'away'    => $away,
+				'exact'   => $exact,
+				'diff'    => $diff,
+				'winner'  => $winner,
+			);
+		}
+
+		usort(
+			$rows,
+			static fn( array $a, array $b ): int => strcasecmp( (string) $a['name'], (string) $b['name'] )
+		);
+		return $rows;
 	}
 
 	public static function find_prediction( int $user_id, int $match_id, int $group_id ): ?WP_Post {
@@ -1787,5 +1893,119 @@ final class Mantia_Repository {
 
 		$key = self::team_key( trim( $raw ) );
 		return $cache[ $key ] ?? '';
+	}
+
+	/* ------------------------------ Sweepstake ----------------------------- */
+
+	/**
+	 * All unique team names appearing in a competition's match fixture.
+	 * Order is unspecified — sweepstake shuffles before assigning anyway.
+	 *
+	 * @return array<int,string>
+	 */
+	public static function teams_in_competition( string $competition_id ): array {
+		$storage_id = Mantia_Competitions::storage_id( $competition_id );
+		if ( '' === $storage_id ) {
+			return array();
+		}
+		$ids = get_posts( array(
+			'post_type'      => Mantia_CPTs::MATCH,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				array( 'key' => Mantia_Competitions::META_KEY, 'value' => $storage_id ),
+			),
+		) );
+		$teams = array();
+		foreach ( (array) $ids as $mid ) {
+			foreach ( array( self::META_HOME_TEAM, self::META_AWAY_TEAM ) as $meta_key ) {
+				$name = (string) get_post_meta( (int) $mid, $meta_key, true );
+				if ( '' !== $name && ! in_array( $name, $teams, true ) ) {
+					$teams[] = $name;
+				}
+			}
+		}
+		return $teams;
+	}
+
+	private static function sweepstake_meta_key( int $group_id ): string {
+		return self::META_SWEEPSTAKE_TEAM . max( 0, $group_id );
+	}
+
+	public static function get_sweepstake_team( int $user_id, int $group_id ): string {
+		if ( $user_id <= 0 || $group_id <= 0 ) {
+			return '';
+		}
+		return (string) get_user_meta( $user_id, self::sweepstake_meta_key( $group_id ), true );
+	}
+
+	public static function set_sweepstake_team( int $user_id, int $group_id, string $team ): void {
+		if ( $user_id <= 0 || $group_id <= 0 ) {
+			return;
+		}
+		if ( '' === $team ) {
+			delete_user_meta( $user_id, self::sweepstake_meta_key( $group_id ) );
+			return;
+		}
+		update_user_meta( $user_id, self::sweepstake_meta_key( $group_id ), sanitize_text_field( $team ) );
+	}
+
+	/**
+	 * Draw a sweepstake for the group: every current member gets one
+	 * random team from the group's competition fixture. Returns the
+	 * resulting map { user_id => team_name }. If there are more members
+	 * than unique teams the extras get '' (callers should surface that
+	 * as "no te tocó ninguno" instead of pretending success).
+	 *
+	 * @return array<int,string>
+	 */
+	public static function assign_sweepstake( int $group_id ): array {
+		$members = self::group_members( $group_id );
+		if ( empty( $members ) ) {
+			return array();
+		}
+		$competition_id = self::group_competition_id( $group_id );
+		$teams = self::teams_in_competition( $competition_id );
+		if ( empty( $teams ) ) {
+			return array();
+		}
+
+		shuffle( $teams );
+		$assignments = array();
+		foreach ( array_values( $members ) as $i => $m ) {
+			$user_id = (int) ( $m['id'] ?? 0 );
+			if ( $user_id <= 0 ) {
+				continue;
+			}
+			$team = isset( $teams[ $i ] ) ? (string) $teams[ $i ] : '';
+			self::set_sweepstake_team( $user_id, $group_id, $team );
+			$assignments[ $user_id ] = $team;
+		}
+		return $assignments;
+	}
+
+	/**
+	 * Read out the current sweepstake map for a group, in member-order.
+	 * Used for the "mi sorteo" reply and for the matchday workflow that
+	 * pushes "your team plays today" reminders.
+	 *
+	 * @return array<int,array{user_id:int,name:string,team:string}>
+	 */
+	public static function sweepstake_for_group( int $group_id ): array {
+		$rows = array();
+		foreach ( self::group_members( $group_id ) as $m ) {
+			$user_id = (int) ( $m['id'] ?? 0 );
+			if ( $user_id <= 0 ) {
+				continue;
+			}
+			$rows[] = array(
+				'user_id' => $user_id,
+				'name'    => (string) ( $m['display_name'] ?? '' ),
+				'team'    => self::get_sweepstake_team( $user_id, $group_id ),
+			);
+		}
+		return $rows;
 	}
 }

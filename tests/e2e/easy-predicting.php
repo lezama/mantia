@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Easy predicting (auto-fill + bulk + privacy)' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 // This scenario specifically validates the auto-fill path, so we
 // reverse the suite-wide default (filter set to false in lib.php::start).
@@ -39,7 +40,7 @@ Mantia_E2E::assert_contains( $r, 'pronósticos para los', 'create reply mentions
 $alice_user = Mantia_Repository::find_user_by_phone( $alice['phone'] );
 Mantia_E2E::assert_eq( true, null !== $alice_user, 'Alice exists as a user' );
 
-$group_ids = (array) get_post_meta( (int) $alice_user->ID, Mantia_Repository::META_GROUP_IDS, true );
+$group_ids = (array) get_user_meta( (int) $alice_user->ID, Mantia_Repository::META_GROUP_IDS, true );
 Mantia_E2E::assert_eq( true, count( $group_ids ) >= 1, 'Alice has at least one penca' );
 
 $group_id = (int) $group_ids[0];
@@ -186,7 +187,7 @@ Mantia_E2E::send( $carla, $invite );
 // Bot-side: render the group page. It must contain the leaderboard
 // (points only) but never expose a specific predicted score by another user.
 $alice_token = Mantia_Repository::user_view_token( (int) $alice_user->ID );
-$alice_view  = '/penca/me/' . $alice_token . '/';
+$alice_view  = '/pronostico/me/' . $alice_token . '/';
 Mantia_E2E::assert_http_ok( $alice_view, array( 'Alice' ) );
 
 // Carla viewing the group page should NOT see Alice's prediction strings.
@@ -195,9 +196,9 @@ $group_token = Mantia_Repository::group_view_token( $group_id );
 // in some layouts), so we don't assert their presence here — the key
 // privacy invariant is that PREDICTIONS aren't leaked, which we check
 // below by string-matching against a known Alice prediction.
-Mantia_E2E::assert_http_ok( '/penca/g/' . $group_token . '/' );
+Mantia_E2E::assert_http_ok( '/pronostico/g/' . $group_token . '/' );
 // Edit-mode UI must NOT appear on the group page (only on /me/).
-$grp_resp = wp_remote_get( home_url( '/penca/g/' . $group_token . '/' ) );
+$grp_resp = wp_remote_get( home_url( '/pronostico/g/' . $group_token . '/' ) );
 $grp_body = is_wp_error( $grp_resp ) ? '' : (string) wp_remote_retrieve_body( $grp_resp );
 Mantia_E2E::assert_eq( true, false === strpos( $grp_body, 'data-mantia-token' ), 'group page does NOT expose edit-mode form' );
 // The group view should never embed someone else's specific predictions in
@@ -221,7 +222,7 @@ if ( ! empty( $any_pred ) ) {
 	$match   = Mantia_Repository::match_to_array( $mid );
 	$needle  = sprintf( 'Alice %s %d-%d %s', $match['home_team'] ?? '', $h, $a, $match['away_team'] ?? '' );
 	// fetch the group view as Carla and check the needle is absent
-	$resp    = wp_remote_get( home_url( '/penca/g/' . $group_token . '/' ) );
+	$resp    = wp_remote_get( home_url( '/pronostico/g/' . $group_token . '/' ) );
 	$body    = is_wp_error( $resp ) ? '' : (string) wp_remote_retrieve_body( $resp );
 	Mantia_E2E::assert_eq( true, false === strpos( $body, $needle ), "group view doesn't leak Alice's prediction prose" );
 }

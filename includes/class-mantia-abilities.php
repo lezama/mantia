@@ -57,6 +57,7 @@ final class Mantia_Abilities {
 		self::register_finished_matches_ability();
 		self::register_resolve_match_ability();
 		self::register_fetch_result_ability();
+		self::register_sync_fifa_fixture_ability();
 		self::register_score_prediction_ability();
 		if ( Mantia_Whatsapp_Flow::outbound_workflows_enabled() ) {
 			self::register_reminder_targets_ability();
@@ -87,6 +88,54 @@ final class Mantia_Abilities {
 		}
 		$allowed = current_user_can( 'manage_options' );
 		return (bool) apply_filters( 'mantia_ability_permission', $allowed, $ability_name, $input );
+	}
+
+	/**
+	 * Guard against an LLM (or other untrusted caller) acting on behalf
+	 * of a user that isn't the currently authenticated one. The WA bridge
+	 * calls `wp_set_current_user( $user_id )` for the verified phone
+	 * BEFORE the agent loop fires, so `get_current_user_id()` inside an
+	 * ability is the truthful identity.
+	 *
+	 * Bypassed for:
+	 *   - admins (workflows, REST with manage_options, CLI eval-file)
+	 *   - unauthenticated context (cron, bootstrap) — current_user_id == 0
+	 *   - abilities that didn't pass a `user_phone` in args
+	 *
+	 * Returns true on allow, WP_Error on deny.
+	 */
+	private static function check_caller_phone( array $args ) {
+		if ( ! isset( $args['user_phone'] ) || '' === (string) $args['user_phone'] ) {
+			return true;
+		}
+		if ( current_user_can( 'manage_options' ) ) {
+			return true;
+		}
+		$current_id = (int) get_current_user_id();
+		if ( $current_id <= 0 ) {
+			// The WA bridge is expected to wp_set_current_user() before the
+			// agent loop touches an ability. If we see a phone arg here
+			// without an authenticated user, the bridge likely regressed —
+			// fire an action so a sentinel/log can pick it up. We still
+			// allow the call (the cron / bootstrap path needs this branch),
+			// but the signal lets us catch missing wiring before it ships.
+			do_action( 'mantia_phone_guard_skipped_no_uid', $args );
+			return true;
+		}
+		$current_phone = Mantia_Repository::normalize_phone(
+			(string) get_user_meta( $current_id, Mantia_Repository::META_PHONE, true )
+		);
+		if ( '' === $current_phone ) {
+			return true; // no phone bound on this user — not a WA-bridged session.
+		}
+		$arg_phone = Mantia_Repository::normalize_phone( (string) $args['user_phone'] );
+		if ( $current_phone === $arg_phone ) {
+			return true;
+		}
+		return new WP_Error(
+			'mantia_phone_mismatch',
+			__( 'No podés actuar en nombre de otro usuario.', 'mantia' )
+		);
 	}
 
 	private static function register_prediction_ability(): void {
@@ -145,6 +194,10 @@ final class Mantia_Abilities {
 	}
 
 	public static function register_prediction( array $args ): array|WP_Error {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
 		$user_id = Mantia_Repository::get_or_create_user(
 			(string) ( $args['user_phone'] ?? '' ),
 			(string) ( $args['user_name'] ?? '' ),
@@ -179,9 +232,25 @@ final class Mantia_Abilities {
 		// user has in that competition — the natural multi-penca behavior
 		// people expect when they have e.g. a family and an office penca
 		// for the same tournament.
+		//
+		// Security: when group_id is explicit, verify the user is actually
+		// a member of that group. Without this check a prompt-injected LLM
+		// (or any other untrusted caller) could write predictions into any
+		// group_id it can guess — classic IDOR.
 		$group_ids = array();
 		if ( isset( $args['group_id'] ) && (int) $args['group_id'] > 0 ) {
-			$group_ids = array( (int) $args['group_id'] );
+			$target_gid    = (int) $args['group_id'];
+			$user_group_ids = array_map(
+				'intval',
+				(array) get_user_meta( $user_id, Mantia_Repository::META_GROUP_IDS, true )
+			);
+			if ( ! in_array( $target_gid, $user_group_ids, true ) ) {
+				return new WP_Error(
+					'mantia_not_a_member',
+					__( 'No podés guardar pronósticos en una penca de la que no sos miembro.', 'mantia' )
+				);
+			}
+			$group_ids = array( $target_gid );
 		} else {
 			$match_comp = (string) ( $match['competition_id'] ?? '' );
 			if ( '' !== $match_comp ) {
@@ -194,12 +263,17 @@ final class Mantia_Abilities {
 			$comp       = '' !== $match_comp ? Mantia_Competitions::get( $match_comp ) : null;
 			$comp_name  = $comp ? trim( ( $comp['emoji'] ?? '' ) . ' ' . $comp['name'] ) : __( 'esa competencia', 'mantia' );
 			$create_arg = $comp ? $comp['name'] : '';
+			$phone      = (string) ( $args['user_phone'] ?? '' );
+			$noun       = Mantia_Vocab::word( 'noun', $phone );
+			$create     = Mantia_Vocab::word( 'create', $phone );
 			return new WP_Error(
 				'mantia_no_group_in_competition',
 				sprintf(
-					/* translators: 1: competition label with emoji, 2: command suggestion to create a penca. */
-					__( 'Ese partido es de %1$s, pero no estás en ninguna penca de ese torneo. Mandame *Crear penca de %2$s* y armamos una.', 'mantia' ),
+					/* translators: 1: competition label with emoji, 2: command suggestion to create a group (e.g. "Crear pronóstico de Mundial 2026"), 3: noun for the prediction pool (penca/pronóstico/bolão). */
+					__( 'Ese partido es de %1$s, pero no estás en ninguna %3$s de ese torneo. Mandame *%2$s de %4$s* y armamos una.', 'mantia' ),
 					$comp_name,
+					$create,
+					$noun,
 					$create_arg
 				)
 			);
@@ -309,6 +383,10 @@ final class Mantia_Abilities {
 	}
 
 	public static function get_standings( array $args ): array {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return array( 'group_id' => 0, 'scope' => 'group', 'needs_group' => true, 'standings' => array(), 'error' => $gate->get_error_code() );
+		}
 		$scope    = (string) ( $args['scope'] ?? 'group' );
 		$group_id = isset( $args['group_id'] ) ? (int) $args['group_id'] : 0;
 
@@ -366,6 +444,13 @@ final class Mantia_Abilities {
 	}
 
 	public static function get_upcoming_matches( array $args ): array {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			// Strip user_phone so we still return the public upcoming list
+			// (it's broadcast info) but without per-user `has_prediction`
+			// flags that would leak the other user's state.
+			unset( $args['user_phone'] );
+		}
 		$hours  = isset( $args['hours_ahead'] ) ? max( 1, min( 240, (int) $args['hours_ahead'] ) ) : 48;
 		$user   = ! empty( $args['user_phone'] ) ? Mantia_Repository::find_user_by_phone( (string) $args['user_phone'] ) : null;
 		$group  = $user ? Mantia_Repository::active_group_id_for_user( (int) $user->ID ) : 0;
@@ -426,10 +511,42 @@ final class Mantia_Abilities {
 		);
 	}
 
+	/**
+	 * Wrapper for the join-group repository call so the phone-binding
+	 * guard runs before mutation. Without this, a prompt-injected agent
+	 * could call mantia/join-group with someone else's phone and force
+	 * them into an unwanted group.
+	 */
+	public static function join_group( array $args ): array|WP_Error {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
+		return Mantia_Repository::join_group(
+			(string) ( $args['user_phone'] ?? '' ),
+			(string) ( $args['invite_code'] ?? '' ),
+			(string) ( $args['user_name'] ?? '' ),
+			(string) ( $args['whatsapp_recipient'] ?? '' )
+		);
+	}
+
 	public static function get_user_history( array $args ): array|WP_Error {
-		$user = Mantia_Repository::find_user_by_phone( (string) ( $args['user_phone'] ?? '' ) );
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
+		$phone = (string) ( $args['user_phone'] ?? '' );
+		$user  = Mantia_Repository::find_user_by_phone( $phone );
 		if ( ! $user ) {
-			return new WP_Error( 'mantia_user_not_found', __( 'No encuentro ese usuario en la penca.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_user_not_found',
+				sprintf(
+					/* translators: %s: vocab noun for the prediction pool (penca/pronóstico/bolão). */
+					__( 'No encuentro ese usuario en %1$s %2$s.', 'mantia' ),
+					Mantia_Vocab::word( 'article', $phone ),
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		$group_id = isset( $args['group_id'] ) ? (int) $args['group_id'] : Mantia_Repository::active_group_id_for_user( (int) $user->ID );
@@ -445,7 +562,7 @@ final class Mantia_Abilities {
 			'mantia/join-group',
 			array(
 				'label'               => __( 'Join group', 'mantia' ),
-				'description'         => __( 'Join a user to a private penca group by invite code.', 'mantia' ),
+				'description'         => __( 'Join a user to a private prediction group by invite code.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -458,12 +575,7 @@ final class Mantia_Abilities {
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
-				'execute_callback'    => static fn( array $args ) => Mantia_Repository::join_group(
-					(string) ( $args['user_phone'] ?? '' ),
-					(string) ( $args['invite_code'] ?? '' ),
-					(string) ( $args['user_name'] ?? '' ),
-					(string) ( $args['whatsapp_recipient'] ?? '' )
-				),
+				'execute_callback'    => array( __CLASS__, 'join_group' ),
 				'permission_callback' => array( __CLASS__, 'rest_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
@@ -488,7 +600,7 @@ final class Mantia_Abilities {
 			'mantia/create-group',
 			array(
 				'label'               => __( 'Create group', 'mantia' ),
-				'description'         => __( 'Create a private penca group and return the WhatsApp invite code/message. Pass competition_id to scope the group to a specific tournament; omit to use the default competition.', 'mantia' ),
+				'description'         => __( 'Create a private prediction group and return the WhatsApp invite code/message. Pass competition_id to scope the group to a specific tournament; omit to use the default competition.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -514,18 +626,39 @@ final class Mantia_Abilities {
 	}
 
 	public static function create_group( array $args ): array|WP_Error {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
+		$phone   = (string) ( $args['user_phone'] ?? '' );
 		$user_id = Mantia_Repository::get_or_create_user(
-			(string) ( $args['user_phone'] ?? '' ),
+			$phone,
 			(string) ( $args['user_name'] ?? '' ),
 			(string) ( $args['whatsapp_recipient'] ?? '' )
 		);
 		if ( 0 === $user_id ) {
-			return new WP_Error( 'mantia_invalid_user', __( 'Necesito tu telefono de WhatsApp para crear la penca.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_invalid_user',
+				sprintf(
+					/* translators: 1: definite article matching noun gender, 2: vocab noun (penca/pronóstico/bolão). */
+					__( 'Necesito tu telefono de WhatsApp para crear %1$s %2$s.', 'mantia' ),
+					Mantia_Vocab::word( 'article', $phone ),
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		$group_name = sanitize_text_field( (string) ( $args['group_name'] ?? '' ) );
 		if ( '' === $group_name ) {
-			return new WP_Error( 'mantia_group_name_required', __( 'Decime como se llama la penca.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_group_name_required',
+				sprintf(
+					/* translators: 1: definite article matching noun gender, 2: vocab noun (penca/pronóstico/bolão). */
+					__( 'Decime como se llama %1$s %2$s.', 'mantia' ),
+					Mantia_Vocab::word( 'article', $phone ),
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		$competition_id = sanitize_title( (string) ( $args['competition_id'] ?? '' ) );
@@ -547,7 +680,16 @@ final class Mantia_Abilities {
 			$competition_id
 		);
 		if ( $group_id <= 0 ) {
-			return new WP_Error( 'mantia_group_create_failed', __( 'No pude crear esa penca.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_group_create_failed',
+				sprintf(
+					/* translators: 1: indefinite article matching noun gender, 2: vocab noun (penca/pronóstico/bolão). */
+					__( 'No pude crear es%1$s %2$s.', 'mantia' ),
+					// "esa" for feminine (penca), "ese" for masculine (pronóstico/bolão).
+					'a' === substr( Mantia_Vocab::word( 'article_indef', $phone ), -1 ) ? 'a' : 'e',
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		$group = Mantia_Repository::group_to_array( $group_id );
@@ -571,7 +713,7 @@ final class Mantia_Abilities {
 			'mantia/get-my-groups',
 			array(
 				'label'               => __( 'Get my groups', 'mantia' ),
-				'description'         => __( 'Return the penca groups joined by the current WhatsApp user and the active group.', 'mantia' ),
+				'description'         => __( 'Return the prediction groups joined by the current WhatsApp user and the active group.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -589,9 +731,22 @@ final class Mantia_Abilities {
 	}
 
 	public static function get_my_groups( array $args ): array|WP_Error {
-		$user = Mantia_Repository::find_user_by_phone( (string) ( $args['user_phone'] ?? '' ) );
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
+		$phone = (string) ( $args['user_phone'] ?? '' );
+		$user  = Mantia_Repository::find_user_by_phone( $phone );
 		if ( ! $user ) {
-			return new WP_Error( 'mantia_user_not_found', __( 'Todavia no estas en ninguna penca. Mandame un codigo de invitacion.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_user_not_found',
+				sprintf(
+					/* translators: 1: indefinite article (una/un/um), 2: vocab noun (penca/pronóstico/bolão). */
+					__( 'Todavia no estas en ningun%1$s %2$s. Mandame un codigo de invitacion.', 'mantia' ),
+					'a' === substr( Mantia_Vocab::word( 'article_indef', $phone ), -1 ) ? 'a' : '',
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		$user_id = (int) $user->ID;
@@ -608,7 +763,7 @@ final class Mantia_Abilities {
 			'mantia/set-active-group',
 			array(
 				'label'               => __( 'Set active group', 'mantia' ),
-				'description'         => __( 'Switch the current WhatsApp user to one of their penca groups. Passing an invite code joins/switches to that group.', 'mantia' ),
+				'description'         => __( 'Switch the current WhatsApp user to one of their prediction groups. Passing an invite code joins/switches to that group.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -632,6 +787,10 @@ final class Mantia_Abilities {
 	}
 
 	public static function set_active_group( array $args ): array|WP_Error {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			return $gate;
+		}
 		if ( ! empty( $args['invite_code'] ) ) {
 			return Mantia_Repository::join_group(
 				(string) ( $args['user_phone'] ?? '' ),
@@ -641,9 +800,18 @@ final class Mantia_Abilities {
 			);
 		}
 
-		$user = Mantia_Repository::find_user_by_phone( (string) ( $args['user_phone'] ?? '' ) );
+		$phone = (string) ( $args['user_phone'] ?? '' );
+		$user  = Mantia_Repository::find_user_by_phone( $phone );
 		if ( ! $user ) {
-			return new WP_Error( 'mantia_user_not_found', __( 'Todavia no estas en ninguna penca. Mandame un codigo de invitacion.', 'mantia' ) );
+			return new WP_Error(
+				'mantia_user_not_found',
+				sprintf(
+					/* translators: 1: indefinite article (una/un/um), 2: vocab noun (penca/pronóstico/bolão). */
+					__( 'Todavia no estas en ningun%1$s %2$s. Mandame un codigo de invitacion.', 'mantia' ),
+					'a' === substr( Mantia_Vocab::word( 'article_indef', $phone ), -1 ) ? 'a' : '',
+					Mantia_Vocab::word( 'noun', $phone )
+				)
+			);
 		}
 
 		return Mantia_Repository::set_active_group_for_user( (int) $user->ID, (int) ( $args['group_id'] ?? 0 ) );
@@ -679,6 +847,24 @@ final class Mantia_Abilities {
 	}
 
 	public static function get_whatsapp_home( array $args ): array {
+		$gate = self::check_caller_phone( $args );
+		if ( is_wp_error( $gate ) ) {
+			// Return the SAME shape as the no-user / needs_group branch so
+			// downstream array_access (in the bot composer / agent prompt)
+			// doesn't crash on missing keys. The `error` key tells the
+			// caller why state was wiped out.
+			return array(
+				'mode'             => 'user_initiated',
+				'needs_group'      => true,
+				'groups'           => array(),
+				'active_group'     => null,
+				'standings'        => array(),
+				'upcoming'         => array(),
+				'pending'          => array(),
+				'outbound_enabled' => Mantia_Whatsapp_Flow::outbound_workflows_enabled(),
+				'error'            => $gate->get_error_code(),
+			);
+		}
 		$hours = isset( $args['hours_ahead'] ) ? max( 1, min( 240, (int) $args['hours_ahead'] ) ) : 48;
 		$user  = Mantia_Repository::find_user_by_phone( (string) ( $args['user_phone'] ?? '' ) );
 		if ( ! $user ) {
@@ -794,6 +980,38 @@ final class Mantia_Abilities {
 		);
 	}
 
+	private static function register_sync_fifa_fixture_ability(): void {
+		wp_register_ability(
+			'mantia/sync-fifa-fixture',
+			array(
+				'label'               => __( 'Sync FIFA fixture', 'mantia' ),
+				'description'         => __( 'Pull the upcoming match calendar for a FIFA competition (default: mundial-2026) from the official FIFA endpoint and upsert each match into the fixture.', 'mantia' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'       => 'object',
+					'properties' => array(
+						'competition_id' => array( 'type' => 'string' ),
+						'days_ahead'     => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+							'maximum' => 730,
+						),
+					),
+				),
+				'output_schema'       => array( 'type' => 'object' ),
+				'execute_callback'    => static fn( array $args ): array|WP_Error => Mantia_Fifa_Fixture::sync(
+					(string) ( $args['competition_id'] ?? 'mundial-2026' ),
+					isset( $args['days_ahead'] ) ? (int) $args['days_ahead'] : 365
+				),
+				'permission_callback' => array( __CLASS__, 'rest_permission' ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'annotations'  => array( 'destructive' => true ),
+				),
+			)
+		);
+	}
+
 	private static function register_fetch_result_ability(): void {
 		wp_register_ability(
 			'mantia/fetch-fifa-result',
@@ -905,7 +1123,7 @@ final class Mantia_Abilities {
 			'mantia/get-daily-digest-targets',
 			array(
 				'label'               => __( 'Get daily digest targets', 'mantia' ),
-				'description'         => __( 'Return WhatsApp recipients and digest messages for the daily penca summary.', 'mantia' ),
+				'description'         => __( 'Return WhatsApp recipients and digest messages for the daily prediction-pool summary.', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array( 'type' => 'object' ),
 				'output_schema'       => array( 'type' => 'object' ),
@@ -945,7 +1163,13 @@ final class Mantia_Abilities {
 			$standings = Mantia_Leaderboard::rows( $group_id, 3 );
 			$upcoming  = Mantia_Repository::upcoming_matches( 24 );
 
-			$lines = array( 'Resumen de la penca de hoy:' );
+			$user_phone = (string) get_user_meta( $user_id, Mantia_Repository::META_PHONE, true );
+			$lines      = array( sprintf(
+				/* translators: 1: definite article matching noun gender, 2: vocab noun (penca/pronóstico/bolão). */
+				__( 'Resumen de %1$s %2$s de hoy:', 'mantia' ),
+				Mantia_Vocab::word( 'article', $user_phone ),
+				Mantia_Vocab::word( 'noun', $user_phone )
+			) );
 			if ( ! empty( $standings ) ) {
 				$lines[] = 'Top 3: ' . implode(
 					', ',

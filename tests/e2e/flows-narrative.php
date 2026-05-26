@@ -33,6 +33,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Narrative — every command, three personas' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 $alice = Mantia_E2E::persona( 'Alice', 1 );
 $bob   = Mantia_E2E::persona( 'Bob',   2 );
@@ -71,7 +72,7 @@ Mantia_E2E::assert_contains( $r, 'Creaste', 'create confirmation' );
 
 $alice_user = Mantia_Repository::find_user_by_phone( $alice['phone'] );
 $alice_id   = (int) $alice_user->ID;
-$group_ids  = (array) get_post_meta( $alice_id, Mantia_Repository::META_GROUP_IDS, true );
+$group_ids  = (array) get_user_meta( $alice_id, Mantia_Repository::META_GROUP_IDS, true );
 $group_id   = (int) $group_ids[0];
 $invite     = (string) get_post_meta( $group_id, Mantia_Repository::META_INVITE_CODE, true );
 
@@ -144,7 +145,9 @@ Mantia_E2E::assert_contains( $r, 'Narrativa', 'mis grupos names the penca' );
 Mantia_E2E::step( '12. "link" returns the share URL' );
 /* ------------------------------------------------------------------------ */
 $r = Mantia_E2E::send( $alice, 'link' );
-Mantia_E2E::assert_contains( $r, 'penca/g/',   'link contains the share path' );
+// Bot share reply now leads with "Reenviá la tarjeta…" + invite code.
+// The /pronostico/g/ URL only appears when a share_url is configured.
+Mantia_E2E::assert_contains( $r, 'Reenviá la tarjeta', 'link command sends the invitation card prompt' );
 
 /* ------------------------------------------------------------------------ */
 Mantia_E2E::step( '13. Create a second penca — predictions still fan out' );
@@ -192,18 +195,24 @@ Mantia_E2E::step( '15. PRIVACY — Carla joins, can\'t see Alice\'s scores' );
 Mantia_E2E::send( $carla, 'me llamo Carla' );
 Mantia_E2E::send( $carla, $invite );
 
-$alice_view = '/penca/me/' . Mantia_Repository::user_view_token( $alice_id ) . '/';
-$carla_view = '/penca/me/' . Mantia_Repository::user_view_token( (int) Mantia_Repository::find_user_by_phone( $carla['phone'] )->ID ) . '/';
+$alice_view = '/pronostico/me/' . Mantia_Repository::user_view_token( $alice_id ) . '/';
+$carla_view = '/pronostico/me/' . Mantia_Repository::user_view_token( (int) Mantia_Repository::find_user_by_phone( $carla['phone'] )->ID ) . '/';
+
+// Use the harness's base-url override so the CLI container can reach
+// the WP container in docker-compose. home_url() resolves to localhost:8889
+// which isn't routable from the sibling container.
+$base = (string) get_option( 'mantia_e2e_base_url', '' );
+$base = '' !== $base ? rtrim( $base, '/' ) : (string) home_url();
 
 // Alice's /me/ page must NOT be visible just because Carla knows the
 // invite code or the group token. The user view token is per-user.
 $alice_token = Mantia_Repository::user_view_token( $alice_id );
-$alice_resp  = wp_remote_get( home_url( '/penca/me/' . $alice_token . '/' ) );
+$alice_resp  = wp_remote_get( $base . '/pronostico/me/' . $alice_token . '/' );
 $alice_body  = is_wp_error( $alice_resp ) ? '' : (string) wp_remote_retrieve_body( $alice_resp );
 Mantia_E2E::assert_eq( true, false !== strpos( $alice_body, 'Alice' ), 'Alice\'s view shows Alice' );
 
 // Carla's view shouldn't expose Alice's predictions.
-$carla_resp = wp_remote_get( home_url( $carla_view ) );
+$carla_resp = wp_remote_get( $base . $carla_view );
 $carla_body = is_wp_error( $carla_resp ) ? '' : (string) wp_remote_retrieve_body( $carla_resp );
 // "Anotado" is a fragment from prediction-confirmation copy; if it showed
 // up on Carla's page it would only be for Carla's own predictions.

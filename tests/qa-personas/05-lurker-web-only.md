@@ -18,9 +18,9 @@ si vale la pena recomendarlo a su grupo.
 
 - ¿El home en mobile y desktop transmite el producto en <5 segundos?
 - ¿Hay alguna penca pública que pueda explorar sin autenticarse?
-- Visita `/penca/libertadores-semana` — ¿el listado de partidos de esta
+- Visita `/pronostico/libertadores-semana` — ¿el listado de partidos de esta
   semana es claro?
-- Visita `/penca/g/<token>/` (token público del owner que ya creó penca)
+- Visita `/pronostico/g/<token>/` (token público del owner que ya creó penca)
   — ¿se ve el ranking sin pedir login?
 - Si tapea un partido, ¿hay info adicional? (Resultado, predicción
   consensus, etc.)
@@ -32,11 +32,11 @@ si vale la pena recomendarlo a su grupo.
 - Home: 2 CTAs claros (WhatsApp + Ver Libertadores). No clutter.
 - Page de Libertadores semanal: 8 partidos visibles, hoist de phase por
   día, CTA "Crear penca" al pie.
-- Group page (`/penca/g/<token>/`): ranking + próximos partidos + share
+- Group page (`/pronostico/g/<token>/`): ranking + próximos partidos + share
   CTA. Sin acceso al edit (eso es del owner).
-- Test del share-poster `/penca/me/share/<share_token>/`: aparece bien
+- Test del share-poster `/pronostico/me/share/<share_token>/`: aparece bien
   formatted, recipient-friendly.
-- 404 themed: visitar un slug inexistente bajo `/penca/` → debe rendererar
+- 404 themed: visitar un slug inexistente bajo `/pronostico/` → debe rendererar
   el themed 404 con CTAs de recuperación, no el Assembler Lorem ipsum.
 
 **Severidades.**

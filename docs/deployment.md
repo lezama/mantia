@@ -47,7 +47,7 @@ wp rewrite structure "/%postname%/" --hard
 wp rewrite flush --hard
 ```
 
-WP's default plain permalinks (`?p=N`) break every `/penca/*` route.
+WP's default plain permalinks (`?p=N`) break every `/pronostico/*` route.
 
 ### 4. LLM provider
 

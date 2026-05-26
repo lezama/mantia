@@ -23,14 +23,14 @@ final class Mantia_Bootstrap {
 		// Mantia deps — see its README for extraction notes.
 		require_once MANTIA_PATH . 'includes/wa-identity-bridge/class-wa-identity-bridge.php';
 
-		// Mantia branding for the bridge: dedicated role, /penca/auth/ endpoint,
-		// /penca/* path whitelist (anti open-redirect), and a placeholder email
+		// Mantia branding for the bridge: dedicated role, /pronostico/auth/ endpoint,
+		// /pronostico/* path whitelist (anti open-redirect), and a placeholder email
 		// domain derived from the site host (default would be `wa.<host>`
 		// anyway — pin it explicitly so it survives a hypothetical host change).
 		add_filter( 'wa_identity_bridge_role_slug',           static fn (): string => 'mantia_player' );
-		add_filter( 'wa_identity_bridge_endpoint_path',       static fn (): string => 'penca/auth' );
-		add_filter( 'wa_identity_bridge_path_whitelist',      static fn (): array => array( '/penca/' ) );
-		add_filter( 'wa_identity_bridge_expired_redirect_url', static fn (): string => home_url( '/penca/expired/' ) );
+		add_filter( 'wa_identity_bridge_endpoint_path',       static fn (): string => 'pronostico/auth' );
+		add_filter( 'wa_identity_bridge_path_whitelist',      static fn (): array => array( '/pronostico/' ) );
+		add_filter( 'wa_identity_bridge_expired_redirect_url', static fn (): string => home_url( '/pronostico/expired/' ) );
 
 		WA_Identity_Bridge::boot();
 
@@ -65,7 +65,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 6;
+	private const DB_VERSION        = 9;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -96,10 +96,28 @@ final class Mantia_Bootstrap {
 
 		// v5: PWA rewrite regexes added optional trailing slash. Flush so
 		// the new patterns take effect without re-activating the plugin.
-		// v6: WA_Identity_Bridge added /penca/auth/ endpoint — same flush
+		// v6: WA_Identity_Bridge added /pronostico/auth/ endpoint — same flush
 		// covers both.
-		if ( $current < 6 ) {
+		// v7: URL prefix migrated /penca/* → /pronostico/* (rewrite rules
+		// changed, no backward-compatible redirects). Flush so installs
+		// upgrading from <=v6 stop trying to serve the old paths.
+		// v8: added /pronostico/g/<token>/calendar.ics subscribable feed —
+		// new rewrite rule needs a flush to register on existing installs.
+		if ( $current < 8 ) {
 			flush_rewrite_rules();
+		}
+
+		// v9: Mundial 2026 reinstated. Seed the competition rows (mundial-
+		// 2026 + mundial-semana view) and pull the fixture from FIFA's
+		// official endpoint. The pull is best-effort — if the network is
+		// down at upgrade time, the competition still exists and the
+		// admin can re-trigger via wp eval-file or the sync-fifa-fixture
+		// ability.
+		if ( $current < 9 ) {
+			Mantia_Competitions::seed_defaults();
+			if ( class_exists( 'Mantia_Fifa_Fixture' ) ) {
+				Mantia_Fifa_Fixture::sync( 'mundial-2026' );
+			}
 		}
 
 		// v4: drop competitions removed from default_seed() (Mundial,

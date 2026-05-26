@@ -17,7 +17,7 @@ for that competition. Tap a public link to see the live ranking.
 | 5 CPTs | `mantia_match`, `mantia_prediction`, `mantia_group`, `mantia_user`, `mantia_competition` |
 | 16 abilities | Reusable tools (`mantia/register-prediction`, `mantia/get-standings`, …) registered via the Abilities API |
 | 1 agent | `mantia` — Claude Haiku 4.5 with Spanish system prompt |
-| Public web views | `/`, `/penca/<competition>/`, `/penca/g/<token>`, `/penca/me/<token>` |
+| Public web views | `/`, `/pronostico/<competition>/`, `/pronostico/g/<token>`, `/pronostico/me/<token>` |
 | Workflows | Auto-resolution + reminders via cron |
 
 ## Layer discipline
@@ -79,7 +79,7 @@ Scenarios under `tests/e2e/`:
 - `penca-lifecycle.php` — cold onboarding → create penca → invite → 3 friends join → predict via tap → match finishes → leaderboard scored
 - `aliases-cpt.php` — competitions + admin-editable aliases live in post_meta, resolver routes friendly hints to canonical slugs
 - `rate-limit.php` — per-phone throttle protects LLM budget
-- `web-routes.php` — every public `/penca/*` route renders with the right copy + recovery CTAs
+- `web-routes.php` — every public `/pronostico/*` route renders with the right copy + recovery CTAs
 
 ## CI
 

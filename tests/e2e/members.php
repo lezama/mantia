@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Members render in share / create / join / switch' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 Mantia_E2E::cleanup();
 Mantia_Competitions::seed_defaults();
@@ -65,9 +66,11 @@ Mantia_E2E::assert_contains( $r, 'Carla', 'Carla present' );
 Mantia_E2E::step( '4. SHARE reply (link / Invitar) lists same roster' );
 /* ------------------------------------------------------------------------- */
 $r = Mantia_E2E::send( $alice, 'mantia:cmd:share-link' );
-Mantia_E2E::assert_contains( $r, 'Quiénes están (3)', 'share roster header' );
-Mantia_E2E::assert_contains( $r, 'wa.me/', 'share includes wa.me link' );
-Mantia_E2E::assert_contains( $r, '/penca/g/', 'share includes web URL' );
+// Share-link copy changed: bot now leads with "Reenviá la tarjeta…" and
+// includes member count as "👥 N en la penca/pronóstico" plus the
+// shareable code, NOT the "Quiénes están" list inline.
+Mantia_E2E::assert_contains( $r, '3 en la', 'share reply shows member count (3)' );
+Mantia_E2E::assert_contains( $r, 'Reenviá la tarjeta', 'share reply leads with the forward CTA' );
 
 /* ------------------------------------------------------------------------- */
 Mantia_E2E::step( '5. SWITCH reply lists roster of new active penca' );

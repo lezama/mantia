@@ -2,11 +2,11 @@
 /**
  * Public-facing web views for Mantia.
  *
- * Three URL patterns, all under /penca/:
+ * Three URL patterns, all under /pronostico/:
  *
- *   /penca/<competition-slug>  Global ranking per competition (public)
- *   /penca/g/<group-token>     Single group view (shareable read-token)
- *   /penca/me/<user-token>     Personal view: your groups + predictions
+ *   /pronostico/<competition-slug>  Global ranking per competition (public)
+ *   /pronostico/g/<group-token>     Single group view (shareable read-token)
+ *   /pronostico/me/<user-token>     Personal view: your groups + predictions
  *
  * Tokens are random hex strings (12 bytes / 24 chars) generated lazily by
  * Mantia_Repository::group_view_token / user_view_token. They are not the
@@ -31,8 +31,14 @@ final class Mantia_Frontend {
 		add_action( 'init', array( __CLASS__, 'register_rewrites' ), 11 );
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
+		// Calendar subscribers (Google Calendar, Apple Calendar, Outlook) hit
+		// the .ics URL WITHOUT a trailing slash — that's the convention.
+		// WP's redirect_canonical would 301 it to /calendar.ics/ which some
+		// subscribers don't follow. Short-circuit canonical for that one
+		// view so the no-slash URL serves directly.
+		add_filter( 'redirect_canonical', array( __CLASS__, 'maybe_skip_canonical' ), 10, 2 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_home' ), 5 );
-		// Catch malformed /penca/* URLs (non-hex tokens, deprecated /compartir/
+		// Catch malformed /pronostico/* URLs (non-hex tokens, deprecated /compartir/
 		// suffix, etc.) BEFORE the theme renders its default 404. Without this
 		// they fall through to the Assembler theme placeholder content.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_intercept_penca_404' ), 1 );
@@ -47,7 +53,7 @@ final class Mantia_Frontend {
 
 	public static function register_rewrites(): void {
 		// PWA endpoints. All at root scope so the service worker can
-		// control /penca/* paths — a SW served from /penca/... can only
+		// control /pronostico/* paths — a SW served from /pronostico/... can only
 		// control siblings of its own path.
 		// Optional trailing slash on both — WP's canonical redirect rewrites
 		// path-style URLs to trailing-slash form, so the strict no-slash
@@ -65,7 +71,7 @@ final class Mantia_Frontend {
 			'top'
 		);
 		add_rewrite_rule(
-			'^penca/offline/?$',
+			'^pronostico/offline/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=pwa-offline',
 			'top'
 		);
@@ -75,33 +81,42 @@ final class Mantia_Frontend {
 			'top'
 		);
 		// Join landing — gated by invite_code (random, non-guessable). The
-		// old /penca/g/<slug>/sumate/ shape leaked existence + bypassed the
+		// old /pronostico/g/<slug>/sumate/ shape leaked existence + bypassed the
 		// invite_code gate via slug guessing; this shape requires knowing
 		// the code, which is the only secret that actually matters for
 		// admission.
 		add_rewrite_rule(
-			'^penca/sumate/([A-Z0-9_-]+)/?$',
+			'^pronostico/sumate/([A-Z0-9_-]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=join-landing&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
 		add_rewrite_rule(
-			'^penca/g/([a-f0-9]+)/og/?$',
+			'^pronostico/g/([a-f0-9]+)/og/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=join-og&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
 		add_rewrite_rule(
-			'^penca/g/([a-f0-9]+)/compartir/?$',
+			'^pronostico/g/([a-f0-9]+)/compartir/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
-		// /penca/me/share/<share_token>/ — the screenshotable poster.
-		// Uses a SEPARATE token from /penca/me/<view_token>/ so a leaked
+		// ICS calendar feed for the group's upcoming fixture. Plain GET,
+		// no auth — the view token in the URL is already the access gate.
+		// Subscribable from any calendar app (Google, Apple, Outlook…) so
+		// users get partidos automatically on their phone calendar.
+		add_rewrite_rule(
+			'^pronostico/g/([a-f0-9]+)/calendar\.ics/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=group-ics&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		// /pronostico/me/share/<share_token>/ — the screenshotable poster.
+		// Uses a SEPARATE token from /pronostico/me/<view_token>/ so a leaked
 		// share link can't be transformed into the private edit URL by
-		// dropping segments. Old `/penca/me/<view_token>/compartir/`
+		// dropping segments. Old `/pronostico/me/<view_token>/compartir/`
 		// route is removed in the same commit; any previously-screenshot
 		// share URL now 404s, which is the right failure mode.
 		add_rewrite_rule(
-			'^penca/me/share/([a-f0-9]+)/?$',
+			'^pronostico/me/share/([a-f0-9]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=share-user&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
@@ -109,15 +124,15 @@ final class Mantia_Frontend {
 		// tries find_group_by_slug() first, then falls back to view_token
 		// for backwards compat (legacy URLs shipped before magic links).
 		add_rewrite_rule(
-			'^penca/g/([a-z0-9-]+)/?$',
+			'^pronostico/g/([a-z0-9-]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=group&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
-		// Auth-gated /penca/me/ (no token). Uses get_current_user_id()
+		// Auth-gated /pronostico/me/ (no token). Uses get_current_user_id()
 		// from the magic-link cookie. If not logged in, handler redirects
-		// to /penca/expired/.
+		// to /pronostico/expired/.
 		add_rewrite_rule(
-			'^penca/me/?$',
+			'^pronostico/me/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=me',
 			'top'
 		);
@@ -125,19 +140,19 @@ final class Mantia_Frontend {
 		// (bad sig, expired, replayed) all funnel here so users see a
 		// "pediselo de nuevo al bot" affordance instead of a 404.
 		add_rewrite_rule(
-			'^penca/expired/?$',
+			'^pronostico/expired/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=expired',
 			'top'
 		);
-		// Legacy token URL for /penca/me/<hex>/ — kept until Phase 6 so
+		// Legacy token URL for /pronostico/me/<hex>/ — kept until Phase 6 so
 		// users with the link in chat history can still open it.
 		add_rewrite_rule(
-			'^penca/me/([a-f0-9]+)/?$',
+			'^pronostico/me/([a-f0-9]+)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=user&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
 		add_rewrite_rule(
-			'^penca/([a-z0-9][a-z0-9-]*)/?$',
+			'^pronostico/([a-z0-9][a-z0-9-]*)/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=competition&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
 		);
@@ -171,10 +186,10 @@ final class Mantia_Frontend {
 				echo self::render_user( (string) $id );
 				break;
 			case 'me':
-				// Auth-gated /penca/me/. Magic-link cookie sets current_user.
+				// Auth-gated /pronostico/me/. Magic-link cookie sets current_user.
 				$current_user_id = get_current_user_id();
 				if ( $current_user_id <= 0 ) {
-					wp_safe_redirect( home_url( '/penca/expired/' ), 302 );
+					wp_safe_redirect( home_url( '/pronostico/expired/' ), 302 );
 					exit;
 				}
 				echo self::render_user_for_id( (int) $current_user_id );
@@ -193,6 +208,9 @@ final class Mantia_Frontend {
 				break;
 			case 'join-og':
 				self::render_join_og_png( (string) $id ); // emits headers + body + exits.
+				break;
+			case 'group-ics':
+				self::render_group_ics( (string) $id ); // emits headers + body + exits.
 				break;
 			case 'pwa-manifest':
 				self::render_pwa_manifest(); // headers + body + exits.
@@ -232,7 +250,7 @@ final class Mantia_Frontend {
 	}
 
 	/**
-	 * Any URL under /penca/ that didn't match our rewrite rules (typo'd
+	 * Any URL under /pronostico/ that didn't match our rewrite rules (typo'd
 	 * token, non-hex characters, deprecated suffixes like /compartir/) ends
 	 * up as a generic WP 404 and falls through to whatever 404.html the
 	 * active theme ships — for Assembler that's "Page Not Found" + Lorem
@@ -246,7 +264,7 @@ final class Mantia_Frontend {
 			return; // Our own handler will deal with it.
 		}
 		$path = (string) wp_parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH );
-		if ( '' === $path || ! str_starts_with( $path, '/penca/' ) ) {
+		if ( '' === $path || ! str_starts_with( $path, '/pronostico/' ) ) {
 			return;
 		}
 
@@ -296,7 +314,6 @@ final class Mantia_Frontend {
 
 			<div class="mantia-home-mark">
 				<div class="mantia-home-stickers" aria-hidden="true">
-					<span class="mantia-home-sticker mantia-home-sticker-l"><?php esc_html_e( 'penca', 'mantia' ); ?></span>
 					<span class="mantia-home-sticker mantia-home-sticker-r">x WhatsApp</span>
 				</div>
 				<h1 class="mantia-wordmark">mantia</h1>
@@ -326,7 +343,7 @@ final class Mantia_Frontend {
 			// WhatsApp pair stays for the "fui a la home en otra máquina"
 			// case (escanear con el celu del bot, mandar hola).
 			if ( get_current_user_id() > 0 ) :
-				$me_url = home_url( '/penca/me/' );
+				$me_url = home_url( '/pronostico/me/' );
 				?>
 				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $me_url ); ?>">
 					<?php esc_html_e( '📋 Mis pencas', 'mantia' ); ?>
@@ -428,7 +445,7 @@ final class Mantia_Frontend {
 
 	private static function render_group( string $token_or_slug ): string {
 		// Phase 5 cutover: try the new slug-based lookup first (matches the
-		// /penca/g/<slug>/ URLs the magic-link helper generates), fall back
+		// /pronostico/g/<slug>/ URLs the magic-link helper generates), fall back
 		// to the legacy view-token lookup so links shipped before the
 		// migration still work until Phase 6 retires them.
 		$group_post = Mantia_Repository::find_group_by_slug( $token_or_slug );
@@ -466,7 +483,7 @@ final class Mantia_Frontend {
 		// instead of the view-token segment that the original $token argument
 		// carried. /compartir/ is rendered by the same group page in a
 		// screenshot-friendly variant.
-		$share_url = home_url( '/penca/g/' . $token_or_slug . '/compartir/' );
+		$share_url = home_url( '/pronostico/g/' . $token_or_slug . '/compartir/' );
 
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $group['name'] ) );
@@ -512,7 +529,7 @@ final class Mantia_Frontend {
 				// contact picker. The text mirrors the invite card the bot
 				// already sends so people pasting from web get the same
 				// rich-preview link in their friends' chats.
-				$share_landing = home_url( '/penca/sumate/' . $invite_code . '/' );
+				$share_landing = home_url( '/pronostico/sumate/' . $invite_code . '/' );
 				$share_text    = sprintf(
 					"🏆 Sumate a %s\n\nTocá el link para sumarte:\n%s",
 					$group['name'],
@@ -682,8 +699,8 @@ final class Mantia_Frontend {
 	}
 
 	/**
-	 * Render the /penca/me/ page for a known user_id. Shared between the
-	 * legacy /penca/me/<token>/ entrypoint and the magic-link /penca/me/
+	 * Render the /pronostico/me/ page for a known user_id. Shared between the
+	 * legacy /pronostico/me/<token>/ entrypoint and the magic-link /pronostico/me/
 	 * route which resolves the user from get_current_user_id().
 	 */
 	private static function render_user_for_id( int $user_id ): string {
@@ -721,7 +738,7 @@ final class Mantia_Frontend {
 		// recipients strip /compartir/ and land on the editable view —
 		// a privacy + write-access leak. The share token is a distinct
 		// random hex string with no relation to the view token.
-		$share_url = home_url( '/penca/me/share/' . Mantia_Repository::user_share_token( $user_id ) . '/' );
+		$share_url = home_url( '/pronostico/me/share/' . Mantia_Repository::user_share_token( $user_id ) . '/' );
 
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $display_name ) );
@@ -871,7 +888,7 @@ final class Mantia_Frontend {
 							// safe to bake into a URL the user might copy/forward.
 							$group_token   = Mantia_Repository::group_view_token( $group_id );
 							$share_tok     = Mantia_Repository::user_share_token( $user_id );
-							$group_link    = home_url( '/penca/g/' . $group_token . '/?as=' . $share_tok );
+							$group_link    = home_url( '/pronostico/g/' . $group_token . '/?as=' . $share_tok );
 							?>
 							<a class="mantia-me-line" href="<?php echo esc_url( $group_link ); ?>">
 								<span class="mantia-numeral mantia-numeral-m"><?php echo esc_html( self::rank_label( (int) $my_row['rank'] ) ); ?></span>
@@ -977,8 +994,8 @@ final class Mantia_Frontend {
 		);
 		// OG image still uses the group view token — it's a static asset URL.
 		$view_token = Mantia_Repository::group_view_token( $group_id );
-		$og_image   = home_url( '/penca/g/' . $view_token . '/og/' );
-		$page_url   = home_url( '/penca/sumate/' . $invite_code . '/' );
+		$og_image   = home_url( '/pronostico/g/' . $view_token . '/og/' );
+		$page_url   = home_url( '/pronostico/sumate/' . $invite_code . '/' );
 
 		ob_start();
 		?>
@@ -1065,6 +1082,118 @@ window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
 	 * TODO: ship Inter Variable in mantia/assets/fonts/ so backend (1)
 	 * always wins regardless of host.
 	 */
+	/**
+	 * Suppress WP's canonical redirect for the .ics endpoint. Without
+	 * this, /pronostico/g/<token>/calendar.ics 301-redirects to
+	 * /pronostico/g/<token>/calendar.ics/ — and some calendar clients
+	 * (Apple Calendar in particular) don't follow that redirect.
+	 */
+	public static function maybe_skip_canonical( $redirect_url, $requested_url ) {
+		if ( is_string( $requested_url ) && false !== strpos( $requested_url, '/calendar.ics' ) ) {
+			return false;
+		}
+		return $redirect_url;
+	}
+
+	/**
+	 * VCALENDAR feed for the group's upcoming fixture. Subscribable from
+	 * any calendar app: every match in the group's competition becomes a
+	 * VEVENT with the canonical kickoff time and a one-line summary. The
+	 * URL is gated by the group's view_token, so no auth is needed — the
+	 * token IS the credential, same as /pronostico/g/<token>/.
+	 *
+	 * Per RFC 5545: CRLF line endings, UTC stamps with the Z suffix, and
+	 * a stable UID per match so subscribers update in place when a kick-
+	 * off shifts instead of getting duplicate events.
+	 */
+	private static function render_group_ics( string $token ): void {
+		$group_post = Mantia_Repository::find_group_by_view_token( $token );
+		if ( ! $group_post ) {
+			status_header( 404 );
+			header( 'Content-Type: text/plain; charset=utf-8' );
+			echo "Not found\n";
+			exit;
+		}
+		$group_id = (int) $group_post->ID;
+		$comp_id  = Mantia_Repository::group_competition_id( $group_id );
+		$matches  = '' !== $comp_id
+			? Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 365 )
+			: array();
+
+		$group     = Mantia_Repository::group_to_array( $group_id );
+		$cal_name  = sprintf( 'Mantia · %s', (string) $group['name'] );
+		$site_host = (string) ( wp_parse_url( home_url(), PHP_URL_HOST ) ?: 'mantia.local' );
+
+		$lines = array(
+			'BEGIN:VCALENDAR',
+			'VERSION:2.0',
+			'PRODID:-//Mantia//EN',
+			'CALSCALE:GREGORIAN',
+			'METHOD:PUBLISH',
+			'X-WR-CALNAME:' . self::ics_escape( $cal_name ),
+			'X-WR-TIMEZONE:UTC',
+		);
+
+		$now_stamp = gmdate( 'Ymd\THis\Z' );
+		foreach ( $matches as $match ) {
+			$kickoff_ts = (int) ( $match['kickoff_ts'] ?? 0 );
+			if ( $kickoff_ts <= 0 ) {
+				continue;
+			}
+			$home_team = (string) ( $match['home_team'] ?? '' );
+			$away_team = (string) ( $match['away_team'] ?? '' );
+			if ( '' === $home_team || '' === $away_team ) {
+				continue;
+			}
+
+			$dtstart = gmdate( 'Ymd\THis\Z', $kickoff_ts );
+			$dtend   = gmdate( 'Ymd\THis\Z', $kickoff_ts + 2 * HOUR_IN_SECONDS );
+			$summary = sprintf( '⚽ %s vs %s', $home_team, $away_team );
+			$descr   = sprintf(
+				'Pronosticar: %s',
+				home_url( '/pronostico/g/' . Mantia_Repository::group_view_token( $group_id ) . '/' )
+			);
+			$uid = sprintf( 'mantia-match-%d-group-%d@%s', (int) $match['id'], $group_id, $site_host );
+
+			$lines[] = 'BEGIN:VEVENT';
+			$lines[] = 'UID:' . self::ics_escape( $uid );
+			$lines[] = 'DTSTAMP:' . $now_stamp;
+			$lines[] = 'DTSTART:' . $dtstart;
+			$lines[] = 'DTEND:'   . $dtend;
+			$lines[] = 'SUMMARY:' . self::ics_escape( $summary );
+			$lines[] = 'DESCRIPTION:' . self::ics_escape( $descr );
+			$lines[] = 'END:VEVENT';
+		}
+
+		$lines[] = 'END:VCALENDAR';
+
+		$body = implode( "\r\n", $lines ) . "\r\n";
+		header( 'Content-Type: text/calendar; charset=utf-8' );
+		header( 'Content-Disposition: inline; filename="mantia-' . sanitize_title( (string) $group['name'] ) . '.ics"' );
+		header( 'Cache-Control: public, max-age=900' ); // 15 min — fast enough for kickoff edits.
+		echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
+	}
+
+	/**
+	 * Escape a value for an ICS property per RFC 5545 § 3.3.11: backslash
+	 * is the escape char, then ; , and newlines need quoting. Sticks to
+	 * the minimum needed for SUMMARY/DESCRIPTION/UID — no fold logic since
+	 * mantia values stay well under the 75-octet line limit.
+	 */
+	private static function ics_escape( string $value ): string {
+		return strtr(
+			$value,
+			array(
+				'\\' => '\\\\',
+				';'  => '\\;',
+				','  => '\\,',
+				"\n" => '\\n',
+				"\r" => '',
+			)
+		);
+	}
+
 	private static function render_join_og_png( string $token ): void {
 		$group_post = Mantia_Repository::find_group_by_view_token( $token );
 		if ( ! $group_post ) {
@@ -1438,7 +1567,7 @@ SVG;
 
 		$back_url = Mantia_Repository::group_view_url( $group_id );
 		if ( '' === $back_url ) {
-			$back_url = home_url( '/penca/g/' . $token . '/' );
+			$back_url = home_url( '/pronostico/g/' . $token . '/' );
 		}
 		$share_url = $back_url;
 
@@ -1532,7 +1661,7 @@ SVG;
 		// preview reads as "mantia3.wpcomstaging.com/" with no context.
 		$share_group_url = $best
 			? Mantia_Repository::group_view_url( (int) $best['group']['id'] )
-			: home_url( '/penca/me/share/' . $token . '/' );
+			: home_url( '/pronostico/me/share/' . $token . '/' );
 
 		// Rank-aware headline. The user's poster is 2nd-person ("vas X en Y")
 		// because the share originates from the user themselves. For ranks
@@ -1811,7 +1940,7 @@ SVG;
 	private static function render_pwa_service_worker(): void {
 		$version       = self::PWA_VERSION;
 		$home          = home_url( '/' );
-		$offline       = home_url( '/penca/offline/' );
+		$offline       = home_url( '/pronostico/offline/' );
 		$manifest_url  = home_url( '/manifest.json/' );
 		$icon_192      = home_url( '/icons/192.png/' );
 		$icon_512      = home_url( '/icons/512.png/' );
@@ -3179,7 +3308,7 @@ body {
 	font-size: 14px;
 	margin: 14px 0 0;
 }
-/* Roster shown on /penca/g/<token>/ when no scores tabulated yet —
+/* Roster shown on /pronostico/g/<token>/ when no scores tabulated yet —
    gives fresh joiners visible confirmation they're in the group, plus
    answers "who's already here?" until the leaderboard wakes up. */
 .mantia-roster {
@@ -3340,7 +3469,7 @@ body {
 	box-shadow: 6px 6px 0 var(--accent);
 }
 
-/* "Último partido" panel on /penca/g/<token>/. Shows the most
+/* "Último partido" panel on /pronostico/g/<token>/. Shows the most
    recently kicked-off match's final score + the group's consensus
    tally. Mirrors the bot's `consenso` command on the web — same
    pre-kickoff privacy guard applies via group_consensus_for_match. */

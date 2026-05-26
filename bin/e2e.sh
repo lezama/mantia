@@ -6,9 +6,9 @@
 #   MANTIA_TARGET=local bin/e2e.sh          # local Docker wp-env (CI default)
 #   MANTIA_TARGET=ssh MANTIA_SSH=user@host bin/e2e.sh   # remote WP install
 #
-# Local mode requires Docker + Node and runs `npx wp-env`. Remote mode
-# requires SSH access + rsync; you must pass MANTIA_SSH explicitly. Both
-# paths end up invoking `wp eval-file` on the right WP install.
+# Local mode requires Docker + Node and runs `npx @wordpress/env`. Remote
+# mode requires SSH access + rsync; you must pass MANTIA_SSH explicitly.
+# Both paths end up invoking `wp eval-file` on the right WP install.
 set -euo pipefail
 
 PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
@@ -43,7 +43,10 @@ run_scenario() {
 
   case "$MANTIA_TARGET" in
     local)
-      npx wp-env run cli --env-cwd=/var/www/html/wp-content/plugins/mantia \
+      # The package is @wordpress/env on npm; the binary it ships is
+      # `wp-env`. Use the package spec so it resolves on a fresh machine
+      # without a globally installed binary.
+      npx -y @wordpress/env run cli --env-cwd=/var/www/html/wp-content/plugins/mantia \
         wp eval-file "tests/e2e/${scenario}.php"
       ;;
     ssh)

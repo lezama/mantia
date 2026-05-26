@@ -12,7 +12,7 @@ por WhatsApp. El recipient ve algo razonable.
 **Steps.**
 
 1. Mandar `compartir` o tapear botón de share.
-2. Verificar el bot responde con link `/penca/g/<token>/sumate/` + texto
+2. Verificar el bot responde con link `/pronostico/g/<token>/sumate/` + texto
    pre-armado para forward.
 3. Navegar al link via Chrome MCP (mobile 390px).
 4. Verificar la page de invite render bien:
@@ -26,7 +26,7 @@ por WhatsApp. El recipient ve algo razonable.
 
 - El token en el link es DIFERENTE del view_token de la group page
   privada (security: share-only token).
-- La page tiene un OG image generated (`/penca/g/<token>/og/`).
+- La page tiene un OG image generated (`/pronostico/g/<token>/og/`).
 - En mobile, el CTA está sobre el fold.
 - El texto pre-armado del wa.me tiene el código de invitación.
 
@@ -35,5 +35,5 @@ por WhatsApp. El recipient ve algo razonable.
 - ¿Cuál es la conversion rate implícita? El visitante de mobile entiende
   qué tiene que hacer?
 - ¿Si tapeo "Sumate" en desktop, el wa.me abre WhatsApp Web?
-- ¿El share-poster (`/penca/me/share/<share_token>/`) muestra el ranking
+- ¿El share-poster (`/pronostico/me/share/<share_token>/`) muestra el ranking
   + stats de forma "screenshoteable"?

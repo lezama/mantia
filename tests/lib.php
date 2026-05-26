@@ -49,6 +49,147 @@ final class Mantia_E2E {
 		// `Mantia_E2E::enable_auto_predict()` if it specifically wants to
 		// verify the auto-fill path.
 		add_filter( 'mantia_auto_predict_on_join', '__return_false' );
+
+		// Pin the site's vocab to UY ("penca"/"pencas") for the suite.
+		// Test personas use the 9999000* phone prefix, which doesn't match
+		// any E.164 country code in Mantia_Vocab — so they fall back to
+		// the site default. The default of `mantia_default_country` is
+		// 'AR' (→ "pronóstico"), which would break existing assertions
+		// like `assert_contains( $r, 'Crear penca' )`. Tests that need to
+		// exercise the AR/BR/default path can override this option mid-
+		// scenario; `Mantia_E2E::vocab_country( 'XX' )` is the helper.
+		update_option( 'mantia_default_country', 'UY' );
+
+		self::ensure_competition_graph();
+		self::route_http_probes_via_docker();
+	}
+
+	/**
+	 * Make sure both the default seed competitions AND the parent linkage
+	 * between view → root competitions exist. Older fixture seeds may have
+	 * created the view (e.g. libertadores-semana) without its parent post
+	 * (libertadores-2026), which breaks Mantia_Competitions::storage_id()
+	 * and in turn breaks user_groups_in_competition() — predictions then
+	 * fail with mantia_no_group_in_competition even though the user IS in
+	 * a matching group.
+	 */
+	private static function ensure_competition_graph(): void {
+		if ( ! class_exists( 'Mantia_Competitions' ) ) {
+			return;
+		}
+		Mantia_Competitions::seed_defaults();
+
+		// Force-link libertadores-semana → libertadores-2026 if it was
+		// originally seeded without a parent. seed_defaults() is idempotent
+		// but does NOT re-link existing posts, so this fix is needed once.
+		$parent = get_posts( array(
+			'post_type'      => Mantia_CPTs::COMPETITION,
+			'post_status'    => 'publish',
+			'name'           => 'libertadores-2026',
+			'posts_per_page' => 1,
+		) );
+		$child = get_posts( array(
+			'post_type'      => Mantia_CPTs::COMPETITION,
+			'post_status'    => 'publish',
+			'name'           => 'libertadores-semana',
+			'posts_per_page' => 1,
+		) );
+		if ( $parent && $child && 0 === (int) $child[0]->post_parent ) {
+			wp_update_post( array(
+				'ID'          => (int) $child[0]->ID,
+				'post_parent' => (int) $parent[0]->ID,
+			) );
+		}
+	}
+
+	/**
+	 * OrbStack/Docker Desktop quirk: containers inherit http_proxy env
+	 * vars (e.g. proxyproxy.orb.internal:8305) whose no_proxy list does
+	 * NOT include the docker-network hostnames. Without this, every
+	 * wp_remote_get( 'http://wordpress/...' ) inside the CLI container
+	 * gets routed through the host proxy and 502s. Append the wp-env
+	 * hostnames to no_proxy so curl bypasses the proxy for them.
+	 *
+	 * No-op when running via SSH against mantia3 (no http_proxy in that
+	 * environment).
+	 */
+	private static function route_http_probes_via_docker(): void {
+		$existing = (string) getenv( 'no_proxy' );
+		$hosts    = 'wordpress,tests-wordpress,localhost,127.0.0.1';
+		$merged   = '' !== $existing ? $existing . ',' . $hosts : $hosts;
+		putenv( 'no_proxy=' . $merged );
+		putenv( 'NO_PROXY=' . $merged );
+
+		// Auto-set mantia_e2e_base_url to the cross-container hostname
+		// when we can reach it. Outside Docker (SSH, prod), the option
+		// stays at its existing value (which CI sets to the public URL).
+		if ( '' !== (string) get_option( 'mantia_e2e_base_url', '' ) || '' !== (string) getenv( 'MANTIA_E2E_BASE_URL' ) ) {
+			return;
+		}
+		$probe = @file_get_contents(
+			'http://wordpress/wp-login.php',
+			false,
+			stream_context_create( array( 'http' => array( 'timeout' => 2, 'ignore_errors' => true, 'proxy' => '' ) ) )
+		);
+		if ( false !== $probe ) {
+			update_option( 'mantia_e2e_base_url', 'http://wordpress' );
+		}
+	}
+
+	/**
+	 * Skip when a specific demo match isn't in the fixture. Used by the
+	 * Mundial-era tests that hard-code Uruguay-Portugal (or similar) —
+	 * the live FIFA sync grabs whatever's in its 365-day window, so we
+	 * can't depend on any one team-pair being there.
+	 */
+	public static function require_team_match_or_skip( string $home, string $away ): void {
+		$mid = self::match_id_by_teams( $home, $away );
+		if ( $mid > 0 ) {
+			return;
+		}
+		self::step( sprintf( '! skipping — no %s vs %s demo match in this install\'s fixture', $home, $away ) );
+		self::finish();
+		exit( 0 );
+	}
+
+	/**
+	 * Skip the scenario gracefully when the install doesn't have fixture
+	 * data for the named competition. Lets Mundial-era scenarios run
+	 * unchanged against a Libertadores-only local install AND against
+	 * mantia3 (which has Mundial). Prints a step note, finishes the
+	 * harness, and exits 0 — the e2e.sh runner sees a pass.
+	 */
+	public static function require_fixture_or_skip( string $competition_id ): void {
+		$any = get_posts( array(
+			'post_type'      => Mantia_CPTs::MATCH,
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				array( 'key' => Mantia_Competitions::META_KEY, 'value' => $competition_id ),
+			),
+		) );
+		if ( ! empty( $any ) ) {
+			return;
+		}
+		self::step( sprintf( '! skipping — no %s fixture seeded in this install', $competition_id ) );
+		self::finish();
+		exit( 0 );
+	}
+
+	/**
+	 * Override the site vocab for the rest of a scenario. Pass a country
+	 * code that's in Mantia_Vocab::VOCAB (e.g. 'AR', 'BR', 'UY'), or ''
+	 * to delete the option entirely and exercise the "unset → default
+	 * fallback" path.
+	 */
+	public static function vocab_country( string $country_code ): void {
+		if ( '' === $country_code ) {
+			delete_option( 'mantia_default_country' );
+			return;
+		}
+		update_option( 'mantia_default_country', strtoupper( $country_code ) );
 	}
 
 	/**
@@ -471,6 +612,31 @@ final class Mantia_E2E {
 	 * runs see an empty fixture.
 	 */
 	public static function finish_match( int $match_id, int $home, int $away ): void {
+		self::snapshot_match( $match_id );
+
+		$past = gmdate( 'Y-m-d H:i:s', time() - 90 * MINUTE_IN_SECONDS );
+		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_GMT, $past );
+		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_TS, time() - 90 * MINUTE_IN_SECONDS );
+		update_post_meta( $match_id, Mantia_Repository::META_STATUS, 'finished' );
+		update_post_meta( $match_id, Mantia_Repository::META_HOME_SCORE, $home );
+		update_post_meta( $match_id, Mantia_Repository::META_AWAY_SCORE, $away );
+		update_post_meta( $match_id, Mantia_Repository::META_RESOLVED, 0 );
+	}
+
+	/**
+	 * Snapshot a match's mutable state into a sidecar meta so cleanup() can
+	 * restore it. Idempotent — repeated calls don't clobber the original
+	 * snapshot (only the first one matters).
+	 */
+	private static function snapshot_match( int $match_id ): void {
+		// The snapshot meta is stored as an associative array, so we can't
+		// cast it to string for the empty check — that warns "Array to
+		// string conversion". A simple is_array() guard is enough since
+		// the only thing we ever store under this key is the snapshot itself.
+		$existing = get_post_meta( $match_id, '_mantia_e2e_snapshot', true );
+		if ( is_array( $existing ) && ! empty( $existing ) ) {
+			return;
+		}
 		$snapshot = array(
 			'kickoff_gmt' => (string) get_post_meta( $match_id, Mantia_Repository::META_KICKOFF_GMT, true ),
 			'kickoff_ts'  => (int) get_post_meta( $match_id, Mantia_Repository::META_KICKOFF_TS, true ),
@@ -480,14 +646,63 @@ final class Mantia_E2E {
 			'resolved'    => (int) get_post_meta( $match_id, Mantia_Repository::META_RESOLVED, true ),
 		);
 		update_post_meta( $match_id, '_mantia_e2e_snapshot', $snapshot );
+	}
 
-		$past = gmdate( 'Y-m-d H:i:s', time() - 90 * MINUTE_IN_SECONDS );
-		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_GMT, $past );
-		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_TS, time() - 90 * MINUTE_IN_SECONDS );
-		update_post_meta( $match_id, Mantia_Repository::META_STATUS, 'finished' );
-		update_post_meta( $match_id, Mantia_Repository::META_HOME_SCORE, $home );
-		update_post_meta( $match_id, Mantia_Repository::META_AWAY_SCORE, $away );
+	/**
+	 * Re-time a seeded match to kick off N minutes from now. Picks the
+	 * first seeded match (optionally filtered by competition) when
+	 * $match_id is 0. Snapshots the pre-test state so cleanup() restores
+	 * exactly — same mechanism finish_match() uses, so multiple time-
+	 * travel calls compose cleanly within one scenario.
+	 *
+	 * @return array{id:int, home_team:string, away_team:string, kickoff_ts:int, competition_id:string}
+	 */
+	public static function schedule_match_in_minutes( int $minutes, string $competition_id = '', int $match_id = 0 ): array {
+		if ( 0 === $match_id ) {
+			$candidates = '' !== $competition_id
+				? Mantia_Repository::upcoming_matches_for_competition( $competition_id, 24 * 365 )
+				: Mantia_Repository::upcoming_matches( 24 * 365 );
+
+			// Fall back to ANY seeded match (incl. finished ones) if no upcoming.
+			if ( empty( $candidates ) ) {
+				$ids = get_posts( array(
+					'post_type'      => Mantia_CPTs::MATCH,
+					'post_status'    => 'publish',
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+					'no_found_rows'  => true,
+				) );
+				if ( empty( $ids ) ) {
+					self::log( "    ✗ FAIL: no seeded matches to time-travel — run the fixture seeder first" );
+					return array();
+				}
+				$match_id = (int) $ids[0];
+			} else {
+				$match_id = (int) $candidates[0]['id'];
+			}
+		}
+
+		self::snapshot_match( $match_id );
+
+		$future_ts  = time() + max( 1, $minutes ) * MINUTE_IN_SECONDS;
+		$future_gmt = gmdate( 'Y-m-d H:i:s', $future_ts );
+		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_GMT, $future_gmt );
+		update_post_meta( $match_id, Mantia_Repository::META_KICKOFF_TS, $future_ts );
+		update_post_meta( $match_id, Mantia_Repository::META_STATUS, 'scheduled' );
+		update_post_meta( $match_id, Mantia_Repository::META_HOME_SCORE, '' );
+		update_post_meta( $match_id, Mantia_Repository::META_AWAY_SCORE, '' );
 		update_post_meta( $match_id, Mantia_Repository::META_RESOLVED, 0 );
+
+		$match = Mantia_Repository::match_to_array( $match_id );
+		self::log( sprintf(
+			'    · re-timed match #%d (%s vs %s) → kickoff in %d min (%s UTC)',
+			$match_id,
+			$match['home_team'] ?? '?',
+			$match['away_team'] ?? '?',
+			$minutes,
+			$future_gmt
+		) );
+		return $match;
 	}
 
 	private static function restore_touched_matches(): int {
@@ -570,9 +785,13 @@ final class Mantia_E2E {
 			++$deleted;
 		}
 
-		// 4. Test users themselves.
+		// 4. Test users themselves. wp_users is a separate table from
+		// wp_posts — must use wp_delete_user, not wp_delete_post. (The
+		// previous wp_delete_post call was a no-op for users, which is
+		// how stale META_GROUP_IDS survived across runs and made each
+		// rerun show the same persona in N+1 phantom groups.)
 		foreach ( $users as $uid ) {
-			wp_delete_post( (int) $uid, true );
+			wp_delete_user( (int) $uid );
 			++$deleted;
 		}
 

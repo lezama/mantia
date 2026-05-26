@@ -11,7 +11,7 @@ type: web
 **Steps.**
 
 1. State query → tomar el `view_token` del user.
-2. Navegar a `/penca/me/<token>/` (mobile 390px).
+2. Navegar a `/pronostico/me/<token>/` (mobile 390px).
 3. Verificar render:
    - Hero con avatar + nombre + 3 stats (puntos / exactos / pronósticos).
    - Sticky stats bar aparece al scroll.

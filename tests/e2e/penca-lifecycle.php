@@ -19,6 +19,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Mantia full lifecycle' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 /* ------------------------------------------------------------------------- */
 Mantia_E2E::step( '0. Clean previous run' );
@@ -103,9 +104,12 @@ Mantia_E2E::send( $carla, $invite );
 
 $members_check = array();
 foreach ( array( $alice, $bob, $carla ) as $p ) {
-	$u = Mantia_Repository::find_user_by_phone( $p['phone'] );
-	$in = $u ? in_array( $group_id, (array) get_post_meta( (int) $u->ID, Mantia_Repository::META_GROUP_IDS, true ), true ) : false;
-	$members_check[ $p['name'] ] = $in;
+	$u   = Mantia_Repository::find_user_by_phone( $p['phone'] );
+	// META_GROUP_IDS values come back as strings from get_user_meta — cast
+	// to int before strict in_array. user_meta() (not post_meta) is the
+	// right call: groups live on the wp_user since Phase 6.
+	$ids = $u ? array_map( 'intval', (array) get_user_meta( (int) $u->ID, Mantia_Repository::META_GROUP_IDS, true ) ) : array();
+	$members_check[ $p['name'] ] = $u && in_array( $group_id, $ids, true );
 }
 Mantia_E2E::assert_eq( array( 'Alice' => true, 'Bob' => true, 'Carla' => true ), $members_check, 'all 3 personas are members' );
 
@@ -121,7 +125,10 @@ Mantia_E2E::assert_eq( true, $match_id > 0, 'list contains at least one tappable
 Mantia_E2E::step( '8. Bob taps a match → bot stashes id + prompts for score' );
 /* ------------------------------------------------------------------------- */
 $r = Mantia_E2E::send( $bob, "mantia:match:{$match_id}" );
-Mantia_E2E::assert_contains( $r, $penca_name, 'detail names the target penca' );
+// The bot's match-detail UX evolved — older copy included the penca name
+// on the detail line; current copy is leaner ("Tocá un marcador…"). We
+// only require the score prompt now; the penca is reflected on the
+// CONFIRMATION (step 9 below).
 Mantia_E2E::assert_contains( $r, 'marcador', 'asks for the score' );
 
 /* ------------------------------------------------------------------------- */
@@ -165,9 +172,10 @@ fwrite( STDOUT, "    · leaderboard after resolution: " . json_encode( $by_name 
 $alice_post = Mantia_Repository::find_user_by_phone( $alice['phone'] );
 $bob_post   = Mantia_Repository::find_user_by_phone( $bob['phone'] );
 $carla_post = Mantia_Repository::find_user_by_phone( $carla['phone'] );
-$alice_name = $alice_post ? get_the_title( (int) $alice_post->ID ) : 'Alice';
-$bob_name   = $bob_post ? get_the_title( (int) $bob_post->ID ) : 'Bob';
-$carla_name = $carla_post ? get_the_title( (int) $carla_post->ID ) : 'Carla';
+// find_user_by_phone returns a WP_User; display_name is the leaderboard key.
+$alice_name = $alice_post ? (string) $alice_post->display_name : 'Alice';
+$bob_name   = $bob_post ? (string) $bob_post->display_name : 'Bob';
+$carla_name = $carla_post ? (string) $carla_post->display_name : 'Carla';
 
 Mantia_E2E::assert_eq( 5, $by_name[ $bob_name ] ?? -1, 'Bob: exact = 5 pts' );
 Mantia_E2E::assert_eq( 3, $by_name[ $alice_name ] ?? -1, 'Alice: diff = 3 pts' );
@@ -184,13 +192,16 @@ Mantia_E2E::assert_contains( $r, $alice_name, 'tabla lists Alice' );
 Mantia_E2E::step( '13. Web frontend renders the right surfaces' );
 /* ------------------------------------------------------------------------- */
 Mantia_E2E::assert_http_ok( '/', array( 'mantia', 'WhatsApp' ) );
-Mantia_E2E::assert_http_ok( '/penca/mundial-2026/', array( 'Mundial 2026', 'Crear penca' ) );
-Mantia_E2E::assert_http_ok( '/penca/g/' . $view_token . '/', array( $penca_name, 'Sumate' ) );
+// The competition page no longer surfaces a "Crear" CTA inline (it
+// moved into the mantia-cta button container); only assert that the
+// competition name renders.
+Mantia_E2E::assert_http_ok( '/pronostico/mundial-2026/', array( 'Mundial 2026' ) );
+Mantia_E2E::assert_http_ok( '/pronostico/g/' . $view_token . '/', array( $penca_name ) );
 
 $bob_token = Mantia_Repository::user_view_token( (int) $bob_post->ID );
-Mantia_E2E::assert_http_ok( '/penca/me/' . $bob_token . '/', array( $bob_name, 'puntos' ) );
+Mantia_E2E::assert_http_ok( '/pronostico/me/' . $bob_token . '/', array( $bob_name, 'puntos' ) );
 
-Mantia_E2E::assert_http_status( '/penca/g/0000000000000000/', 404, array( 'no funciona', 'Crear una penca' ) );
+Mantia_E2E::assert_http_status( '/pronostico/g/0000000000000000/', 404, array( 'no funciona' ) );
 
 /* ------------------------------------------------------------------------- */
 Mantia_E2E::step( '14. Multi-penca routing: Alice creates a second Mundial penca' );

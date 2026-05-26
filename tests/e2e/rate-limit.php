@@ -15,9 +15,12 @@ Mantia_E2E::cleanup();
 
 $alice = Mantia_E2E::persona( 'Alice', 1 );
 
+// Force a small cap so the test runs in <1s and survives default tweaks.
+// The plugin's prod default is 40; we pin to 5 here so the loop is short.
+add_filter( 'mantia_rate_limit_max', static fn(): int => 5, 99 );
+
 Mantia_E2E::step( '1. First N messages pass through' );
-// Default cap is 20/60s — filterable via mantia_rate_limit_max.
-$max = (int) apply_filters( 'mantia_rate_limit_max', 20 );
+$max = (int) apply_filters( 'mantia_rate_limit_max', 5 );
 for ( $i = 1; $i <= $max; $i++ ) {
 	$r = Mantia_Whatsapp_Flow::maybe_handle_command(
 		null,

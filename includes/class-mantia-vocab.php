@@ -6,14 +6,17 @@
  *   UY/PY        → "penca"     (Río de la Plata native term)
  *   AR/CL/MX/ES  → "pronóstico" (neutral Spanish — avoids dated
  *                                lottery brand collisions like
- *                                "prode" or "quiniela")
+ *                                "prode" or "quiniela", and the
+ *                                "penca = mala onda" reading in MX/ES)
  *   BR           → "bolão"     (Portuguese native)
  *
  * We pick the right word based on the user's WhatsApp E.164 phone
  * country code. For server-side surfaces where we have no phone (the
  * public web), we fall back to a site-default driven by the
- * `mantia_default_country` option (UY by default since that's the
- * canonical install).
+ * `mantia_default_country` option. The default of that option is
+ * 'AR' → "pronóstico", which is the neutral choice for an unconfigured
+ * install. The canonical mantia3 install sets `mantia_default_country`
+ * to 'UY' explicitly to keep "penca" on its public surfaces.
  *
  * Strings are kept short and grammatically simple (avoid adjective
  * gender agreement) so a single noun swap works across the bot copy
@@ -126,13 +129,13 @@ final class Mantia_Vocab {
 	);
 
 	private const DEFAULT_VOCAB = array(
-		'noun'          => 'penca',
-		'plural'        => 'pencas',
-		'create'        => 'Crear penca',
-		'article'       => 'la',
-		'article_indef' => 'una',
-		'new_adj'       => 'nueva',
-		'active_adj'    => 'activa',
+		'noun'          => 'pronóstico',
+		'plural'        => 'pronósticos',
+		'create'        => 'Crear pronóstico',
+		'article'       => 'el',
+		'article_indef' => 'un',
+		'new_adj'       => 'nuevo',
+		'active_adj'    => 'activo',
 	);
 
 	/**
@@ -148,7 +151,7 @@ final class Mantia_Vocab {
 	}
 
 	public static function for_site(): array {
-		$code = strtoupper( (string) apply_filters( 'mantia_default_country', get_option( 'mantia_default_country', 'UY' ) ) );
+		$code = strtoupper( (string) apply_filters( 'mantia_default_country', get_option( 'mantia_default_country', 'AR' ) ) );
 		return self::VOCAB[ $code ] ?? self::DEFAULT_VOCAB;
 	}
 

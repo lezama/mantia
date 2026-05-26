@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Consensus respects the pre-kickoff privacy guard' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
 
 $alice = Mantia_E2E::persona( 'Alice', 1 );
 $bob   = Mantia_E2E::persona( 'Bob',   2 );
@@ -28,7 +29,9 @@ Mantia_E2E::send( $alice, '__E2E__ Consenso' );
 
 $alice_user = Mantia_Repository::find_user_by_phone( $alice['phone'] );
 $alice_id   = (int) $alice_user->ID;
-$group_id   = (int) ( (array) get_post_meta( $alice_id, Mantia_Repository::META_GROUP_IDS, true ) )[0];
+// Groups live on user_meta since Phase 6.
+$group_ids  = (array) get_user_meta( $alice_id, Mantia_Repository::META_GROUP_IDS, true );
+$group_id   = isset( $group_ids[0] ) ? (int) $group_ids[0] : 0;
 $invite     = (string) get_post_meta( $group_id, Mantia_Repository::META_INVITE_CODE, true );
 
 Mantia_E2E::send( $bob, 'me llamo Bob' );

@@ -12,6 +12,8 @@ defined( 'ABSPATH' ) || exit;
 require_once dirname( __DIR__ ) . '/lib.php';
 
 Mantia_E2E::start( 'Resolution is idempotent' );
+Mantia_E2E::require_fixture_or_skip( 'mundial-2026' );
+Mantia_E2E::require_team_match_or_skip( 'Uruguay', 'Portugal' );
 
 Mantia_E2E::cleanup();
 Mantia_Competitions::seed_defaults();

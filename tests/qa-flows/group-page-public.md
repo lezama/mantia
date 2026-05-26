@@ -1,17 +1,17 @@
 ---
 slug: group-page-public
-title: Página pública del grupo (/penca/g/<view_token>)
+title: Página pública del grupo (/pronostico/g/<view_token>)
 type: web
 ---
 
-# /penca/g/<token>/
+# /pronostico/g/<token>/
 
 **Goal.** Cualquiera con el view_token de la penca puede ver el ranking.
 NO se ve info privada (no view tokens de otros users, no scores ajenos).
 
 **Steps.**
 
-1. Navegar a `/penca/g/<group_token>/` (mobile + desktop).
+1. Navegar a `/pronostico/g/<group_token>/` (mobile + desktop).
 2. Verificar render:
    - Nombre del grupo, # de jugadores.
    - Ranking del grupo (pedestal #1 + board de los demás).

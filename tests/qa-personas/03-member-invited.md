@@ -17,7 +17,7 @@ abandona en 10 segundos.
 
 **Qué evalúa.**
 
-- ¿El link que recibió abre la página del grupo (`/penca/g/<token>/sumate/`)
+- ¿El link que recibió abre la página del grupo (`/pronostico/g/<token>/sumate/`)
   o un onboarding del bot?
 - ¿La página de invite tiene un CTA claro "Sumate por WhatsApp"?
 - Cuando le habla al bot por primera vez, ¿el bot sabe que viene de una
@@ -28,7 +28,7 @@ abandona en 10 segundos.
 
 **Cosas a chequear.**
 
-- Visitar el link de share del owner (`/penca/g/<token>/sumate/`) en
+- Visitar el link de share del owner (`/pronostico/g/<token>/sumate/`) en
   Chrome MCP — la página debe rendererearse bien, dar OG image preview-
   friendly, y tener CTA "Sumate por WhatsApp" linkeando a wa.me con un
   texto pre-armado.

@@ -254,6 +254,26 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_consensus( $identity );
 		}
 
+		// Sweepstake: organiser draws one random team per group member.
+		// First-draw aliases REQUIRE a qualifier (sortear/sortear equipos/
+		// hacé el sorteo/polla de equipos) — bare "polla" and bare "sorteo"
+		// are too common as standalone Spanish words to safely capture.
+		if ( preg_match( '/^(?:\/?sortear(?:\s+equipos?)?|hac[eé]r?\s+(?:el\s+)?sorteo(?:\s+de\s+equipos?)?|polla\s+de\s+equipos?)$/iu', $lc ) ) {
+			return self::handle_sweepstake_draw( $identity, false );
+		}
+
+		// Explicit re-draw — wipes any existing assignment. Separate alias
+		// so a one-off `sortear` typo can't silently overwrite everyone's
+		// team mid-tournament.
+		if ( preg_match( '/^(?:re[-\s]?sortear(?:\s+equipos?)?|sortear\s+de\s+nuevo|volver\s+a\s+sortear|nuevo\s+sorteo|rehacer\s+(?:el\s+)?sorteo)$/iu', $lc ) ) {
+			return self::handle_sweepstake_draw( $identity, true );
+		}
+
+		// Sweepstake query — "what's my team?"
+		if ( preg_match( '/^(?:mi\s+(?:equipo|sorteo|sweepstake)|qu[eé]\s+equipo\s+me\s+toc[oó]\??)$/iu', $lc ) ) {
+			return self::handle_sweepstake_mine( $identity );
+		}
+
 		// Bulk-set "Argentina gana todo" / "Brasil gana siempre" / "Marca a
 		// Uruguay como ganador". Maps every upcoming match where the named
 		// team plays to a 2-1 win (most common winning scoreline). Lets
@@ -329,7 +349,13 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$group_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
 		if ( $group_id <= 0 ) {
-			return array( 'reply' => 'Activá una penca primero (mandame *mis pencas* y tocá una).', 'completed' => true );
+			$indef  = Mantia_Vocab::word( 'article_indef', $identity['phone'] ?? '' );
+			$noun   = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
+			$plural = Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' );
+			return array(
+				'reply'     => sprintf( 'Activá %s %s primero (mandame *mis %s* y tocá %s).', $indef, $noun, $plural, $indef ),
+				'completed' => true,
+			);
 		}
 
 		// Find the most recently kicked-off match in this penca's
@@ -358,7 +384,11 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// Format as a flat readable list, leading with the majority pick.
+		// Format as: header with real score, then the aggregate vote tally,
+		// then the per-user breakdown with ✓/diff/winner badges (only when
+		// the match has finished — for in-progress matches we still reveal
+		// individual picks since kickoff already happened, but the badges
+		// stay neutral).
 		$total = array_sum( $consensus );
 		$lines = array(
 			sprintf(
@@ -369,14 +399,153 @@ final class Mantia_Whatsapp_Flow {
 				Mantia_Frontend::normalize_team_name( (string) $match['away_team'] )
 			),
 			sprintf( '_Cómo votó el grupo (%d jugadores):_', $total ),
-			'',
 		);
 		foreach ( $consensus as $score => $count ) {
 			$lines[] = sprintf( '  *%s* — %d', $score, $count );
 		}
 
+		$rows = Mantia_Repository::group_predictions_for_match( $group_id, (int) $match['id'] );
+		if ( ! empty( $rows ) ) {
+			$lines[] = '';
+			$lines[] = '_Quién puso qué:_';
+			foreach ( $rows as $row ) {
+				// Anchor emojis only (approved set): ✅ for exact, ⚽ for
+				// matching goal-difference, 🏆 for the right outcome. No
+				// decorative emojis on the per-row lines.
+				$badge = '';
+				if ( $row['exact']  )      { $badge = ' ✅ exacto'; }
+				elseif ( $row['diff']   )  { $badge = ' ⚽ +diff'; }
+				elseif ( $row['winner'] )  { $badge = ' 🏆 ganador'; }
+				$lines[] = sprintf( '  *%s* %d-%d%s', $row['name'], (int) $row['home'], (int) $row['away'], $badge );
+			}
+		}
+
 		return array(
 			'reply'     => implode( "\n", $lines ),
+			'completed' => true,
+		);
+	}
+
+	/**
+	 * /sortear — draw one random team per group member from the active
+	 * penca's competition fixture. A second `sortear` after a draw exists
+	 * returns a guard reply instead of silently re-shuffling; the user
+	 * has to mandar `re-sortear` (force=true) to overwrite. Prevents a
+	 * mid-tournament typo from wiping everyone's affinity team.
+	 */
+	private static function handle_sweepstake_draw( array $identity, bool $force ): array {
+		$phone = (string) ( $identity['phone'] ?? '' );
+		if ( '' === $phone ) {
+			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+		}
+		$user = Mantia_Repository::find_user_by_phone( $phone );
+		if ( ! $user ) {
+			$noun  = Mantia_Vocab::word( 'noun', $phone );
+			$indef = Mantia_Vocab::word( 'article_indef', $phone );
+			return array(
+				'reply'     => sprintf( 'Primero entrá a %s %s con su código.', $indef, $noun ),
+				'completed' => true,
+			);
+		}
+		$group_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
+		if ( $group_id <= 0 ) {
+			$noun   = Mantia_Vocab::word( 'noun', $phone );
+			$plural = Mantia_Vocab::word( 'plural', $phone );
+			$indef  = Mantia_Vocab::word( 'article_indef', $phone );
+			$activa = Mantia_Vocab::word( 'active_adj', $phone );
+			return array(
+				'reply'     => sprintf( 'Activá %s %s %s primero (mandame *mis %s*).', $indef, $noun, $activa, $plural ),
+				'completed' => true,
+			);
+		}
+
+		// Guard against accidental re-draws. If anyone already has a team,
+		// require the user to mandar *re-sortear* explicitly to overwrite.
+		if ( ! $force ) {
+			$existing = Mantia_Repository::sweepstake_for_group( $group_id );
+			foreach ( $existing as $row ) {
+				if ( '' !== (string) ( $row['team'] ?? '' ) ) {
+					$noun = Mantia_Vocab::word( 'noun', $phone );
+					return array(
+						// Plain sentence — no anchor emoji needed. The
+						// previous ⚠️ wasn't in the approved set; dropping
+						// it keeps the message readable without decoration.
+						'reply'     => sprintf( 'Ya hubo sorteo en esta %s. Mandame *mi equipo* para ver el tuyo, o *re-sortear* para volver a tirar.', $noun ),
+						'completed' => true,
+					);
+				}
+			}
+		}
+
+		$assignments = Mantia_Repository::assign_sweepstake( $group_id );
+		if ( empty( $assignments ) ) {
+			return array(
+				'reply'     => '❌ No pude armar el sorteo: no hay equipos cargados en la competencia, o el grupo está vacío.',
+				'completed' => true,
+			);
+		}
+
+		$group = Mantia_Repository::group_to_array( $group_id );
+		$rows  = Mantia_Repository::sweepstake_for_group( $group_id );
+		$lines = array(
+			sprintf( '🎲 *Sorteo — %s*', (string) $group['name'] ),
+			'',
+		);
+		foreach ( $rows as $row ) {
+			// Italic on the empty-slot placeholder so it reads as a hint,
+			// not as a team literally called "sin equipo" (rule: italic for
+			// secondary / status text).
+			$team    = '' !== (string) $row['team'] ? sprintf( '*%s*', (string) $row['team'] ) : '_sin equipo_';
+			$lines[] = sprintf( '  • %s → %s', $row['name'], $team );
+		}
+		$lines[] = '';
+		$lines[] = '📅 Te aviso cuando juegue tu equipo.';
+		$lines[] = '_Mandame *mi equipo* para consultar._';
+
+		return array(
+			'reply'     => implode( "\n", $lines ),
+			'completed' => true,
+		);
+	}
+
+	/**
+	 * /mi equipo — query the caller's sweepstake assignment for their
+	 * active penca. Silent fallback when no draw happened yet.
+	 */
+	private static function handle_sweepstake_mine( array $identity ): array {
+		$phone = (string) ( $identity['phone'] ?? '' );
+		if ( '' === $phone ) {
+			return array( 'reply' => 'No pude identificar tu numero. Reintentá en un toque.', 'completed' => true );
+		}
+		$user = Mantia_Repository::find_user_by_phone( $phone );
+		if ( ! $user ) {
+			$noun  = Mantia_Vocab::word( 'noun', $phone );
+			$indef = Mantia_Vocab::word( 'article_indef', $phone );
+			return array(
+				'reply'     => sprintf( 'Todavía no estás en %s %s.', $indef, $noun ),
+				'completed' => true,
+			);
+		}
+		$group_id = Mantia_Repository::active_group_id_for_user( (int) $user->ID );
+		if ( $group_id <= 0 ) {
+			$noun   = Mantia_Vocab::word( 'noun', $phone );
+			$indef  = Mantia_Vocab::word( 'article_indef', $phone );
+			$activa = Mantia_Vocab::word( 'active_adj', $phone );
+			return array(
+				'reply'     => sprintf( 'No tenés %s %s %s.', $indef, $noun, $activa ),
+				'completed' => true,
+			);
+		}
+		$team = Mantia_Repository::get_sweepstake_team( (int) $user->ID, $group_id );
+		if ( '' === $team ) {
+			$noun = Mantia_Vocab::word( 'noun', $phone );
+			return array(
+				'reply'     => sprintf( '⏳ Todavía no hubo sorteo en esta %s. Pedile al organizador que mande *sortear*.', $noun ),
+				'completed' => true,
+			);
+		}
+		return array(
+			'reply'     => sprintf( '🎲 Tu equipo del sorteo: *%s*', $team ),
 			'completed' => true,
 		);
 	}
@@ -456,8 +625,9 @@ final class Mantia_Whatsapp_Flow {
 		}
 
 		if ( 0 === $touched ) {
+			$plural = Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' );
 			return array(
-				'reply'     => sprintf( 'No encontré partidos pendientes con *%s*. Quizás ya jugaron, o no están en tus pencas.', $canonical ),
+				'reply'     => sprintf( 'No encontré partidos pendientes con *%s*. Quizás ya jugaron, o no están en tus %s.', $canonical, $plural ),
 				'completed' => true,
 			);
 		}
@@ -822,18 +992,21 @@ final class Mantia_Whatsapp_Flow {
 			$lines[] = '*' . $code . '*';
 		}
 		$lines[] = '';
-		$lines[] = '_— Mantia, penca por WhatsApp_';
+		// Brand footer — kept country-neutral ("fútbol" works everywhere) so a
+		// forwarded card reads naturally no matter which region the recipient
+		// is in. The card itself isn't bound to a specific user phone.
+		$lines[] = '_— Mantia, fútbol por WhatsApp_';
 		unset( $comp ); // intentionally not used in the body
 		return $lines;
 	}
 
 	/**
-	 * Build the /penca/sumate/<INVITE_CODE>/ landing URL. The page handles
+	 * Build the /pronostico/sumate/<INVITE_CODE>/ landing URL. The page handles
 	 * OG preview for WhatsApp + 302s to wa.me with the code prefilled.
 	 *
 	 * Uses invite_code (random + non-guessable) rather than the group slug.
 	 * The slug shape leaked existence + bypassed the invite_code gate via
-	 * guessing — "Los Cinicos" → /penca/g/los-cinicos/sumate/ → anyone
+	 * guessing — "Los Cinicos" → /pronostico/g/los-cinicos/sumate/ → anyone
 	 * who could guess the name could see and join.
 	 */
 	private static function build_join_landing_url( array $group ): string {
@@ -841,7 +1014,7 @@ final class Mantia_Whatsapp_Flow {
 		if ( '' === $code ) {
 			return '';
 		}
-		return home_url( '/penca/sumate/' . $code . '/' );
+		return home_url( '/pronostico/sumate/' . $code . '/' );
 	}
 
 	/**
@@ -1330,7 +1503,12 @@ final class Mantia_Whatsapp_Flow {
 			'_↑ Reenviá la tarjeta de arriba a tus amigos._',
 			'',
 			sprintf( '*%s* (%s)', $group['name'], $group['competition_name'] ?? '' ),
-			sprintf( '👥 %d en la penca', count( Mantia_Repository::group_members( $active ) ) ),
+			sprintf(
+				'👥 %d en %s %s',
+				count( Mantia_Repository::group_members( $active ) ),
+				Mantia_Vocab::word( 'article', $identity['phone'] ?? '' ),
+				$noun
+			),
 		);
 
 		if ( '' !== $share ) {
