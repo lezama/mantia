@@ -1,8 +1,12 @@
 <?php
 /**
  * One-off deployment script: nuke everything that isn't Mundial 2026,
- * create a fresh 'libertadores-prueba' competition, and seed the 12
- * Libertadores matchday-6 fixtures (today + tomorrow, Uruguay time).
+ * create a fresh test competition (slug stays 'libertadores-prueba' for
+ * backwards compatibility with promptfoo configs + setup-matrix), and
+ * seed it with REAL Brasileirão Serie A weekend fixtures.
+ *
+ * Source of truth: ESPN.com Brazil Serie A schedule, fetched 2026-05-27.
+ * Weekend 30-31 may 2026 — the last round before the Mundial 2026 break.
  *
  * Run via:
  *   ssh mantia3.wordpress.com@ssh.wp.com "cd htdocs && wp eval-file wp-content/plugins/mantia/tools/deploy-libertadores-prueba.php"
@@ -10,13 +14,18 @@
  * Idempotent: each match has a stable external_id so re-running updates
  * in place. Competition slug is fixed at 'libertadores-prueba'.
  *
+ * When the weekend passes, refresh by re-querying ESPN/Soccerway and
+ * replacing the $matches array below. The freshness guard in
+ * promptfooconfig.matrix.yaml will fail loudly once any kickoff drops
+ * into the past.
+ *
  * @package Mantia
  */
 
 defined( 'ABSPATH' ) || exit;
 
 echo "============================================================\n";
-echo "Mantia · deploy libertadores-prueba (today+tomorrow UY)\n";
+echo "Mantia · deploy fixture (Brasileirão · finde 30-31 may 2026)\n";
 echo "============================================================\n";
 
 /* ── 1. Wipe every competition that isn't Mundial ──────────────── */
@@ -80,23 +89,27 @@ if ( $existing ) {
 $prueba_id = wp_insert_post( array(
 	'post_type'    => Mantia_CPTs::COMPETITION,
 	'post_status'  => 'publish',
-	'post_title'   => 'Libertadores fecha 6 (prueba)',
+	'post_title'   => 'Brasileirão · finde (prueba)',
 	'post_name'    => 'libertadores-prueba',
-	'post_excerpt' => 'Fixture de prueba — Libertadores fecha 6, hoy + mañana (UY)',
+	'post_excerpt' => 'Fixture de prueba — Brasileirão Serie A, 30-31 may 2026 (real fixtures via ESPN)',
 	'menu_order'   => 5,
 ), true );
 if ( is_wp_error( $prueba_id ) ) {
-	echo "ERROR creating libertadores-prueba: " . $prueba_id->get_error_message() . "\n";
+	echo "ERROR creating fixture comp: " . $prueba_id->get_error_message() . "\n";
 	return;
 }
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_EMOJI, '🧪' );
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_IS_DEFAULT, 1 );  // set as default
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_SORT_ORDER, 5 );
-// Aliases the bot accepts when a user mentions the competition.
+// Aliases the bot accepts when a user mentions the competition. The
+// slug stays 'libertadores-prueba' for back-compat with promptfoo +
+// setup-matrix, but every alias the user is likely to type points to
+// the same comp.
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_ALIASES, array(
-	'libertadores', 'libertadores prueba', 'libertadores fecha 6', 'fecha 6', 'libertadores-prueba'
+	'brasileirao', 'brasileirão', 'brasileiro', 'serie a', 'finde', 'fin de semana',
+	'libertadores', 'libertadores-prueba', 'prueba'
 ) );
-echo "  + created competition 'libertadores-prueba' (id=$prueba_id)\n";
+echo "  + created competition slug='libertadores-prueba' title='Brasileirão · finde (prueba)' (id=$prueba_id)\n";
 
 // Unset the previous default flag if it was on a different comp.
 foreach ( $comps as $c ) {
@@ -105,61 +118,42 @@ foreach ( $comps as $c ) {
 	}
 }
 
-/* ── 3. Insert the 12 matchday-6 fixtures ────────────────────── */
-// Kickoffs are computed dynamically so the seed never ages into the
-// past. Real Copa Libertadores fecha 6 shape: 12 matches across 2 days,
-// two slots per day (19:00 UY and 21:30 UY = 22:00 UTC / 00:30 UTC).
-// We anchor "day 0" to today UY, OR tomorrow UY if it's already past
-// 17:00 UY locally (so the first 19:00 UY slot is still in the future).
-//
-// 2026-05-27 incident: prior version had hardcoded 2026-05-26..28 dates;
-// once we crossed 05-27 the Peñarol fixture rendered "hoy 21:30" while
-// the real-life match had been played the day before — bot offered to
-// take a prediction on a match the user knew was already over.
-$now_utc           = time();
-// $base_midnight_utc is the UTC timestamp that corresponds to 00:00 UY
-// of the day we anchor to. UY is UTC-3, so 00:00 UY = 03:00 UTC.
-$today_uy_midnight = strtotime( gmdate( 'Y-m-d', $now_utc - 3 * HOUR_IN_SECONDS ) . ' 03:00:00 UTC' );
-// 17:00 UY = 20:00 UTC. If we're past that, push base to tomorrow so
-// even the earliest slot (19:00 UY) is still in the future.
-$base_midnight_utc = $today_uy_midnight + ( $now_utc >= $today_uy_midnight + 17 * HOUR_IN_SECONDS ? DAY_IN_SECONDS : 0 );
-
-// Slot offsets from base (00:00 UY): just add the local UY hour. We
-// don't add 22h/24h — that double-counts the UTC offset already baked
-// into $base_midnight_utc.
-//   19:00 UY → base + 19h
-//   21:30 UY → base + 21h30m
-$slot_d0_19 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + 19 * HOUR_IN_SECONDS );
-$slot_d0_21 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + 21 * HOUR_IN_SECONDS + 30 * MINUTE_IN_SECONDS );
-$slot_d1_19 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + DAY_IN_SECONDS + 19 * HOUR_IN_SECONDS );
-$slot_d1_21 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + DAY_IN_SECONDS + 21 * HOUR_IN_SECONDS + 30 * MINUTE_IN_SECONDS );
-
-printf( "  · slots: d0/19=%s · d0/21=%s · d1/19=%s · d1/21=%s\n", $slot_d0_19, $slot_d0_21, $slot_d1_19, $slot_d1_21 );
-
+/* ── 3. Insert the Brasileirão weekend fixtures ──────────────────
+ * Real fixtures, weekend 30-31 may 2026, scraped from ESPN's Brazil
+ * Serie A schedule on 2026-05-27. Times are local Brazilian (BRT,
+ * UTC-3 year-round since 2019). Stored as UTC.
+ *
+ * 6 matches: 3 Saturday + 3 Sunday, spread across morning / afternoon
+ * / night slots so the picker has variety. Picked the higher-profile
+ * matchups from the round of 10 (Flamengo, Palmeiras, Corinthians,
+ * Cruzeiro, Internacional, Santos).
+ *
+ * BRT → UTC conversion:
+ *   15:00 BRT = 18:00 UTC same day
+ *   16:30 BRT = 19:30 UTC same day
+ *   19:00 BRT = 22:00 UTC same day
+ *   10:00 BRT = 13:00 UTC same day
+ *   19:30 BRT = 22:30 UTC same day
+ */
 $matches = array(
-	array( 'home' => 'LDU Quito',              'away' => 'Always Ready',           'kickoff' => $slot_d0_19 ),
-	array( 'home' => 'Lanús',                  'away' => 'Mirassol',               'kickoff' => $slot_d0_19 ),
-	array( 'home' => 'Nacional',               'away' => 'Coquimbo Unido',         'kickoff' => $slot_d0_21 ),
-	array( 'home' => 'Flamengo',               'away' => 'Cusco FC',               'kickoff' => $slot_d0_21 ),
-	array( 'home' => 'Estudiantes',            'away' => 'Independiente Medellín', 'kickoff' => $slot_d0_21 ),
-	array( 'home' => 'Universitario',          'away' => 'Deportes Tolima',        'kickoff' => $slot_d0_21 ),
-	array( 'home' => 'Independiente del Valle','away' => 'Rosario Central',        'kickoff' => $slot_d1_19 ),
-	array( 'home' => 'Libertad',               'away' => 'Universidad Central',    'kickoff' => $slot_d1_19 ),
-	array( 'home' => 'Peñarol',                'away' => 'Independiente Santa Fe', 'kickoff' => $slot_d1_21 ),
-	array( 'home' => 'Fluminense',             'away' => 'Deportivo La Guaira',    'kickoff' => $slot_d1_21 ),
-	array( 'home' => 'Corinthians',            'away' => 'Atlético Platense',      'kickoff' => $slot_d1_21 ),
-	array( 'home' => 'Bolívar',                'away' => 'Independiente Rivadavia','kickoff' => $slot_d1_21 ),
+	array( 'home' => 'Flamengo',           'away' => 'Coritiba',       'kickoff' => '2026-05-30 18:00:00' ), // sáb 15:00 BRT
+	array( 'home' => 'Grêmio',             'away' => 'Corinthians',    'kickoff' => '2026-05-30 19:30:00' ), // sáb 16:30 BRT
+	array( 'home' => 'Santos',             'away' => 'Vitória',        'kickoff' => '2026-05-30 22:00:00' ), // sáb 19:00 BRT
+	array( 'home' => 'Bragantino',         'away' => 'Internacional',  'kickoff' => '2026-05-31 13:00:00' ), // dom 10:00 BRT
+	array( 'home' => 'Palmeiras',          'away' => 'Chapecoense',    'kickoff' => '2026-05-31 18:00:00' ), // dom 15:00 BRT
+	array( 'home' => 'Cruzeiro',           'away' => 'Fluminense',     'kickoff' => '2026-05-31 22:30:00' ), // dom 19:30 BRT
 );
 
 $inserted = 0;
+$total    = count( $matches );
 foreach ( $matches as $i => $m ) {
-	$ext = sprintf( 'libertadores-prueba-md6-%02d', $i + 1 );
+	$ext = sprintf( 'brasileirao-finde-%02d', $i + 1 );
 	$post_id = Mantia_Repository::upsert_match( array(
 		'external_id'    => $ext,
 		'home_team'      => $m['home'],
 		'away_team'      => $m['away'],
 		'kickoff_gmt'    => $m['kickoff'],
-		'phase'          => 'Fecha 6 — Fase de grupos',
+		'phase'          => 'Brasileirão · Serie A',
 		'status'         => 'scheduled',
 		'home_score'     => null,
 		'away_score'     => null,
@@ -167,10 +161,10 @@ foreach ( $matches as $i => $m ) {
 	) );
 	if ( $post_id > 0 ) {
 		$inserted++;
-		printf( "  + #%-4d  %-30s vs %-30s  %s UTC\n", $post_id, $m['home'], $m['away'], $m['kickoff'] );
+		printf( "  + #%-4d  %-22s vs %-22s  %s UTC\n", $post_id, $m['home'], $m['away'], $m['kickoff'] );
 	}
 }
-echo "  · inserted $inserted / 12 matches\n\n";
+echo "  · inserted $inserted / $total matches\n\n";
 
 /* ── 4. Flush rewrites + verify ──────────────────────────────── */
 flush_rewrite_rules();

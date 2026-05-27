@@ -74,8 +74,13 @@ setup_state() {
     return 3
   fi
   # Surface the freshness summary on success too — easy to spot in logs.
+  # FIXTURE_SLOTS is only emitted by the dynamic-date variant of the seed;
+  # when we ship absolute-date fixtures (e.g. real weekend matches) the
+  # line is absent and we just print the future-match count.
   if echo "$out" | grep -q "^MATCHES_FUTURE:"; then
-    echo "  · $(echo "$out" | grep '^FIXTURE_SLOTS:' | head -1 | sed 's/^FIXTURE_SLOTS: //')"
+    if echo "$out" | grep -q "^FIXTURE_SLOTS:"; then
+      echo "  · $(echo "$out" | grep '^FIXTURE_SLOTS:' | head -1 | sed 's/^FIXTURE_SLOTS: //')"
+    fi
     echo "  · $(echo "$out" | grep '^MATCHES_FUTURE:' | head -1)"
   fi
 
