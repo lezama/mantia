@@ -71,11 +71,14 @@ const SCENARIOS = [
       { kind: 'goto', url: `${V.BASE}/pronostico/g/${V.LIBE_VIEW}/?as=${V.ALICE_SHARE}`, label: '01-libe-as-alice' },
       { kind: 'dump', label: '01-libe-as-alice' },
       // CTA should be the member-facing "Invitar amigos · código X".
+      // Multiple primary pills exist on the page (the predict CTA was
+      // promoted to primary too); select by visible text.
       { kind: 'assert', label: 'cta-is-invitar', fn: async (page) => {
-        const cta = await page.locator('a.mantia-pill-primary').first().textContent();
-        if (!cta?.includes('Invitar amigos')) throw new Error(`unexpected CTA text: ${cta}`);
-        const href = await page.locator('a.mantia-pill-primary').first().getAttribute('href');
-        if (!href?.startsWith('https://wa.me/')) throw new Error(`CTA href doesn't open WA share: ${href}`);
+        const html = await page.content();
+        if (!html.includes('Invitar amigos')) throw new Error(`"Invitar amigos" CTA not found`);
+        const invitar = page.locator('a.mantia-pill-primary', { hasText: 'Invitar amigos' });
+        const href = await invitar.first().getAttribute('href');
+        if (!href?.startsWith('https://wa.me/')) throw new Error(`Invitar href doesn't open WA share: ${href}`);
       } },
       // Tap the breadcrumb to the competition page — ?as= must survive.
       { kind: 'click', selector: 'a.mantia-crumb', label: '02-tap-breadcrumb' },

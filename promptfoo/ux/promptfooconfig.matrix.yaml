@@ -106,8 +106,10 @@ tests:
       url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
     assert:
       # Bob has a share_token but isn't in this penca → page identifies
-      # him but CTA stays the join CTA (he's a non-member viewer).
-      - { type: contains, value: 'Sumate · código {{MUN_CODE}}' }
+      # him and uses the warmer "también" handshake CTA instead of the
+      # cold "Sumate · código X" anonymous CTA (expert-review 2026-05-27).
+      - { type: contains, value: 'Sumate también a {{MUN_NAME}}' }
+      - { type: contains, value: '{{MUN_CODE}}' }
       - { type: not-contains, value: 'Invitar amigos' }
 
   - description: 'mun·carol — member, no manual predictions'
