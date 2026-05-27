@@ -31,6 +31,7 @@ spl_autoload_register(
 			'Mantia_Scoring'         => 'class-mantia-scoring.php',
 			'Mantia_Vocab'           => 'class-mantia-vocab.php',
 			'Mantia_Whatsapp_Flow'   => 'class-mantia-whatsapp-flow.php',
+			'Mantia_Whatsapp_Flows'  => 'class-mantia-whatsapp-flows.php',
 			'Mantia_Workflows'       => 'class-mantia-workflows.php',
 		);
 
