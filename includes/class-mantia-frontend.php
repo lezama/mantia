@@ -651,7 +651,7 @@ final class Mantia_Frontend {
 			<?php if ( ! empty( $matches ) ) : ?>
 				<section class="mantia-block">
 					<div class="mantia-eyebrow"><?php esc_html_e( 'próximos partidos', 'mantia' ); ?></div>
-					<?php self::render_matches_grouped_by_day( array_slice( $matches, 0, 12 ) ); ?>
+					<?php self::render_matches_grouped_by_day( array_slice( $matches, 0, 12 ), (int) ( $me_id ?? 0 ), $group_id ); ?>
 				</section>
 			<?php endif; ?>
 
@@ -2384,9 +2384,27 @@ JS;
 	 * junio") with kickoff times. Marfil hairline-row treatment matching the
 	 * design.
 	 */
-	private static function render_matches_grouped_by_day( array $matches ): void {
+	private static function render_matches_grouped_by_day( array $matches, int $user_id = 0, int $group_id = 0 ): void {
 		if ( empty( $matches ) ) {
 			return;
+		}
+
+		// Pre-fetch the user's prediction for each match so we can surface
+		// "✓ 1-1" inline next to the row. Without this, a user who just
+		// predicted via WhatsApp lands on the group page and sees their
+		// match unmarked — they think the prediction didn't save.
+		$predictions = array();
+		if ( $user_id > 0 && $group_id > 0 ) {
+			foreach ( $matches as $m ) {
+				$mid  = (int) ( $m['id'] ?? 0 );
+				$pred = $mid > 0 ? Mantia_Repository::find_manual_prediction( $user_id, $mid, $group_id ) : null;
+				if ( $pred ) {
+					$predictions[ $mid ] = array(
+						(int) get_post_meta( (int) $pred->ID, Mantia_Repository::META_PRED_HOME_SCORE, true ),
+						(int) get_post_meta( (int) $pred->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true ),
+					);
+				}
+			}
 		}
 
 		// Group by local day key (yyyy-mm-dd in Uruguay).
@@ -2432,6 +2450,10 @@ JS;
 					$hm    = gmdate( 'H:i', $entry['ts'] - 3 * HOUR_IN_SECONDS );
 					$phase = self::normalize_phase( (string) ( $m['phase'] ?? '' ) );
 					?>
+					<?php
+					$mid        = (int) ( $m['id'] ?? 0 );
+					$user_pred  = $predictions[ $mid ] ?? null;
+					?>
 					<div class="mantia-match-row">
 						<div class="mantia-match-time"><?php echo esc_html( $hm ); ?></div>
 						<div class="mantia-match-teams">
@@ -2444,6 +2466,11 @@ JS;
 								<div class="mantia-match-phase"><?php echo esc_html( $phase ); ?></div>
 							<?php endif; ?>
 						</div>
+						<?php if ( null !== $user_pred ) : ?>
+							<div class="mantia-match-pred" title="<?php esc_attr_e( 'Tu pronóstico', 'mantia' ); ?>">
+								<?php echo esc_html( sprintf( '✓ %d-%d', $user_pred[0], $user_pred[1] ) ); ?>
+							</div>
+						<?php endif; ?>
 					</div>
 				<?php endforeach; ?>
 			</div>
@@ -3687,7 +3714,7 @@ body {
 .mantia-day-eyebrow { padding: 0 0 10px; }
 .mantia-match-row {
 	display: grid;
-	grid-template-columns: 54px 1fr;
+	grid-template-columns: 54px 1fr auto;
 	align-items: center;
 	gap: 12px;
 	padding: 13px 14px;
@@ -3696,6 +3723,19 @@ body {
 	border: 2px solid var(--ink);
 	border-radius: 14px;
 	box-shadow: 3px 3px 0 var(--ink);
+}
+.mantia-match-pred {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-variant-numeric: tabular-nums;
+	font-size: 14px;
+	color: var(--ink);
+	background: var(--accent, #c8ff3f);
+	border: 2px solid var(--ink);
+	border-radius: 999px;
+	padding: 4px 10px;
+	white-space: nowrap;
+	box-shadow: 2px 2px 0 var(--ink);
 }
 .mantia-match-time {
 	font-family: var(--font-display);
