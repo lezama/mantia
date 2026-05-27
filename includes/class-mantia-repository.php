@@ -728,13 +728,17 @@ final class Mantia_Repository {
 			if ( $existing ) {
 				$scores = $existing;
 			} else {
-				// Strength-aware random: heavy favorites get higher expected
-				// goals, so Argentina vs Tunisia auto-fills closer to 2-0 than
-				// 1-1, while Uruguay vs Portugal hovers near the realistic
-				// "any of three results" middle.
-				$home_str = self::team_strength( (string) $match['home_team'] );
-				$away_str = self::team_strength( (string) $match['away_team'] );
-				$scores   = self::random_realistic_score( $home_str, $away_str );
+				// Default fill: 0-0 ("empate sin goles"). User stakeholder
+				// flagged on 2026-05-26 that random auto-fills create the
+				// illusion of completed predictions — the user has to undo
+				// every random pick to set their actual one, and "Te faltan
+				// N pronósticos" never fires because everything is
+				// nominally predicted. The 0-0 baseline plus the
+				// META_AUTO_FILLED flag (set below) lets pending_by_
+				// competition count these rows as still-pending; users
+				// opt INTO random via the `azar` command, which clears
+				// the auto_filled flag on whatever it touches.
+				$scores = array( 0, 0 );
 			}
 
 			$pred = self::register_prediction(
@@ -750,6 +754,75 @@ final class Mantia_Repository {
 			}
 		}
 		return $created;
+	}
+
+	/**
+	 * Like find_prediction(), but treats auto-filled rows as "no prediction".
+	 *
+	 * Used by pending counters that want to surface 0-0 default-fills as
+	 * still-pending so the user gets a "Te faltan N" nudge after creating
+	 * or joining a penca. A row with META_AUTO_FILLED=1 is structurally a
+	 * prediction (so leaderboard math works) but semantically a placeholder
+	 * the user hasn't actively chosen.
+	 */
+	public static function find_manual_prediction( int $user_id, int $match_id, int $group_id ): ?\WP_Post {
+		$pred = self::find_prediction( $user_id, $match_id, $group_id );
+		if ( null === $pred ) {
+			return null;
+		}
+		$auto = (int) get_post_meta( (int) $pred->ID, self::META_AUTO_FILLED, true );
+		return 1 === $auto ? null : $pred;
+	}
+
+	/**
+	 * Randomize all still-auto-filled predictions for $user_id in the
+	 * groups they belong to. Each match is filled once (via find_existing_
+	 * user_match_scores fan-out, then random_realistic_score for the rest)
+	 * and the META_AUTO_FILLED flag is CLEARED — the user opted into
+	 * random, so these are no longer "system defaults".
+	 *
+	 * Returns the number of predictions rewritten.
+	 */
+	public static function randomize_pending_predictions( int $user_id ): int {
+		$group_ids = self::user_group_ids( $user_id );
+		if ( empty( $group_ids ) ) {
+			return 0;
+		}
+		$updated = 0;
+		foreach ( $group_ids as $gid ) {
+			$gid     = (int) $gid;
+			$comp_id = self::group_competition_id( $gid );
+			if ( '' === $comp_id ) {
+				continue;
+			}
+			$matches = self::upcoming_matches_for_competition( $comp_id, 24 * 365 );
+			foreach ( $matches as $m ) {
+				$match_id = (int) $m['id'];
+				$pred     = self::find_prediction( $user_id, $match_id, $gid );
+				if ( null === $pred ) {
+					continue; // nothing to randomize — autofill should have created it
+				}
+				$auto = (int) get_post_meta( (int) $pred->ID, self::META_AUTO_FILLED, true );
+				if ( 1 !== $auto ) {
+					continue; // already user-chosen, don't overwrite
+				}
+				$home_str = self::team_strength( (string) $m['home_team'] );
+				$away_str = self::team_strength( (string) $m['away_team'] );
+				$scores   = self::random_realistic_score( $home_str, $away_str );
+				$result   = self::register_prediction(
+					$user_id,
+					$match_id,
+					$gid,
+					(int) $scores[0],
+					(int) $scores[1],
+					false // mark as user-chosen — they explicitly opted into random
+				);
+				if ( ! is_wp_error( $result ) ) {
+					++$updated;
+				}
+			}
+		}
+		return $updated;
 	}
 
 	/**

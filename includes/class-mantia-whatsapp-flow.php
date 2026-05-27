@@ -294,6 +294,13 @@ final class Mantia_Whatsapp_Flow {
 			return self::handle_pending( $identity );
 		}
 
+		// Opt-in random: user defaults to 0-0 on create/join; this lets them
+		// "tirar al voleo" the still-pending ones in one go. Match plurals
+		// + a few common natural-language variants ("tira al azar", "azar").
+		if ( preg_match( '/^(?:azar|al\s+azar|random|tira(?:r|me)?\s+(?:al\s+)?azar|pronosticos?\s+al\s+azar)$/iu', $lc ) ) {
+			return self::handle_randomize( $identity );
+		}
+
 		if ( preg_match( '/^(?:tabla|ranking|leaderboard|posicion(?:es)?|posiciones|standings?|puntos?|mi\s+puntaje)$/i', $lc ) ) {
 			return self::handle_leaderboard( $identity );
 		}
@@ -806,7 +813,7 @@ final class Mantia_Whatsapp_Flow {
 		$lines = array( $intro );
 		if ( $autofilled > 0 ) {
 			$lines[] = sprintf(
-				'_Ya te puse pronósticos para los %d partidos. Mandame el marcador o tocá un partido para cambiarlos._',
+				'_Te puse *0-0* por defecto en los %d partidos. Mandá un marcador (ej *2-1*) o *azar* para tirar al voleo._',
 				$autofilled
 			);
 		}
@@ -952,7 +959,7 @@ final class Mantia_Whatsapp_Flow {
 		);
 		if ( $autofilled > 0 ) {
 			$lines[] = sprintf(
-				'_Ya te puse pronósticos para los %d partidos. Mandame el marcador o tocá un partido para cambiarlos._',
+				'_Te puse *0-0* por defecto en los %d partidos. Mandá un marcador (ej *2-1*) o *azar* para tirar al voleo._',
 				$autofilled
 			);
 		}
@@ -1947,6 +1954,53 @@ final class Mantia_Whatsapp_Flow {
 		return gmdate( 'H:i', $ts - 3 * HOUR_IN_SECONDS );
 	}
 
+	/**
+	 * "azar" / "al azar" / "random" — replace every still-auto-filled
+	 * (0-0 default) prediction with a strength-aware random score, and
+	 * clear the auto_filled flag so they count as user-chosen. Opt-in
+	 * counterpart to the 0-0 default introduced after the 2026-05-26
+	 * stakeholder feedback ("si damos resultados al azar nunca hay
+	 * pendientes — mejor ponerlos todos 0-0 por defecto").
+	 */
+	private static function handle_randomize( array $identity ): array {
+		if ( '' === $identity['phone'] ) {
+			return array(
+				'reply'     => 'No pude identificar tu numero. Reintentá en un toque.',
+				'completed' => true,
+			);
+		}
+		$user = Mantia_Repository::find_user_by_phone( $identity['phone'] );
+		if ( ! $user ) {
+			return array(
+				'reply'     => sprintf( 'Primero unite a una %s con su codigo.', Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' ) ),
+				'completed' => true,
+			);
+		}
+		$count = Mantia_Repository::randomize_pending_predictions( (int) $user->ID );
+		if ( 0 === $count ) {
+			return array(
+				'reply'     => '✅ No tenés pendientes — ya pronosticaste todo a mano.',
+				'completed' => true,
+			);
+		}
+		return array(
+			'reply'       => sprintf(
+				"🎲 Listo, tiré *%d* pronóstico%s al voleo.\n\nTocá *partidos* para revisarlos o cambiar alguno.",
+				$count,
+				1 === $count ? '' : 's'
+			),
+			'interactive' => array(
+				'type'    => 'button',
+				'buttons' => array(
+					array( 'id' => 'mantia:cmd:matches',    'title' => '📅 Ver y pronosticar' ),
+					array( 'id' => 'mantia:cmd:leaderboard', 'title' => '📊 Tabla' ),
+					array( 'id' => 'mantia:cmd:home',        'title' => '🏠 Resumen' ),
+				),
+			),
+			'completed' => true,
+		);
+	}
+
 	private static function handle_pending( array $identity ): array {
 		if ( '' === $identity['phone'] ) {
 			return array(
@@ -2093,12 +2147,14 @@ final class Mantia_Whatsapp_Flow {
 			}
 			$pending = array();
 			foreach ( $matches as $m ) {
-				// A match is "pending" if the user hasn't predicted it in ANY
-				// of their groups in this competition — once predicted in one,
-				// auto-routing fans it to the others, so one entry per match.
+				// A match is "pending" if the user hasn't MANUALLY predicted
+				// it in ANY of their groups in this competition. Auto-filled
+				// (META_AUTO_FILLED=1) rows count as still-pending so the
+				// 0-0 default-fills surface as "Te faltan N" nudges instead
+				// of vanishing behind a "todo predicho" false-positive.
 				$has = false;
 				foreach ( $user_group_ids as $gid ) {
-					if ( Mantia_Repository::find_prediction( $user_id, (int) $m['id'], (int) $gid ) ) {
+					if ( Mantia_Repository::find_manual_prediction( $user_id, (int) $m['id'], (int) $gid ) ) {
 						$has = true;
 						break;
 					}
@@ -2160,7 +2216,9 @@ final class Mantia_Whatsapp_Flow {
 				: array();
 			$pending  = 0;
 			foreach ( $upcoming as $m ) {
-				if ( ! Mantia_Repository::find_prediction( (int) $user->ID, (int) $m['id'], $active_id ) ) {
+				// Auto-filled rows (0-0 defaults) count as pending; only
+				// matches where the user manually chose a score are "done".
+				if ( ! Mantia_Repository::find_manual_prediction( (int) $user->ID, (int) $m['id'], $active_id ) ) {
 					$pending++;
 				}
 			}

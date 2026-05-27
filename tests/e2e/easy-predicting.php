@@ -35,7 +35,7 @@ Mantia_E2E::send( $alice, 'mantia:cmd:new-penca' );
 Mantia_E2E::send( $alice, 'mantia:newcomp:mundial-2026' );
 $r = Mantia_E2E::send( $alice, '__E2E__ AutoFill' );
 
-Mantia_E2E::assert_contains( $r, 'pronósticos para los', 'create reply mentions auto-fill' );
+Mantia_E2E::assert_contains( $r, '0-0', 'create reply mentions the 0-0 default fill' );
 
 $alice_user = Mantia_Repository::find_user_by_phone( $alice['phone'] );
 Mantia_E2E::assert_eq( true, null !== $alice_user, 'Alice exists as a user' );
@@ -126,7 +126,7 @@ Mantia_E2E::assert_eq( true, $arg_matches > 0, 'Argentina plays in this penca: '
 Mantia_E2E::assert_eq( 0, $arg_wrong, 'every Argentina match now backs Argentina' );
 
 /* ------------------------------------------------------------------------ */
-Mantia_E2E::step( '4. Bob joins → his auto-fill produces DIFFERENT random scores than Alice' );
+Mantia_E2E::step( '4. Bob joins → he gets 0-0 defaults; only Alice\'s manual overrides differ' );
 /* ------------------------------------------------------------------------ */
 
 // First we need the invite code for Alice's penca.
@@ -136,14 +136,17 @@ Mantia_E2E::assert_eq( true, '' !== $invite, 'invite code resolved' );
 Mantia_E2E::send( $bob, 'me llamo Bob' );
 $r = Mantia_E2E::send( $bob, $invite );
 Mantia_E2E::assert_contains( $r, 'te sume a', 'Bob joined' );
-Mantia_E2E::assert_contains( $r, 'pronósticos para los', 'auto-fill mentioned to Bob' );
+Mantia_E2E::assert_contains( $r, '0-0', '0-0 default-fill mentioned to Bob' );
 
 $bob_user = Mantia_Repository::find_user_by_phone( $bob['phone'] );
 Mantia_E2E::assert_eq( true, null !== $bob_user, 'Bob exists' );
 
-// Compare a handful of (match, alice_score) vs (match, bob_score). With 60+
-// random predictions the chance both are identical for every match is
-// astronomically low — we accept the test as a probabilistic differential.
+// Compare a handful of (match, alice_score) vs (match, bob_score). Default
+// auto-fill is now 0-0 for both users, so most rows match. The Argentina
+// matches Alice bulk-overrode in step 3 are her manual picks (e.g. "1-0"
+// in Argentina's favor); Bob still has 0-0 for those. The test asserts at
+// least one match diverges — that's the Argentina overrides shining
+// through, which is the stronger signal than random Poisson chance was.
 $differing = 0;
 $pred_ids = get_posts(
 	array(
@@ -170,12 +173,11 @@ foreach ( $pred_ids as $pid ) {
 		$differing++;
 	}
 }
-// On a fixture with N upcoming matches, the chance two random Poisson
-// draws happen to match exactly for ALL of them shrinks fast — even with
-// only 3 matches we expect divergence > 0 in 95%+ of test runs. We
-// assert "diverged on at least one" to keep the test deterministic on
-// CI without baking statistical thresholds in.
-Mantia_E2E::assert_eq( true, $differing >= 1, "Alice and Bob's auto-fills aren't identical: {$differing} diverging match(es)" );
+// Argentina overrides drive the divergence: Alice manually set both
+// Argentina matches in step 3, Bob still has 0-0 default for them.
+// $differing therefore reflects "manual overrides survived join", not
+// "random scores produced variation".
+Mantia_E2E::assert_eq( true, $differing >= 1, "Alice's manual overrides diverge from Bob's 0-0 defaults: {$differing} match(es)" );
 
 /* ------------------------------------------------------------------------ */
 Mantia_E2E::step( '5. PRIVACY — Carla cannot see Alice\'s predictions anywhere' );
