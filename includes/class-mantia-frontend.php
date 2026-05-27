@@ -373,16 +373,34 @@ final class Mantia_Frontend {
 		$matches  = Mantia_Repository::upcoming_matches_for_competition( $slug, 24 * 30 );
 		$create_url = self::create_penca_wa_url( $comp );
 
-		// Logged-in personalization: surface the user's own pencas in this
-		// competition + use their first one as the source for the inline
-		// prediction badges on the matches list. Predictions auto-fan-out
-		// across the user's pencas in the same competition, so reading any
-		// one of them reflects the full state. Not logged in → none of
-		// this renders; the page stays the public marketing-y view.
-		$current_user_id   = (int) get_current_user_id();
-		$user_groups       = array();
-		$first_group_id    = 0;
-		$user_share_token  = '';
+		// Personalization: surface the user's own pencas in this competition
+		// + use their first one as the source for the inline prediction
+		// badges. The user identity can come from two places:
+		//   1. The auth cookie (get_current_user_id) — set by the wa-bridge
+		//      magic-link redemption. Grants full write access.
+		//   2. The ?as=<share_token> query param — soft-resolve, READ-ONLY.
+		//      Share tokens are designed to leak harmlessly (linked from
+		//      the bot's chat, may end up forwarded/copied) so we use them
+		//      for "show me my pencas + predictions" but never for writes.
+		// Not logged in AND no ?as= → public marketing view (current).
+		$current_user_id  = (int) get_current_user_id();
+		$user_share_token = '';
+		if ( 0 === $current_user_id ) {
+			$as = isset( $_GET['as'] ) ? (string) $_GET['as'] : '';
+			if ( '' !== $as ) {
+				$by_share = Mantia_Repository::find_user_by_share_token( $as );
+				if ( $by_share ) {
+					$current_user_id  = (int) $by_share->ID;
+					$user_share_token = $as;
+				}
+			}
+		}
+		if ( $current_user_id > 0 && '' === $user_share_token ) {
+			$user_share_token = Mantia_Repository::user_share_token( $current_user_id );
+		}
+
+		$user_groups    = array();
+		$first_group_id = 0;
 		if ( $current_user_id > 0 ) {
 			$user_group_ids = Mantia_Repository::user_groups_in_competition( $current_user_id, $slug );
 			foreach ( $user_group_ids as $gid ) {
@@ -394,7 +412,6 @@ final class Mantia_Frontend {
 					}
 				}
 			}
-			$user_share_token = Mantia_Repository::user_share_token( $current_user_id );
 		}
 
 		ob_start();
@@ -547,6 +564,13 @@ final class Mantia_Frontend {
 		$comp_id    = Mantia_Repository::group_competition_id( $group_id );
 		$matches    = Mantia_Repository::upcoming_matches_for_competition( $comp_id, 24 * 30 );
 		$comp_url   = Mantia_Repository::competition_view_url( $comp_id );
+		// Carry the ?as=<share_token> forward so the competition page
+		// can personalize for the same visitor without re-authentication.
+		// Share tokens are leak-safe (read-only) so this propagation is
+		// fine to do unconditionally when the current visit had one.
+		if ( '' !== $as && '' !== $comp_url ) {
+			$comp_url .= ( false === strpos( $comp_url, '?' ) ? '?' : '&' ) . 'as=' . rawurlencode( $as );
+		}
 		$create_url = self::create_penca_wa_url();
 		$members    = Mantia_Repository::group_members( $group_id );
 
