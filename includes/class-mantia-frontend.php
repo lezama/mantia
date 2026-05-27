@@ -420,18 +420,15 @@ final class Mantia_Frontend {
 		<main class="mantia-page">
 			<?php self::render_topbar(); ?>
 
-			<section class="mantia-hero">
-				<div class="mantia-eyebrow"><?php esc_html_e( 'penca · global', 'mantia' ); ?></div>
-				<h1 class="mantia-h1"><?php echo esc_html( $title ); ?></h1>
-				<p class="mantia-hero-meta"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
-			</section>
-
-			<?php self::render_competition_nav( $slug ); ?>
-
-			<hr class="mantia-rule">
-
 			<?php if ( ! empty( $user_groups ) ) : ?>
-				<section class="mantia-block">
+				<section class="mantia-block mantia-member-hero">
+					<h2 class="mantia-member-hero-h2"><?php
+						printf(
+							/* translators: %s: competition short name. */
+							esc_html__( '⚡ Tu actividad en %s', 'mantia' ),
+							esc_html( $comp['name'] )
+						);
+					?></h2>
 					<div class="mantia-eyebrow-row">
 						<span class="mantia-eyebrow"><?php
 							printf(
@@ -499,6 +496,35 @@ final class Mantia_Frontend {
 				</section>
 			<?php endif; ?>
 
+			<?php
+			// For MEMBERS the personal "Tu actividad" card above already
+			// owns the fold; the generic competition hero gets demoted
+			// to a soft subtitle so the page reads as personalized hub
+			// first, marketing second. Expert-review 2026-05-27:
+			// 'generic hero positioned as main narrative focus, but
+			// it's not Alice-specific'.
+			$is_member_of_comp = ! empty( $user_groups );
+			?>
+			<?php if ( $is_member_of_comp ) : ?>
+				<section class="mantia-hero-soft">
+					<div class="mantia-eyebrow"><?php esc_html_e( 'sobre la competencia', 'mantia' ); ?></div>
+					<p class="mantia-hero-soft-title"><?php echo esc_html( $title ); ?></p>
+					<p class="mantia-hero-soft-meta"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
+				</section>
+			<?php else : ?>
+				<section class="mantia-hero">
+					<div class="mantia-eyebrow"><?php esc_html_e( 'penca · global', 'mantia' ); ?></div>
+					<h1 class="mantia-h1"><?php echo esc_html( $title ); ?></h1>
+					<p class="mantia-hero-tagline"><?php esc_html_e( 'Pronosticá los partidos · Competí con amigos · Sin descargas, sin cuenta.', 'mantia' ); ?></p>
+					<p class="mantia-hero-meta"><?php echo esc_html( self::competition_meta( $slug, (string) ( $comp['description'] ?? '' ), $matches ) ); ?></p>
+				</section>
+			<?php endif; ?>
+
+			<?php self::render_competition_nav( $slug ); ?>
+
+			<hr class="mantia-rule">
+
+
 			<?php if ( ! empty( $rows ) ) : ?>
 				<section class="mantia-block">
 					<div class="mantia-eyebrow-row">
@@ -547,7 +573,7 @@ final class Mantia_Frontend {
 				<section class="mantia-block">
 					<div class="mantia-eyebrow"><?php esc_html_e( 'ranking global', 'mantia' ); ?></div>
 					<p class="mantia-empty"><?php
-						echo esc_html__( 'Todavía no hay puntos — la tabla aparece cuando se resuelve el primer partido.', 'mantia' )
+						echo esc_html__( 'Todavía no hay puntos — la tabla aparece cuando se resuelve el primer partido. Vos ya podés pronosticar.', 'mantia' )
 							. esc_html( $next_match_hint );
 					?></p>
 				</section>
@@ -605,17 +631,21 @@ final class Mantia_Frontend {
 				<section class="mantia-block mantia-activity-hint">
 					<p class="mantia-activity-headline">
 						<?php
-						printf(
-							/* translators: 1: number of groups, 2: total players across them. */
-							esc_html( _n(
-								'🔥 %1$d grupo ya está jugando esta fecha · %2$d jugador entre todos.',
-								'🔥 %1$d grupos ya están jugando esta fecha · %2$d jugadores entre todos.',
-								$active_groups_count,
-								'mantia'
-							) ),
-							(int) $active_groups_count,
+						// Groups and players pluralize independently (1 group can
+						// have N players); a single _n() that branches on the group
+						// count would render "1 grupo · 3 jugador" — wrong on the
+						// player half. Split into two _n() calls and join.
+						$groups_phrase  = sprintf(
+							/* translators: %d: number of groups. */
+							esc_html( _n( '%d grupo ya está jugando esta fecha', '%d grupos ya están jugando esta fecha', $active_groups_count, 'mantia' ) ),
+							(int) $active_groups_count
+						);
+						$players_phrase = sprintf(
+							/* translators: %d: number of players across all groups. */
+							esc_html( _n( '%d jugador entre todos.', '%d jugadores entre todos.', $active_players_count, 'mantia' ) ),
 							(int) $active_players_count
 						);
+						echo '🔥 ' . $groups_phrase . ' · ' . $players_phrase; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 						?>
 					</p>
 					<p class="mantia-activity-line">
@@ -640,7 +670,48 @@ final class Mantia_Frontend {
 				</section>
 			<?php endif; ?>
 
-			<?php if ( '' !== $create_url ) : ?>
+			<?php
+			// Bottom CTA: for MEMBERS we surface "Seguí pronosticando"
+			// (returning user wants to keep playing in her existing
+			// penca); "Crear otra" stays available as a soft secondary.
+			// For anon/non-members it stays as the bare 'Crear tu propia'.
+			// Expert-review 2026-05-27: 'sticky CTA Crear tu propia penca
+			// misaligned — she\'s not a prospect; she\'s an active player'.
+			$member_primary_url = '';
+			$first_g_name       = '';
+			if ( ! empty( $user_groups ) ) {
+				$first_g     = reset( $user_groups );
+				$first_gid   = (int) ( $first_g['id'] ?? 0 );
+				$first_g_name = (string) ( $first_g['name'] ?? '' );
+				if ( $first_gid > 0 ) {
+					$member_primary_url = Mantia_Repository::group_view_url( $first_gid, $current_user_id );
+				}
+			}
+			?>
+			<?php if ( '' !== $member_primary_url ) : ?>
+				<section class="mantia-cta-section mantia-cta-stack">
+					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $member_primary_url ); ?>">
+						<?php
+						printf(
+							/* translators: %s: penca name. */
+							esc_html__( '▶ Seguí pronosticando en %s', 'mantia' ),
+							esc_html( $first_g_name )
+						);
+						?>
+					</a>
+					<?php if ( '' !== $create_url ) : ?>
+						<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( $create_url ); ?>">
+							<?php
+							printf(
+								/* translators: %s: competition short name. */
+								esc_html__( '➕ O creá otra penca de %s', 'mantia' ),
+								esc_html( $comp['name'] )
+							);
+							?>
+						</a>
+					<?php endif; ?>
+				</section>
+			<?php elseif ( '' !== $create_url ) : ?>
 				<section class="mantia-cta-section">
 					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $create_url ); ?>">
 						<?php
@@ -655,6 +726,26 @@ final class Mantia_Frontend {
 			<?php endif; ?>
 		</main>
 		<?php
+		// Sticky bottom CTA for members on the competition page — keeps
+		// the primary "continuá donde dejaste" action in thumb-zone reach
+		// even after scrolling past the in-flow CTA + full match list.
+		// Expert-review 2026-05-27 flagged the match list as creating
+		// scroll friction between member and primary action.
+		if ( '' !== $member_primary_url ) :
+			?>
+			<div class="mantia-sticky-cta">
+				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $member_primary_url ); ?>">
+					<?php
+					printf(
+						/* translators: %s: penca name. */
+						esc_html__( '▶ Ir a %s', 'mantia' ),
+						esc_html( $first_g_name )
+					);
+					?>
+				</a>
+			</div>
+			<?php
+		endif;
 		self::page_footer();
 		return (string) ob_get_clean();
 	}
@@ -724,6 +815,52 @@ final class Mantia_Frontend {
 					<span class="mantia-dot"></span>
 					<span><?php esc_html_e( 'fecha 1 · jornada en curso', 'mantia' ); ?></span>
 				</p>
+				<?php
+				// Member status anchor in the hero: progress (X/N
+				// pronosticados) so a returning user immediately sees
+				// where they are in the cycle. Resolves expert-review's
+				// 'no your-points indicator anywhere' finding.
+				$hero_uid    = (int) get_current_user_id();
+				$hero_as     = isset( $_GET['as'] ) ? (string) $_GET['as'] : '';
+				if ( 0 === $hero_uid && '' !== $hero_as ) {
+					$hu = Mantia_Repository::find_user_by_share_token( $hero_as );
+					if ( $hu ) {
+						$hero_uid = (int) $hu->ID;
+					}
+				}
+				$hero_is_member = false;
+				if ( $hero_uid > 0 ) {
+					foreach ( $members as $hm_row ) {
+						if ( (int) $hm_row['id'] === $hero_uid ) { $hero_is_member = true; break; }
+					}
+				}
+				if ( $hero_is_member && ! empty( $matches ) ) {
+					$predicted_total = 0;
+					foreach ( $matches as $m ) {
+						if ( Mantia_Repository::find_manual_prediction( $hero_uid, (int) $m['id'], $group_id ) ) {
+							$predicted_total++;
+						}
+					}
+					$pending = count( $matches ) - $predicted_total;
+					echo '<p class="mantia-hero-status">';
+					if ( $pending > 0 ) {
+						printf(
+							/* translators: 1: predicted count, 2: total upcoming, 3: pending. */
+							esc_html__( '📋 Tu progreso: %1$d/%2$d pronosticados · te quedan %3$d por hacer.', 'mantia' ),
+							(int) $predicted_total,
+							(int) count( $matches ),
+							(int) $pending
+						);
+					} else {
+						printf(
+							/* translators: %d: total predictions. */
+							esc_html__( '🎯 Tenés los %d partidos pronosticados — todo cargado.', 'mantia' ),
+							(int) $predicted_total
+						);
+					}
+					echo '</p>';
+				}
+				?>
 			</section>
 
 			<?php
@@ -824,9 +961,21 @@ final class Mantia_Frontend {
 				</section>
 			<?php elseif ( ! empty( $group['share_url'] ) ) : ?>
 				<?php if ( $current_uid > 0 ) : ?>
-					<p class="mantia-activity-line" style="margin: 0 0 8px;">
-						<?php esc_html_e( '👋 Ya tenés cuenta — pero todavía no estás en esta penca.', 'mantia' ); ?>
-					</p>
+					<section class="mantia-handshake-card">
+						<div class="mantia-handshake-eyebrow"><?php esc_html_e( '👋 Te reconocemos', 'mantia' ); ?></div>
+						<p class="mantia-handshake-line">
+							<?php esc_html_e( 'Ya tenés cuenta en Mantia, pero todavía no estás en esta penca. ¿Te sumás también?', 'mantia' ); ?>
+						</p>
+					</section>
+				<?php else : ?>
+					<section class="mantia-explainer-card">
+						<p>
+							<?php esc_html_e( 'Mantia es una penca de fútbol por WhatsApp: pronosticás los partidos, el bot te avisa antes de cada uno y suma puntos automáticamente.', 'mantia' ); ?>
+						</p>
+						<p class="mantia-explainer-trust">
+							<?php esc_html_e( '✅ Gratis · ✅ Sin descargas · ✅ Sin crear cuenta · ✅ Tocás y abre WhatsApp con un mensaje listo', 'mantia' ); ?>
+						</p>
+					</section>
 				<?php endif; ?>
 				<section class="mantia-cta-section">
 					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $group['share_url'] ); ?>">
@@ -841,7 +990,7 @@ final class Mantia_Frontend {
 						} else {
 							printf(
 								/* translators: %s: invite code. */
-								esc_html__( 'Sumate · código %s', 'mantia' ),
+								esc_html__( 'Sumate por WhatsApp · código %s', 'mantia' ),
 								esc_html( $invite_code )
 							);
 						}
@@ -912,7 +1061,7 @@ final class Mantia_Frontend {
 					// roster doubles as that proof + a "who's here?" answer.
 					if ( ! empty( $members ) ) :
 						?>
-						<p class="mantia-empty mantia-empty-soft"><?php esc_html_e( 'Sin puntos todavía — la tabla aparece después del primer partido resuelto.', 'mantia' ); ?></p>
+						<p class="mantia-empty mantia-empty-soft"><?php esc_html_e( 'Sé el primero en pronosticar — la tabla se actualiza en vivo después de cada partido.', 'mantia' ); ?></p>
 						<div class="mantia-roster">
 							<?php foreach ( $members as $m ) :
 								$row_cls = 'mantia-roster-row' . ( null !== $me_id && (int) $m['id'] === $me_id ? ' mantia-roster-row-me' : '' );
@@ -972,6 +1121,45 @@ final class Mantia_Frontend {
 				<?php endif; ?>
 			</section>
 		</main>
+		<?php
+		// Sticky bottom CTA for members — primary action stays in
+		// thumb-zone reach even after the user scrolls past the
+		// in-flow CTA. Expert-review 2026-05-27 flagged this as the
+		// biggest mobile-first gap. Only renders when we have a
+		// member + a predict URL; non-members and anon keep the
+		// in-flow Sumate CTA up top.
+		if ( $is_member && '' !== $predict_web_url ) :
+			// Identity chip: reinforces "vos sos X en esta penca" so the
+			// member never loses orientation after scrolling. Expert-review
+			// 2026-05-27 flagged that 'vos' on the roster alone was too
+			// low-visibility for a returning user.
+			$me_display = '';
+			if ( $current_uid > 0 ) {
+				$u = get_userdata( $current_uid );
+				if ( $u && '' !== (string) $u->display_name ) {
+					$me_display = (string) $u->display_name;
+				}
+			}
+			?>
+			<div class="mantia-sticky-cta">
+				<?php if ( '' !== $me_display ) : ?>
+					<div class="mantia-sticky-identity">
+						<?php
+						printf(
+							/* translators: %s: member's display name. */
+							esc_html__( '👤 Sos vos · %s', 'mantia' ),
+							esc_html( $me_display )
+						);
+						?>
+					</div>
+				<?php endif; ?>
+				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $predict_web_url ); ?>">
+					<?php esc_html_e( '✏️ Editar mis pronósticos', 'mantia' ); ?>
+				</a>
+			</div>
+			<?php
+		endif;
+		?>
 		<?php
 		self::page_footer();
 		return (string) ob_get_clean();
@@ -2741,8 +2929,9 @@ JS;
 					<?php
 					$mid        = (int) ( $m['id'] ?? 0 );
 					$user_pred  = $predictions[ $mid ] ?? null;
+					$is_locked  = ! Mantia_Repository::accepts_new_predictions( $m );
 					?>
-					<div class="mantia-match-row">
+					<div class="mantia-match-row<?php echo $is_locked ? ' mantia-match-row-locked' : ''; ?>">
 						<div class="mantia-match-time"><?php echo esc_html( $hm ); ?></div>
 						<div class="mantia-match-teams">
 							<div class="mantia-match-names">
@@ -2754,6 +2943,9 @@ JS;
 								<div class="mantia-match-phase"><?php echo esc_html( $phase ); ?></div>
 							<?php endif; ?>
 						</div>
+						<?php if ( $is_locked ) : ?>
+							<div class="mantia-match-lock" title="<?php esc_attr_e( 'Pronósticos cerrados para este partido', 'mantia' ); ?>">🔒</div>
+						<?php endif; ?>
 						<?php if ( null !== $user_pred ) : ?>
 							<div class="mantia-match-pred" title="<?php esc_attr_e( 'Tu pronóstico', 'mantia' ); ?>">
 								<?php echo esc_html( sprintf( '✓ %d-%d', $user_pred[0], $user_pred[1] ) ); ?>
@@ -4012,36 +4204,83 @@ body {
 	border-radius: 14px;
 	box-shadow: 3px 3px 0 var(--ink);
 }
+.mantia-hero-tagline {
+	font-family: var(--font-body);
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--ink);
+	margin: 4px 0 10px;
+	line-height: 1.4;
+	letter-spacing: -0.005em;
+}
+.mantia-hero-soft {
+	padding: 12px 16px;
+	margin: 8px 0 16px;
+	background: rgba(0, 0, 0, 0.025);
+	border-radius: 10px;
+}
+.mantia-hero-soft-title {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+	margin: 4px 0 2px;
+}
+.mantia-hero-soft-meta {
+	font-family: var(--font-body);
+	font-size: 13px;
+	font-weight: 600;
+	color: rgba(0, 0, 0, 0.7);
+	margin: 0;
+}
+.mantia-member-hero {
+	margin: 14px 0 22px;
+	padding: 18px 16px 14px;
+	background: linear-gradient(180deg, #fff8c4 0%, var(--surface) 100%);
+	border: 2px solid var(--ink);
+	border-radius: 16px;
+	box-shadow: 5px 5px 0 var(--ink);
+}
+.mantia-member-hero-h2 {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 24px;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+	margin: 0 0 12px;
+	line-height: 1.15;
+}
 .mantia-mygroup-row {
 	display: grid;
 	grid-template-columns: 1fr auto 22px;
 	align-items: center;
 	gap: 12px;
-	padding: 13px 14px;
-	margin-bottom: 10px;
-	background: var(--surface);
+	padding: 16px 16px;
+	margin-bottom: 12px;
+	background: var(--accent);
 	border: 2px solid var(--ink);
 	border-radius: 14px;
-	box-shadow: 3px 3px 0 var(--ink);
+	box-shadow: 4px 4px 0 var(--ink);
 	color: var(--ink);
 	text-decoration: none;
 	transition: transform 90ms ease-out, box-shadow 90ms ease-out;
 }
 .mantia-mygroup-row:hover {
 	transform: translate(-1px, -1px);
-	box-shadow: 4px 4px 0 var(--ink);
+	box-shadow: 5px 5px 0 var(--ink);
 }
 .mantia-mygroup-name {
 	font-family: var(--font-display);
 	font-weight: 900;
-	font-size: 16px;
+	font-size: 19px;
 	letter-spacing: -0.01em;
 }
 .mantia-mygroup-meta {
 	font-family: var(--font-body);
 	font-size: 13px;
-	font-weight: 600;
-	color: rgba(0, 0, 0, 0.65);
+	font-weight: 700;
+	color: var(--ink);
 }
 .mantia-mygroup-arrow {
 	font-family: var(--font-display);
@@ -4097,6 +4336,105 @@ body {
 	color: rgba(0, 0, 0, 0.72);
 	margin: 0;
 	line-height: 1.55;
+}
+.mantia-match-row-locked {
+	opacity: 0.65;
+}
+.mantia-match-lock {
+	font-size: 14px;
+	margin-right: 4px;
+	color: var(--ink-soft);
+}
+.mantia-hero-status {
+	margin: 10px 0 0;
+	padding: 10px 14px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 12px;
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--ink);
+	box-shadow: 3px 3px 0 var(--ink);
+}
+.mantia-handshake-card {
+	margin: 0 0 14px;
+	padding: 14px 16px;
+	background: #fff8c4;
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 3px 3px 0 var(--ink);
+}
+.mantia-handshake-eyebrow {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 12px;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--ink);
+	margin-bottom: 4px;
+}
+.mantia-handshake-line {
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--ink);
+	margin: 0;
+	line-height: 1.45;
+}
+.mantia-explainer-card {
+	margin: 14px 0;
+	padding: 14px 16px;
+	background: var(--surface);
+	border: 2px dashed var(--ink);
+	border-radius: 14px;
+}
+.mantia-explainer-card p {
+	font-family: var(--font-body);
+	font-size: 14px;
+	color: var(--ink);
+	margin: 0;
+	line-height: 1.5;
+}
+.mantia-explainer-trust {
+	margin-top: 10px !important;
+	font-size: 12.5px !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.005em;
+	color: var(--ink);
+	line-height: 1.55;
+}
+.mantia-sticky-identity {
+	font-family: var(--font-body);
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--ink);
+	margin-bottom: 8px;
+	text-align: center;
+	letter-spacing: 0.01em;
+}
+.mantia-sticky-cta {
+	position: sticky;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+	background: linear-gradient(to top, var(--bg) 65%, rgba(197, 242, 78, 0));
+	z-index: 50;
+	display: flex;
+	justify-content: center;
+	pointer-events: none;
+}
+.mantia-sticky-cta .mantia-pill {
+	pointer-events: auto;
+	min-width: 240px;
+	min-height: 48px;
+	padding: 14px 22px;
+	font-size: 15px;
+	text-align: center;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 }
 .mantia-match-pred {
 	font-family: var(--font-display);

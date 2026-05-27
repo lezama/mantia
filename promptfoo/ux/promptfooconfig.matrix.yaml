@@ -79,11 +79,20 @@ tests:
       - { type: contains, value: 'Invitar amigos' }
       - { type: not-contains, value: '✓ ' }     # no badges of any score
 
-  - description: 'libe·anon — public landing: Sumate CTA, no leaks'
+  - description: 'libe·anon — public landing: Sumate CTA, explainer, no leaks'
     vars:
       url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
     assert:
-      - { type: contains, value: 'Sumate · código {{LIBE_CODE}}' }
+      # Anon CTA was renamed from bare "Sumate · código X" to the more
+      # action-explicit "Sumate por WhatsApp · código X" after the
+      # expert-review surfaced that 'código' alone didn't convey what
+      # the button actually does (2026-05-27).
+      - { type: contains, value: 'Sumate por WhatsApp · código {{LIBE_CODE}}' }
+      # And: anon must see a "what is Mantia" explainer before the CTA
+      # so a cold-traffic stranger isn't asked to join something they
+      # don't understand.
+      - { type: contains, value: 'mantia-explainer-card' }
+      - { type: contains, value: 'penca de fútbol por WhatsApp' }
       - { type: not-contains, value: 'Invitar amigos' }
       - { type: not-contains, value: '✓ 1-1' }
       - { type: not-contains, value: '✓ 0-3' }
@@ -122,7 +131,7 @@ tests:
   # ═════════════════════════════════════════════════════════════════
   # COMPETITION PAGES — each user sees their own "mis pencas" set
   # ═════════════════════════════════════════════════════════════════
-  - description: 'libe-comp·alice — sees her 1 libe penca + her badges'
+  - description: 'libe-comp·alice — sees her 1 libe penca + her badges + member CTA'
     vars:
       url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
     assert:
@@ -132,8 +141,19 @@ tests:
       - { type: contains, value: '✓ 1-1' }
       - { type: contains, value: '✓ 2-0' }
       - { type: not-contains, value: '✓ 0-3' }
+      # Member-aware bottom CTA: Alice should see "Seguí pronosticando en
+      # <penca>" as the primary, not "Crear tu propia penca" (she's a
+      # returning player mid-tournament, not a prospect). Expert-review
+      # 2026-05-27 flagged the original CTA as misaligned for members.
+      - { type: contains, value: 'Seguí pronosticando en {{LIBE_NAME}}' }
+      # The "create another" pill stays available but as secondary copy.
+      - { type: contains, value: 'O creá otra penca de' }
+      # Member-hero treatment: "mis pencas" is hoisted ABOVE the global
+      # hero with a stronger visual container (`mantia-member-hero`).
+      - { type: contains, value: 'mantia-member-hero' }
+      - { type: contains, value: 'Tu actividad en' }
 
-  - description: 'libe-comp·bob — sees his 1 libe penca + his 0-3 badge only'
+  - description: 'libe-comp·bob — sees his 1 libe penca + his 0-3 badge + member CTA'
     vars:
       url: '{{BASE}}/pronostico/libertadores-prueba/?as={{BOB_SHARE}}'
     assert:
@@ -142,6 +162,7 @@ tests:
       - { type: contains, value: '✓ 0-3' }
       - { type: not-contains, value: '✓ 1-1' }
       - { type: not-contains, value: '✓ 2-0' }
+      - { type: contains, value: 'Seguí pronosticando en {{LIBE_NAME}}' }
 
   - description: 'libe-comp·carol — member, no manual predictions, no badges'
     vars:
@@ -151,7 +172,7 @@ tests:
       - { type: contains, value: '{{LIBE_NAME}}' }
       - { type: not-contains, value: '✓ ' }
 
-  - description: 'mun-comp·alice — sees her 1 mundial penca (separate from libe)'
+  - description: 'mun-comp·alice — sees her 1 mundial penca (separate from libe) + member CTA'
     vars:
       url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
     assert:
@@ -159,6 +180,7 @@ tests:
       - { type: contains, value: '{{MUN_NAME}}' }
       - { type: not-contains, value: '{{LIBE_NAME}}' }   # libe penca not on mundial page
       - { type: not-contains, value: '✓ 1-1' }            # libe predictions stay scoped to libe
+      - { type: contains, value: 'Seguí pronosticando en {{MUN_NAME}}' }
 
   - description: 'mun-comp·bob — NOT a member of any mundial penca: no section'
     vars:

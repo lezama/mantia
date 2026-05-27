@@ -115,8 +115,19 @@ const SCENARIOS = [
       { kind: 'dump', label: '01-libe-anon' },
       { kind: 'assert', label: 'anon-cta-is-sumate', fn: async (page) => {
         const cta = await page.locator('a.mantia-pill-primary').first().textContent();
-        if (!cta?.includes('Sumate'))      throw new Error(`anon CTA missing 'Sumate': ${cta}`);
-        if (!cta?.includes(V.LIBE_CODE))   throw new Error(`anon CTA missing invite code: ${cta}`);
+        if (!cta?.includes('Sumate por WhatsApp')) throw new Error(`anon CTA missing 'Sumate por WhatsApp': ${cta}`);
+        if (!cta?.includes(V.LIBE_CODE))           throw new Error(`anon CTA missing invite code: ${cta}`);
+      } },
+      // Anon visitor should see a "what is Mantia" explainer before the
+      // join CTA, otherwise cold traffic bounces (per expert-review).
+      { kind: 'assert', label: 'anon-sees-explainer', fn: async (page) => {
+        const html = await page.content();
+        if (!html.includes('mantia-explainer-card')) {
+          throw new Error('explainer card not rendered for anon');
+        }
+        if (!html.includes('penca de fútbol por WhatsApp')) {
+          throw new Error('explainer copy missing — anon stranger has no value prop');
+        }
       } },
       // Anon must NOT see any prediction badges (privacy: no per-user data leak).
       { kind: 'assert', label: 'anon-no-prediction-badges', fn: async (page) => {
