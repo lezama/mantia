@@ -1,0 +1,75 @@
+{
+  "version": "5.0",
+  "routing_model": {
+    "CREATE_PENCA": []
+  },
+  "screens": [
+    {
+      "id": "CREATE_PENCA",
+      "title": "Crear penca",
+      "terminal": true,
+      "data": {
+        "competitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" }
+            }
+          },
+          "__example__": [
+            { "id": "mundial-2026", "title": "🌎 Mundial 2026" },
+            { "id": "libertadores-prueba", "title": "🧪 Libertadores (prueba)" }
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Datos de tu penca"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Elegí torneo y ponele un nombre cortito."
+          },
+          {
+            "type": "Form",
+            "name": "form_create_penca",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "competition_id",
+                "label": "Torneo",
+                "required": true,
+                "data-source": "${data.competitions}"
+              },
+              {
+                "type": "TextInput",
+                "name": "penca_name",
+                "label": "Nombre",
+                "helper-text": "Por ejemplo: La Familia, La Oficina, Los Cínicos",
+                "required": true,
+                "min-chars": 2,
+                "max-chars": 30
+              },
+              {
+                "type": "Footer",
+                "label": "Crear penca",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "penca_name": "${form.penca_name}",
+                    "competition_id": "${form.competition_id}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -114,6 +114,35 @@ final class Mantia_Whatsapp_Flow {
 			}
 		}
 
+		// WhatsApp Flow submission. Format: `whatsapp_flow:<flow_name>:<json>`.
+		// The flow's submit-action payload arrives as a JSON object in
+		// `response_json` (parsed by openclaWP). We dispatch by flow name
+		// to a dedicated handler so each Flow stays single-purpose.
+		if ( str_starts_with( $raw, 'whatsapp_flow:' ) ) {
+			$body  = substr( $raw, strlen( 'whatsapp_flow:' ) );
+			$colon = strpos( $body, ':' );
+			if ( false !== $colon ) {
+				$flow_name = substr( $body, 0, $colon );
+				$json      = substr( $body, $colon + 1 );
+				$payload   = json_decode( $json, true );
+				if ( is_array( $payload ) ) {
+					return self::handle_flow_submission( $flow_name, $payload, $identity );
+				}
+			}
+			return null;
+		}
+
+		// WhatsApp message reaction. Format: `whatsapp_reaction:<emoji>:<msg_id>`.
+		// We map a small set of reactions to natural shortcuts; unknown
+		// emojis no-op so the bot doesn't surface noise.
+		if ( str_starts_with( $raw, 'whatsapp_reaction:' ) ) {
+			$body  = substr( $raw, strlen( 'whatsapp_reaction:' ) );
+			$colon = strpos( $body, ':' );
+			$emoji  = false !== $colon ? substr( $body, 0, $colon ) : $body;
+			$target = false !== $colon ? substr( $body, $colon + 1 ) : '';
+			return self::handle_reaction( $emoji, $target, $identity );
+		}
+
 		// Button / list reply payload from openclaWP — routed by the id we set.
 		if ( str_starts_with( $raw, 'mantia:cmd:' ) ) {
 			$cmd = substr( $raw, strlen( 'mantia:cmd:' ) );
@@ -1190,6 +1219,29 @@ final class Mantia_Whatsapp_Flow {
 			delete_transient( self::pending_create_key( $identity['phone'] ) );
 		}
 
+		// Prefer the native WhatsApp Flow: a single full-screen form with
+		// torneo dropdown + name input + "Crear" CTA. Collapses the
+		// 3-bubble dialogue (ask torneo → ask name → confirm) into one
+		// screen. If the Flow isn't published yet on this install
+		// (operator hasn't run `wp eval 'Mantia_Whatsapp_Flows::publish(
+		// "create_penca" )'`), fall through to the legacy chat flow.
+		if ( class_exists( 'Mantia_Whatsapp_Flows' ) ) {
+			$noun  = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
+			$cta   = Mantia_Vocab::word( 'create', $identity['phone'] ?? '' );
+			$flow  = Mantia_Whatsapp_Flows::build_flow_message(
+				'create_penca',
+				sprintf( 'Completá los datos en un toque para crear tu %s:', $noun ),
+				array( 'cta_label' => self::truncate_title( $cta, 20 ) )
+			);
+			if ( null !== $flow ) {
+				return array(
+					'reply'       => sprintf( 'Completá los datos en un toque para crear tu %s:', $noun ),
+					'interactive' => $flow,
+					'completed'   => true,
+				);
+			}
+		}
+
 		$rows = array();
 		foreach ( Mantia_Competitions::all() as $c ) {
 			$rows[] = array(
@@ -1952,6 +2004,71 @@ final class Mantia_Whatsapp_Flow {
 			return '';
 		}
 		return gmdate( 'H:i', $ts - 3 * HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Route a WhatsApp Flow submission to its handler. Each Flow has a
+	 * `name` field (we set it when sending the Flow message) — the
+	 * dispatcher uses that to route. Payload arrives as a parsed array
+	 * from the Flow's submit-action `payload` (declared in the Flow
+	 * JSON's on-click-action block).
+	 */
+	private static function handle_flow_submission( string $flow_name, array $payload, array $identity ): array {
+		// `create_penca` Flow: { penca_name, competition_id }. Returns the
+		// same shape as the legacy 3-turn create flow so downstream code
+		// stays unchanged. The flow is what saves the user from typing
+		// the name in a separate bubble.
+		if ( 'create_penca' === $flow_name ) {
+			$comp_id = (string) ( $payload['competition_id'] ?? '' );
+			$name    = trim( (string) ( $payload['penca_name'] ?? '' ) );
+			if ( '' === $comp_id || '' === $name ) {
+				return array(
+					'reply'     => 'El Flow llegó incompleto. Probá de nuevo en un toque.',
+					'completed' => true,
+				);
+			}
+			set_transient( self::pending_create_key( $identity['phone'] ), $name, 5 * MINUTE_IN_SECONDS );
+			set_transient( self::pending_comp_key( $identity['phone'] ), $comp_id, 5 * MINUTE_IN_SECONDS );
+			return self::handle_name_after_competition( $name, $identity, $comp_id );
+		}
+
+		// Unknown flow — log + tell the user something polite.
+		return array(
+			'reply'     => 'No sé qué hacer con eso. Tocá *home* y arrancamos de nuevo.',
+			'completed' => true,
+		);
+	}
+
+	/**
+	 * Route a WhatsApp message-reaction to its handler. Maps a small set
+	 * of common emojis to existing commands; unknown emojis no-op so we
+	 * don't surface "huh?" replies for every passing 🌹.
+	 */
+	private static function handle_reaction( string $emoji, string $target_msg_id, array $identity ): array {
+		// Normalize: WhatsApp can ship with or without the variation
+		// selector U+FE0F so 👍 and 👍️ are the same intent. Strip the
+		// VS-16 byte and any whitespace.
+		$norm = trim( preg_replace( '/\x{FE0F}/u', '', $emoji ) );
+
+		// Quick acknowledgements that don't deserve a chat reply — the
+		// user dropped a thumb on the bot, we don't need to congratulate
+		// them for it. Return null so the bot doesn't ship anything back.
+		$silent = array( '👍', '👌', '🙏', '❤', '❤️', '🔥', '🎯', '👏', '🤝' );
+		if ( in_array( $norm, $silent, true ) ) {
+			return array(
+				'reply'     => '',
+				'completed' => true,
+			);
+		}
+
+		// Reactions that map to actions — these have to feel obviously
+		// linked so the user doesn't think the bot read their mind.
+		// Today: empty (we add per-bubble reactions if/when product
+		// surfaces a clear "react with X = do Y" affordance).
+		return array(
+			'reply'     => '',
+			'completed' => true,
+		);
 	}
 
 	/**
