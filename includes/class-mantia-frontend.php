@@ -373,6 +373,30 @@ final class Mantia_Frontend {
 		$matches  = Mantia_Repository::upcoming_matches_for_competition( $slug, 24 * 30 );
 		$create_url = self::create_penca_wa_url( $comp );
 
+		// Logged-in personalization: surface the user's own pencas in this
+		// competition + use their first one as the source for the inline
+		// prediction badges on the matches list. Predictions auto-fan-out
+		// across the user's pencas in the same competition, so reading any
+		// one of them reflects the full state. Not logged in → none of
+		// this renders; the page stays the public marketing-y view.
+		$current_user_id   = (int) get_current_user_id();
+		$user_groups       = array();
+		$first_group_id    = 0;
+		$user_share_token  = '';
+		if ( $current_user_id > 0 ) {
+			$user_group_ids = Mantia_Repository::user_groups_in_competition( $current_user_id, $slug );
+			foreach ( $user_group_ids as $gid ) {
+				$g = Mantia_Repository::group_to_array( (int) $gid );
+				if ( ! empty( $g['id'] ) ) {
+					$user_groups[] = $g;
+					if ( 0 === $first_group_id ) {
+						$first_group_id = (int) $g['id'];
+					}
+				}
+			}
+			$user_share_token = Mantia_Repository::user_share_token( $current_user_id );
+		}
+
 		ob_start();
 		self::page_header( sprintf( 'Penca — %s', $comp['name'] ) );
 		?>
@@ -388,6 +412,51 @@ final class Mantia_Frontend {
 			<?php self::render_competition_nav( $slug ); ?>
 
 			<hr class="mantia-rule">
+
+			<?php if ( ! empty( $user_groups ) ) : ?>
+				<section class="mantia-block">
+					<div class="mantia-eyebrow-row">
+						<span class="mantia-eyebrow"><?php
+							printf(
+								/* translators: %s: competition short name. */
+								esc_html__( 'mis pencas de %s', 'mantia' ),
+								esc_html( $comp['name'] )
+							);
+						?></span>
+						<span class="mantia-eyebrow-count"><?php
+							echo esc_html( sprintf(
+								/* translators: %d: number of pencas the user has in this competition. */
+								_n( '%d penca', '%d pencas', count( $user_groups ), 'mantia' ),
+								count( $user_groups )
+							) );
+						?></span>
+					</div>
+					<?php foreach ( $user_groups as $g ) :
+						$g_view  = (string) ( $g['view_token'] ?? '' );
+						$g_url   = '' !== $g_view ? home_url( '/pronostico/g/' . $g_view . '/' ) : '';
+						if ( '' !== $g_url && '' !== $user_share_token ) {
+							$g_url .= '?as=' . $user_share_token;
+						}
+						$members = (int) ( $g['member_count'] ?? 0 );
+						?>
+						<?php if ( '' !== $g_url ) : ?>
+							<a class="mantia-mygroup-row" href="<?php echo esc_url( $g_url ); ?>">
+								<span class="mantia-mygroup-name"><?php echo esc_html( (string) ( $g['name'] ?? $slug ) ); ?></span>
+								<?php if ( $members > 0 ) : ?>
+									<span class="mantia-mygroup-meta"><?php
+										echo esc_html( sprintf(
+											/* translators: %d: members in this penca. */
+											_n( '%d jugador', '%d jugadores', $members, 'mantia' ),
+											$members
+										) );
+									?></span>
+								<?php endif; ?>
+								<span class="mantia-mygroup-arrow" aria-hidden="true">→</span>
+							</a>
+						<?php endif; ?>
+					<?php endforeach; ?>
+				</section>
+			<?php endif; ?>
 
 			<?php if ( ! empty( $rows ) ) : ?>
 				<section class="mantia-block">
@@ -419,8 +488,10 @@ final class Mantia_Frontend {
 
 			<?php if ( ! empty( $matches ) ) : ?>
 				<section class="mantia-block">
-					<div class="mantia-eyebrow"><?php esc_html_e( 'próximos partidos', 'mantia' ); ?></div>
-					<?php self::render_matches_grouped_by_day( array_slice( $matches, 0, 20 ) ); ?>
+					<div class="mantia-eyebrow"><?php
+						echo esc_html( $first_group_id > 0 ? __( 'próximos partidos · tus pronósticos', 'mantia' ) : __( 'próximos partidos', 'mantia' ) );
+					?></div>
+					<?php self::render_matches_grouped_by_day( array_slice( $matches, 0, 20 ), $current_user_id, $first_group_id ); ?>
 				</section>
 			<?php endif; ?>
 
@@ -3723,6 +3794,43 @@ body {
 	border: 2px solid var(--ink);
 	border-radius: 14px;
 	box-shadow: 3px 3px 0 var(--ink);
+}
+.mantia-mygroup-row {
+	display: grid;
+	grid-template-columns: 1fr auto 22px;
+	align-items: center;
+	gap: 12px;
+	padding: 13px 14px;
+	margin-bottom: 10px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 3px 3px 0 var(--ink);
+	color: var(--ink);
+	text-decoration: none;
+	transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+.mantia-mygroup-row:hover {
+	transform: translate(-1px, -1px);
+	box-shadow: 4px 4px 0 var(--ink);
+}
+.mantia-mygroup-name {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 16px;
+	letter-spacing: -0.01em;
+}
+.mantia-mygroup-meta {
+	font-family: var(--font-body);
+	font-size: 13px;
+	font-weight: 600;
+	color: rgba(0, 0, 0, 0.65);
+}
+.mantia-mygroup-arrow {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	color: var(--ink);
 }
 .mantia-match-pred {
 	font-family: var(--font-display);
