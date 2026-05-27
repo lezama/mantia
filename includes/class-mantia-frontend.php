@@ -501,7 +501,7 @@ final class Mantia_Frontend {
 			<?php else : ?>
 				<section class="mantia-block">
 					<div class="mantia-eyebrow"><?php esc_html_e( 'ranking global', 'mantia' ); ?></div>
-					<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos cargados.', 'mantia' ); ?></p>
+					<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos — la tabla aparece cuando se resuelve el primer partido.', 'mantia' ); ?></p>
 				</section>
 			<?php endif; ?>
 
@@ -514,13 +514,73 @@ final class Mantia_Frontend {
 				</section>
 			<?php endif; ?>
 
+			<?php
+			// For anonymous visitors, the page so far reads as a generic
+			// fixture page with one CTA ("Crear penca de X"). That can
+			// land confusingly when the visitor actually got HERE from
+			// a friend's penca link — they may be looking for "join an
+			// existing penca", not "start a fresh one". Surface a
+			// secondary CTA pointing them at the bot's join-by-code
+			// path, AND a small stat that signals there's activity here
+			// already. Logged-in visitors already see "mis pencas" so
+			// this section is just for the anon path.
+			$active_groups_count = 0;
+			$active_players_count = 0;
+			if ( 0 === $current_user_id ) {
+				$active_groups = get_posts(
+					array(
+						'post_type'      => Mantia_CPTs::GROUP,
+						'post_status'    => 'publish',
+						'posts_per_page' => 50,
+						'no_found_rows'  => true,
+						'meta_query'     => array(
+							array(
+								'key'   => Mantia_Competitions::META_KEY,
+								'value' => $slug,
+							),
+						),
+						'fields'         => 'ids',
+					)
+				);
+				$active_groups_count = count( $active_groups );
+				$seen_users          = array();
+				foreach ( $active_groups as $gid ) {
+					foreach ( Mantia_Repository::group_members( (int) $gid ) as $m ) {
+						$seen_users[ (int) $m['id'] ] = true;
+					}
+				}
+				$active_players_count = count( $seen_users );
+			}
+			?>
+
+			<?php if ( 0 === $current_user_id && $active_groups_count > 0 ) : ?>
+				<section class="mantia-block mantia-activity-hint">
+					<p class="mantia-activity-line">
+						<?php
+						printf(
+							/* translators: 1: number of pencas, 2: number of total players. */
+							esc_html( _n(
+								'%1$d penca activa · %2$d jugador.',
+								'%1$d pencas activas · %2$d jugadores en total.',
+								$active_groups_count,
+								'mantia'
+							) ),
+							(int) $active_groups_count,
+							(int) $active_players_count
+						);
+						?>
+						<?php esc_html_e( '¿Te invitaron a una? Pedile el código a quien te pasó el link.', 'mantia' ); ?>
+					</p>
+				</section>
+			<?php endif; ?>
+
 			<?php if ( '' !== $create_url ) : ?>
 				<section class="mantia-cta-section">
 					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $create_url ); ?>">
 						<?php
 						printf(
 							/* translators: %s: competition short name. */
-							esc_html__( 'Crear penca de %s', 'mantia' ),
+							esc_html__( 'Crear tu propia penca de %s', 'mantia' ),
 							esc_html( $comp['name'] )
 						);
 						?>
@@ -630,6 +690,42 @@ final class Mantia_Frontend {
 			}
 			$invite_code = (string) ( $group['invite_code'] ?? '' );
 			?>
+			<?php
+			// Predict-action CTAs for members. The group page itself stays
+			// read-only on the prediction list (badges only), so a member
+			// who lands here from the bot needs an obvious path to write.
+			// Two CTAs surface the two paths users already know:
+			//   - "Pronosticar en privado" → /me/ (web form, edits inline)
+			//   - "Pronosticar por WhatsApp" → wa.me with a join-style intent
+			$predict_web_url = '';
+			$predict_wa_url  = '';
+			if ( $is_member && $current_uid > 0 ) {
+				$me_token = Mantia_Repository::user_view_token( $current_uid );
+				if ( '' !== $me_token ) {
+					$predict_web_url = home_url( '/pronostico/me/' . $me_token . '/' );
+				}
+				$bot_phone = Mantia_Repository::bot_phone_e164();
+				if ( '' !== $bot_phone ) {
+					$predict_wa_url = 'https://wa.me/' . rawurlencode( $bot_phone )
+						. '?text=' . rawurlencode( 'pendientes' );
+				}
+			}
+			?>
+			<?php if ( $is_member && ( '' !== $predict_web_url || '' !== $predict_wa_url ) ) : ?>
+				<section class="mantia-cta-section mantia-cta-stack">
+					<?php if ( '' !== $predict_web_url ) : ?>
+						<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( $predict_web_url ); ?>">
+							<?php esc_html_e( '✏️ Pronosticar acá', 'mantia' ); ?>
+						</a>
+					<?php endif; ?>
+					<?php if ( '' !== $predict_wa_url ) : ?>
+						<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( $predict_wa_url ); ?>">
+							<?php esc_html_e( '💬 Pronosticar por WhatsApp', 'mantia' ); ?>
+						</a>
+					<?php endif; ?>
+				</section>
+			<?php endif; ?>
+
 			<?php if ( $is_member && '' !== $invite_code ) : ?>
 				<?php
 				// Share-with-contacts: wa.me with no phone opens WhatsApp's
@@ -753,7 +849,7 @@ final class Mantia_Frontend {
 							<?php endforeach; ?>
 						</div>
 					<?php else : ?>
-						<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos cargados.', 'mantia' ); ?></p>
+						<p class="mantia-empty"><?php esc_html_e( 'Todavía no hay puntos — la tabla aparece cuando se resuelve el primer partido.', 'mantia' ); ?></p>
 					<?php endif; ?>
 				<?php else : ?>
 					<?php self::render_leaderboard( $rows, 'group', $me_id ); ?>
@@ -3872,6 +3968,39 @@ body {
 	font-weight: 900;
 	font-size: 18px;
 	color: var(--ink);
+}
+.mantia-cta-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.mantia-pill-secondary {
+	display: inline-block;
+	padding: 12px 18px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 999px;
+	box-shadow: 3px 3px 0 var(--ink);
+	color: var(--ink);
+	text-decoration: none;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 15px;
+	text-align: center;
+}
+.mantia-pill-secondary:hover {
+	transform: translate(-1px, -1px);
+	box-shadow: 4px 4px 0 var(--ink);
+}
+.mantia-activity-hint {
+	margin-top: 8px;
+}
+.mantia-activity-line {
+	font-family: var(--font-body);
+	font-size: 14px;
+	color: rgba(0, 0, 0, 0.72);
+	margin: 0;
+	line-height: 1.55;
 }
 .mantia-match-pred {
 	font-family: var(--font-display);

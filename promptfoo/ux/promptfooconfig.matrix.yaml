@@ -163,7 +163,10 @@ tests:
       url: '{{BASE}}/pronostico/mundial-2026/?as={{BOB_SHARE}}'
     assert:
       - { type: not-contains, value: 'mis pencas de' }
-      - { type: contains, value: 'Crear penca de' }
+      # Anon CTA reads "Crear tu propia penca de X" (2026-05-27 copy
+      # change after the free-review surfaced that bare "Crear penca de"
+      # didn't disambiguate vs joining an existing penca).
+      - { type: contains, value: 'Crear tu propia penca de' }
       - { type: not-contains, value: '✓ ' }
 
   - description: 'libe-comp·anon — no "mis pencas", no per-user badges'
@@ -173,7 +176,10 @@ tests:
       - { type: not-contains, value: 'mis pencas de' }
       - { type: not-contains, value: 'tus pronósticos' }
       - { type: not-contains, value: '✓ ' }
-      - { type: contains, value: 'Crear penca de' }
+      # Anon CTA reads "Crear tu propia penca de X" (2026-05-27 copy
+      # change after the free-review surfaced that bare "Crear penca de"
+      # didn't disambiguate vs joining an existing penca).
+      - { type: contains, value: 'Crear tu propia penca de' }
 
   # ═════════════════════════════════════════════════════════════════
   # GLOBAL HYGIENE — no infrastructure leaks on any (URL × identity)
