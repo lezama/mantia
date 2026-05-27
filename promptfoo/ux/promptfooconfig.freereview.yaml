@@ -1,0 +1,170 @@
+# Mantia · UX detective — FREE REVIEW
+#
+# Where promptfooconfig.matrix.yaml runs deterministic "does this
+# string contain X" and matrix.review.yaml runs "smart asserts"
+# (LLM with an explicit checklist), THIS config runs OPEN-ENDED
+# review. We hand the LLM the page HTML + the fixture state and
+# ask: "look at this like a real user would, tell us what's good /
+# bad / surprising / confusing". No checklist. The LLM is allowed
+# to surface unknown unknowns — bugs we haven't thought of, design
+# issues we haven't articulated.
+#
+# The rubric always returns PASS unless something is glaringly
+# broken. The value lives in the `reason` prose, not the pass count.
+# After running:
+#   bin/promptfoo-ux.sh free-review
+# extract the prose with `bin/promptfoo-ux.sh report` (writes a
+# markdown report to promptfoo/ux/last-free-review.md).
+
+description: Mantia UX — open-ended page review (no checklist, LLM judgment only)
+
+prompts:
+  - 'GET {{url}}'
+
+providers:
+  - id: 'https'
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective-free/1.0
+        Accept: text/html
+      transformResponse: 'text'
+
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    ALICE_SHARE: file://vars/alice_share.txt
+    BOB_SHARE: file://vars/bob_share.txt
+    CAROL_SHARE: file://vars/carol_share.txt
+    LIBE_VIEW: file://vars/libe_view.txt
+    LIBE_NAME: file://vars/libe_name.txt
+    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
+    PERSONA_BRIEF: |
+      You are a real WhatsApp user in Uruguay looking at this web page
+      on your phone. You play pencas with friends. Mantia is a bot
+      that runs a pool — predict scores, earn points, see your group.
+      You don't read code. You don't know what "share_token" is. You
+      just react to what's on the page.
+
+      Fixture state (what's true on this install):
+        Alice — created the libertadores penca P_LIBE_MTX and the
+                mundial penca P_MUN_MTX. Predicted 1-1 on match A
+                (Indep. del Valle vs Rosario Central) and 2-0 on
+                match B (Libertad vs Universidad Central) in libe.
+        Bob   — joined Alice's libertadores penca. Predicted 0-3 on
+                match A. NOT in the mundial penca.
+        Carol — joined both pencas. Hasn't manually predicted yet.
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5
+      config:
+        max_tokens: 2000
+        temperature: 0.4
+
+# Six surface combinations the free reviewer walks through. The
+# rubric prompt is intentionally short + open. We want the LLM to
+# notice things, not check off a list.
+tests:
+  - description: 'libe · viewed as Alice (creator + has predictions)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      WHO: 'Alice, the creator of the penca. She made 2 predictions.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}.
+
+          Walk the page top-to-bottom like you would on your phone.
+          Note ANYTHING that catches your eye — good, bad, confusing,
+          surprising, redundant, missing, off-tone, layout-weird.
+          Be specific (cite the actual text / section). If everything
+          looks fine, say so. Don't follow a checklist; just react.
+
+          ALWAYS output JSON — even when the page is fine. Don't skip
+          the JSON because "everything looks ok"; the prose is the
+          point of running this. If you genuinely have nothing in
+          `what_seems_off`, emit an empty array and explain in
+          `first_impression` what made the page feel smooth.
+
+          {
+            "first_impression": "one sentence",
+            "what_works":       ["…", "…"],
+            "what_seems_off":   ["…", "…"],
+            "would_a_user_be_confused": "yes / no / maybe",
+            "verdict": "ship / minor polish / block"
+          }
+
+          PASS the rubric unless verdict is "block".
+
+  - description: 'libe · viewed as Bob (joiner + has one prediction)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      WHO: 'Bob, who joined the penca via an invite code. He made 1 prediction.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}.
+
+          Walk it open-eyed and ALWAYS emit the full JSON below — even
+          when the page is fine. The prose IS the value.
+
+          {
+            "first_impression": "…",
+            "what_works":       ["…"],
+            "what_seems_off":   ["…"],
+            "would_a_user_be_confused": "yes / no / maybe",
+            "verdict": "ship / minor polish / block"
+          }
+          PASS the rubric unless "block".
+
+  - description: 'libe · viewed as Carol (member, no predictions yet)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{CAROL_SHARE}}'
+      WHO: 'Carol — joined but has not predicted anything yet. All her matches show 0-0 default.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}. Same JSON shape, same rules.
+
+  - description: 'libe · viewed anonymously (no identity)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      WHO: 'A friend who got a forwarded link. Not logged in. Doesn''t know the people in the penca yet.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}. Same JSON.
+
+  - description: 'libertadores-prueba competition · viewed as Alice'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      WHO: 'Alice opens the global libertadores page after creating her penca via the bot.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}. Same JSON.
+
+  - description: 'libertadores-prueba competition · viewed anonymously'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      WHO: 'Someone curious about Mantia who clicked a generic share. Anonymous.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{PERSONA_BRIEF}}
+
+          You opened this page as: {{WHO}}. Same JSON.

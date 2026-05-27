@@ -125,6 +125,26 @@ run_review_matrix() {
   npx --yes promptfoo@latest eval -c promptfooconfig.matrix.review.yaml --no-cache "$@"
 }
 
+run_free_review() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/alice_share.txt" ]; then
+    echo "no matrix vars — run \`bin/promptfoo-ux.sh setup-matrix\` first" >&2
+    return 2
+  fi
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "ANTHROPIC_API_KEY not set" >&2
+    return 2
+  fi
+  echo "▶ free-form UX review (6 (URL × identity) combos × open judgment)"
+  local out="/tmp/mantia-ux-free.json"
+  npx --yes promptfoo@latest eval -c promptfooconfig.freereview.yaml --output "$out" --no-cache "$@"
+  echo
+  echo "▶ extracting findings → promptfoo/ux/last-free-review.md"
+  python3 "$PROJECT_DIR/bin/ux-format-free-review.py" "$out" > "$UX_DIR/last-free-review.md"
+  echo "  done. Open with:"
+  echo "    less $UX_DIR/last-free-review.md"
+}
+
 view_results() {
   cd "$UX_DIR"
   npx --yes promptfoo@latest view
@@ -181,6 +201,10 @@ case "$cmd" in
   review-matrix)
     shift
     run_review_matrix "$@"
+    ;;
+  free-review)
+    shift
+    run_free_review "$@"
     ;;
   view)
     view_results
