@@ -1,0 +1,193 @@
+# Mantia · UX detective (web surface)
+#
+# Drives the live mantia3 web pages through promptfoo's http provider
+# and asserts state-vs-render invariants declaratively. Replaces the
+# bash + grep harness with named, structured assertions that catch the
+# bug classes seen during the 2026-05-26 stakeholder pass:
+#   - CTA copy that doesn't reflect membership state
+#   - Missing "mis pencas" section for logged-in visitors
+#   - ?as= identity not propagating across navigation
+#   - Inline prediction badges missing or leaking to anonymous visitors
+#
+# Setup (creates Alice + 1 penca + 1 manual prediction on mantia3):
+#   bin/promptfoo-ux.sh setup
+# Then:
+#   bin/promptfoo-ux.sh run    # eval all assertions
+#   bin/promptfoo-ux.sh view   # open the result viewer
+#
+# Vars come from a setup-step JSON file written by the bash wrapper.
+
+description: Mantia UX detective — web surface state-vs-render checks
+
+# A single "fetch this URL" prompt; the actual URL comes from per-test vars.
+prompts:
+  - 'GET {{url}}'
+
+# HTTP provider — promptfoo fetches the URL and the response body
+# becomes the output we assert against. transformResponse extracts the
+# body string from the wrapper object.
+providers:
+  - id: 'https'
+    label: web fetch
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective/1.0
+        Accept: text/html
+      # For text/html responses the body is exposed as a string on
+      # `text`. Default transform tries to JSON.parse first and chokes
+      # on HTML; this explicit identity transform avoids that.
+      transformResponse: 'text'
+
+# Vars loaded from the setup wrapper's output. Each value lives in its
+# own one-line text file; promptfoo's file:// loader pulls them in
+# verbatim, no parsing needed.
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    SHARE_TOKEN: file://vars/share_token.txt
+    VIEW_TOKEN: file://vars/view_token.txt
+    GROUP_NAME: file://vars/group_name.txt
+    INVITE_CODE: file://vars/invite_code.txt
+    COMP_SLUG: file://vars/comp_slug.txt
+
+tests:
+  # ─────────────────────────────────────────────────────────────────
+  # GROUP VIEW · as a member (resolved via ?as=<share_token>)
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'group_as · CTA flips to "Invitar amigos" for a member'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: contains
+        value: 'Invitar amigos'
+      - type: not-contains
+        value: 'Sumate · código'
+      - type: contains
+        value: '{{GROUP_NAME}}'
+
+  - description: 'group_as · manual prediction badge appears'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: contains
+        value: '✓ 1-1'
+
+  - description: 'group_as · breadcrumb to competition propagates ?as='
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: javascript
+        value: |
+          const links = (output.match(/href="[^"]*pronostico\/[a-z0-9-]+[^"]*"/g) || [])
+            .filter(s => !s.includes('/pronostico/g/') && !s.includes('/pronostico/sumate/'));
+          const carriesAs = links.some(s => s.includes('as='));
+          if (!carriesAs) throw new Error('breadcrumb to competition does not carry ?as=');
+          return true;
+
+  # ─────────────────────────────────────────────────────────────────
+  # GROUP VIEW · anonymous (no ?as=, no cookie)
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'group_anon · anon CTA reads "Sumate · código X"'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/'
+    assert:
+      - type: contains
+        value: 'Sumate · código {{INVITE_CODE}}'
+      - type: not-contains
+        value: 'Invitar amigos'
+
+  - description: 'group_anon · no prediction badge leaks to anonymous'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/'
+    assert:
+      # Assert on the user-facing content, NOT the CSS class name — the
+      # class is always present in the <style> block.
+      - type: not-contains
+        value: '✓ 1-1'
+
+  # ─────────────────────────────────────────────────────────────────
+  # COMPETITION VIEW · with ?as=<share_token>
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'comp_as · "mis pencas" section renders WITH card body'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: contains
+        value: 'mis pencas de'
+      # Card body — the section header alone isn't enough (the 2026-05-26
+      # bug was "eyebrow says 1 penca but card body empty"). Check that
+      # the penca name appears AFTER the eyebrow specifically.
+      - type: javascript
+        value: |
+          const eb = output.indexOf('mis pencas de');
+          if (eb < 0) throw new Error('no "mis pencas de" eyebrow');
+          const after = output.slice(eb);
+          const name = '{{GROUP_NAME}}';
+          if (!after.includes(name)) throw new Error('penca name "' + name + '" not in card body after eyebrow');
+          return true;
+
+  - description: 'comp_as · próximos partidos eyebrow says "tus pronósticos"'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: contains
+        value: 'tus pronósticos'
+      - type: contains
+        value: '✓ 1-1'
+
+  # ─────────────────────────────────────────────────────────────────
+  # COMPETITION VIEW · anonymous
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'comp_anon · no "mis pencas" section for anonymous'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/'
+    assert:
+      - type: not-contains
+        value: 'mis pencas de'
+      - type: not-contains
+        value: 'tus pronósticos'
+
+  - description: 'comp_anon · no prediction badge leaks to anonymous'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/'
+    assert:
+      - type: not-contains
+        value: '✓ 1-1'
+
+  - description: 'comp_anon · still shows "Crear penca de X" CTA'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/'
+    assert:
+      - type: contains
+        value: 'Crear penca de'
+
+  # ─────────────────────────────────────────────────────────────────
+  # GLOBAL · no internal-infrastructure leaks on any page
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'group_as · no PHP error / token blob leaks'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: not-contains
+        value: 'wa_auth_t='
+      - type: not-contains
+        value: 'Fatal error'
+      - type: not-contains
+        value: 'Warning:'
+      - type: not-contains
+        value: '<?php'
+
+  - description: 'comp_as · no PHP error / token blob leaks'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: not-contains
+        value: 'wa_auth_t='
+      - type: not-contains
+        value: 'Fatal error'
+      - type: not-contains
+        value: 'Warning:'
+      - type: not-contains
+        value: '<?php'

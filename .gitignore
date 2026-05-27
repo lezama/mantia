@@ -25,3 +25,4 @@ phpstan-baseline.neon
 /wordpress/
 /tests/fixtures/uploads/*
 !/tests/fixtures/uploads/.gitkeep
+promptfoo/ux/vars/
