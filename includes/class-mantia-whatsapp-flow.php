@@ -2818,7 +2818,14 @@ final class Mantia_Whatsapp_Flow {
 			? Mantia_Repository::group_view_url( $first_group_id, $user_id_for_link )
 			: '';
 		if ( '' !== $group_url ) {
-			$tail .= sprintf( "\n\n🌐 Ver en la web: %s", $group_url );
+			// When there's still work to do, frame the link as the
+			// completion path ("📝 Completar en la web") instead of a
+			// passive "Ver". Stakeholder feedback 2026-05-26: a 5-pending
+			// state with a "Ver" link reads ambiguous — the user thinks
+			// the link is to see results, not to finish.
+			$tail .= $pending_total > 0
+				? sprintf( "\n\n📝 Completar en la web: %s", $group_url )
+				: sprintf( "\n\n🌐 Ver en la web: %s", $group_url );
 		}
 
 		$buttons = $pending_total > 0
