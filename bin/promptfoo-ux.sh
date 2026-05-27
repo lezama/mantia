@@ -39,18 +39,18 @@ mkdir -p "$VARS_DIR"
 cmd="${1:-all}"
 
 setup_state() {
-  echo "▶ resetting + seeding canonical UX state on $SSH_HOST"
+  local script="${1:-setup-canonical-user.php}"
+  echo "▶ resetting + seeding UX state ($script) on $SSH_HOST"
   ssh -o ConnectTimeout=15 "$SSH_HOST" "mkdir -p /srv/htdocs/${PLUGIN_PATH}/tests/ux" >/dev/null
-  # Always deploy the latest setup script (matches the running plugin).
   rsync -avz -e "ssh -o ConnectTimeout=15" \
-    "$PROJECT_DIR/tests/ux/setup-canonical-user.php" \
-    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/setup-canonical-user.php" \
+    "$PROJECT_DIR/tests/ux/${script}" \
+    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/${script}" \
     >/dev/null
 
   local out
   out=$(ssh -o ConnectTimeout=15 "$SSH_HOST" "cd /srv/htdocs \
     && wp eval-file ${PLUGIN_PATH}/tools/reset-users-and-groups.php 2>&1 | tail -1 \
-    && wp eval-file ${PLUGIN_PATH}/tests/ux/setup-canonical-user.php 2>&1")
+    && wp eval-file ${PLUGIN_PATH}/tests/ux/${script} 2>&1")
 
   if echo "$out" | grep -q "^ERROR:"; then
     echo "$out" | grep "^ERROR:" >&2
@@ -61,15 +61,29 @@ setup_state() {
     echo "$out" | grep -m1 "^$1:" | sed "s/^$1: //"
   }
 
-  # Persist each var as a one-line file the YAML's file:// loader reads.
+  # Canonical (single-user) and matrix (multi-user) fixtures share the
+  # base_url var; everything else depends on which script ran.
   echo -n "https://mantia3.wpcomstaging.com" > "$VARS_DIR/base_url.txt"
-  echo -n "$(get_val SHARE_TOKEN)"             > "$VARS_DIR/share_token.txt"
-  echo -n "$(get_val VIEW_TOKEN)"              > "$VARS_DIR/view_token.txt"
-  echo -n "$(get_val GROUP_NAME)"              > "$VARS_DIR/group_name.txt"
-  echo -n "$(get_val INVITE_CODE)"             > "$VARS_DIR/invite_code.txt"
-  echo -n "libertadores-prueba"                > "$VARS_DIR/comp_slug.txt"
 
-  echo "  · canary state ready: $(get_val GROUP_NAME) (code $(get_val INVITE_CODE))"
+  if [ "$script" = "setup-canonical-user.php" ]; then
+    echo -n "$(get_val SHARE_TOKEN)" > "$VARS_DIR/share_token.txt"
+    echo -n "$(get_val VIEW_TOKEN)"  > "$VARS_DIR/view_token.txt"
+    echo -n "$(get_val GROUP_NAME)"  > "$VARS_DIR/group_name.txt"
+    echo -n "$(get_val INVITE_CODE)" > "$VARS_DIR/invite_code.txt"
+    echo -n "libertadores-prueba"    > "$VARS_DIR/comp_slug.txt"
+    echo "  · canonical: $(get_val GROUP_NAME) (code $(get_val INVITE_CODE))"
+  else
+    echo -n "$(get_val ALICE_SHARE)" > "$VARS_DIR/alice_share.txt"
+    echo -n "$(get_val BOB_SHARE)"   > "$VARS_DIR/bob_share.txt"
+    echo -n "$(get_val CAROL_SHARE)" > "$VARS_DIR/carol_share.txt"
+    echo -n "$(get_val LIBE_VIEW)"   > "$VARS_DIR/libe_view.txt"
+    echo -n "$(get_val LIBE_NAME)"   > "$VARS_DIR/libe_name.txt"
+    echo -n "$(get_val LIBE_CODE)"   > "$VARS_DIR/libe_code.txt"
+    echo -n "$(get_val MUN_VIEW)"    > "$VARS_DIR/mun_view.txt"
+    echo -n "$(get_val MUN_NAME)"    > "$VARS_DIR/mun_name.txt"
+    echo -n "$(get_val MUN_CODE)"    > "$VARS_DIR/mun_code.txt"
+    echo "  · matrix: 3 users × 2 pencas × mixed predictions ready"
+  fi
   echo "  · vars written to $VARS_DIR/"
 }
 
@@ -104,13 +118,30 @@ view_results() {
   npx --yes promptfoo@latest view
 }
 
+run_matrix() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/alice_share.txt" ]; then
+    echo "no matrix vars on disk — run \`bin/promptfoo-ux.sh setup-matrix\` first" >&2
+    return 2
+  fi
+  echo "▶ evaluating UX matrix (3 users × 2 pencas × mixed states)"
+  npx --yes promptfoo@latest eval -c promptfooconfig.matrix.yaml --no-cache "$@"
+}
+
 case "$cmd" in
   setup)
-    setup_state
+    setup_state setup-canonical-user.php
+    ;;
+  setup-matrix)
+    setup_state setup-matrix.php
     ;;
   run)
     shift
     run_eval "$@"
+    ;;
+  matrix)
+    shift
+    run_matrix "$@"
     ;;
   review)
     shift
@@ -120,19 +151,25 @@ case "$cmd" in
     view_results
     ;;
   all)
-    setup_state && run_eval
+    setup_state setup-canonical-user.php && run_eval
+    ;;
+  all-matrix)
+    setup_state setup-matrix.php && run_matrix
     ;;
   full)
-    setup_state && run_eval && run_review
+    setup_state setup-canonical-user.php && run_eval && run_review
     ;;
   *)
-    echo "usage: $0 {setup|run|review|view|all|full}" >&2
-    echo "  setup    reset prod + create canonical Alice state" >&2
-    echo "  run      deterministic promptfoo asserts (fast, free)" >&2
-    echo "  review   LLM-rubric per-page section review (slow, costs tokens)" >&2
-    echo "  view     open the result viewer" >&2
-    echo "  all      setup + run" >&2
-    echo "  full     setup + run + review" >&2
+    echo "usage: $0 {setup|setup-matrix|run|matrix|review|view|all|all-matrix|full}" >&2
+    echo "  setup          canonical 1-user fixture (Alice)" >&2
+    echo "  setup-matrix   multi-user fixture (Alice + Bob + Carol × 2 pencas)" >&2
+    echo "  run            deterministic asserts on canonical fixture (fast, free)" >&2
+    echo "  matrix         deterministic asserts on matrix fixture (multi-user surface)" >&2
+    echo "  review         LLM-rubric per-page review (slow, costs tokens)" >&2
+    echo "  view           open the result viewer" >&2
+    echo "  all            setup + run" >&2
+    echo "  all-matrix     setup-matrix + matrix" >&2
+    echo "  full           setup + run + review" >&2
     exit 2
     ;;
 esac

@@ -1,0 +1,195 @@
+# Mantia · UX matrix — multi-user × multi-penca × mixed-prediction
+#
+# Companion to promptfooconfig.yaml (canonical 1-user happy path) and
+# promptfooconfig.review.yaml (LLM rubric on the same 4 pages). This
+# config expands coverage to every (URL × identity) combination the
+# fixture can produce, so a regression that only manifests on, say,
+# "Bob viewing Alice's penca" gets caught.
+#
+# Fixture (set up by tests/ux/setup-matrix.php):
+#   Alice (creator)  member of P_LIBE_MTX (libertadores) + P_MUN_MTX (mundial)
+#   Bob              member of P_LIBE_MTX only
+#   Carol            member of both, no manual predictions yet
+#
+# Predictions:
+#   Alice: 1-1 on match A (libe), 2-0 on match B (libe)
+#   Bob:   0-3 on match A (libe)
+#   Carol: nothing manual (all auto-fill 0-0)
+#
+# Run:  bin/promptfoo-ux.sh matrix
+# View: bin/promptfoo-ux.sh view
+
+description: Mantia UX matrix — multi-user × multi-page
+
+prompts:
+  - 'GET {{url}}'
+
+providers:
+  - id: 'https'
+    label: web fetch
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective-matrix/1.0
+        Accept: text/html
+      transformResponse: 'text'
+
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    ALICE_SHARE: file://vars/alice_share.txt
+    BOB_SHARE: file://vars/bob_share.txt
+    CAROL_SHARE: file://vars/carol_share.txt
+    LIBE_VIEW: file://vars/libe_view.txt
+    LIBE_NAME: file://vars/libe_name.txt
+    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
+
+tests:
+  # ═════════════════════════════════════════════════════════════════
+  # LIBERTADORES PENCA (P_LIBE_MTX) — 3 viewers + anon
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'libe·alice — creator+predictor sees her 1-1 + Invitar CTA'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+    assert:
+      - { type: contains, value: 'Invitar amigos' }
+      - { type: not-contains, value: 'Sumate · código' }
+      - { type: contains, value: '{{LIBE_NAME}}' }
+      - { type: contains, value: '✓ 1-1' }
+      - { type: contains, value: '✓ 2-0' }
+      - { type: not-contains, value: '✓ 0-3' }   # Bob's pick must not show
+
+  - description: 'libe·bob — joiner sees his 0-3, NOT Alice''s picks'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+    assert:
+      - { type: contains, value: 'Invitar amigos' }
+      - { type: contains, value: '✓ 0-3' }
+      - { type: not-contains, value: '✓ 1-1' }
+      - { type: not-contains, value: '✓ 2-0' }
+
+  - description: 'libe·carol — member with NO manual predictions, no badges'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{CAROL_SHARE}}'
+    assert:
+      - { type: contains, value: 'Invitar amigos' }
+      - { type: not-contains, value: '✓ ' }     # no badges of any score
+
+  - description: 'libe·anon — public landing: Sumate CTA, no leaks'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+    assert:
+      - { type: contains, value: 'Sumate · código {{LIBE_CODE}}' }
+      - { type: not-contains, value: 'Invitar amigos' }
+      - { type: not-contains, value: '✓ 1-1' }
+      - { type: not-contains, value: '✓ 0-3' }
+      - { type: not-contains, value: '✓ 2-0' }
+
+  # ═════════════════════════════════════════════════════════════════
+  # MUNDIAL PENCA (P_MUN_MTX) — Alice + Carol members, Bob isn't
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'mun·alice — member of mundial, NO predictions in this comp'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
+    assert:
+      - { type: contains, value: 'Invitar amigos' }
+      - { type: contains, value: '{{MUN_NAME}}' }
+      - { type: not-contains, value: '✓ 1-1' }   # her libe predictions don't bleed
+      - { type: not-contains, value: '✓ 0-3' }
+
+  - description: 'mun·bob — NOT a member, sees Sumate (not Invitar)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
+    assert:
+      # Bob has a share_token but isn't in this penca → page identifies
+      # him but CTA stays the join CTA (he's a non-member viewer).
+      - { type: contains, value: 'Sumate · código {{MUN_CODE}}' }
+      - { type: not-contains, value: 'Invitar amigos' }
+
+  - description: 'mun·carol — member, no manual predictions'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{CAROL_SHARE}}'
+    assert:
+      - { type: contains, value: 'Invitar amigos' }
+      - { type: not-contains, value: '✓ ' }
+
+  # ═════════════════════════════════════════════════════════════════
+  # COMPETITION PAGES — each user sees their own "mis pencas" set
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'libe-comp·alice — sees her 1 libe penca + her badges'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+    assert:
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{LIBE_NAME}}' }
+      - { type: contains, value: 'tus pronósticos' }
+      - { type: contains, value: '✓ 1-1' }
+      - { type: contains, value: '✓ 2-0' }
+      - { type: not-contains, value: '✓ 0-3' }
+
+  - description: 'libe-comp·bob — sees his 1 libe penca + his 0-3 badge only'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{BOB_SHARE}}'
+    assert:
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{LIBE_NAME}}' }
+      - { type: contains, value: '✓ 0-3' }
+      - { type: not-contains, value: '✓ 1-1' }
+      - { type: not-contains, value: '✓ 2-0' }
+
+  - description: 'libe-comp·carol — member, no manual predictions, no badges'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{CAROL_SHARE}}'
+    assert:
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{LIBE_NAME}}' }
+      - { type: not-contains, value: '✓ ' }
+
+  - description: 'mun-comp·alice — sees her 1 mundial penca (separate from libe)'
+    vars:
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
+    assert:
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{MUN_NAME}}' }
+      - { type: not-contains, value: '{{LIBE_NAME}}' }   # libe penca not on mundial page
+      - { type: not-contains, value: '✓ 1-1' }            # libe predictions stay scoped to libe
+
+  - description: 'mun-comp·bob — NOT a member of any mundial penca: no section'
+    vars:
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{BOB_SHARE}}'
+    assert:
+      - { type: not-contains, value: 'mis pencas de' }
+      - { type: contains, value: 'Crear penca de' }
+      - { type: not-contains, value: '✓ ' }
+
+  - description: 'libe-comp·anon — no "mis pencas", no per-user badges'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/'
+    assert:
+      - { type: not-contains, value: 'mis pencas de' }
+      - { type: not-contains, value: 'tus pronósticos' }
+      - { type: not-contains, value: '✓ ' }
+      - { type: contains, value: 'Crear penca de' }
+
+  # ═════════════════════════════════════════════════════════════════
+  # GLOBAL HYGIENE — no infrastructure leaks on any (URL × identity)
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'hygiene · libe·alice has no PHP / token leaks'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+    assert:
+      - { type: not-contains, value: 'wa_auth_t=' }
+      - { type: not-contains, value: 'Fatal error' }
+      - { type: not-contains, value: '<?php' }
+
+  - description: 'hygiene · libe·anon has no PHP / token leaks'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+    assert:
+      - { type: not-contains, value: 'wa_auth_t=' }
+      - { type: not-contains, value: 'Fatal error' }
+      - { type: not-contains, value: '<?php' }
