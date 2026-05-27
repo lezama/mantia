@@ -449,28 +449,30 @@ final class Mantia_Frontend {
 						?></span>
 					</div>
 					<?php foreach ( $user_groups as $g ) :
-						$g_view  = (string) ( $g['view_token'] ?? '' );
-						$g_url   = '' !== $g_view ? home_url( '/pronostico/g/' . $g_view . '/' ) : '';
-						if ( '' !== $g_url && '' !== $user_share_token ) {
-							$g_url .= '?as=' . $user_share_token;
+						$gid     = (int) ( $g['id'] ?? 0 );
+						// group_view_url builds the canonical URL with
+						// ?as=<share_token> baked in for the given user
+						// — group_to_array() doesn't expose 'view_token'
+						// as a key, only the assembled 'view_url'.
+						$g_url   = $gid > 0 ? Mantia_Repository::group_view_url( $gid, $current_user_id ) : '';
+						$members = $gid > 0 ? count( Mantia_Repository::group_members( $gid ) ) : 0;
+						if ( '' === $g_url ) {
+							continue;
 						}
-						$members = (int) ( $g['member_count'] ?? 0 );
 						?>
-						<?php if ( '' !== $g_url ) : ?>
-							<a class="mantia-mygroup-row" href="<?php echo esc_url( $g_url ); ?>">
-								<span class="mantia-mygroup-name"><?php echo esc_html( (string) ( $g['name'] ?? $slug ) ); ?></span>
-								<?php if ( $members > 0 ) : ?>
-									<span class="mantia-mygroup-meta"><?php
-										echo esc_html( sprintf(
-											/* translators: %d: members in this penca. */
-											_n( '%d jugador', '%d jugadores', $members, 'mantia' ),
-											$members
-										) );
-									?></span>
-								<?php endif; ?>
-								<span class="mantia-mygroup-arrow" aria-hidden="true">→</span>
-							</a>
-						<?php endif; ?>
+						<a class="mantia-mygroup-row" href="<?php echo esc_url( $g_url ); ?>">
+							<span class="mantia-mygroup-name"><?php echo esc_html( (string) ( $g['name'] ?? $slug ) ); ?></span>
+							<?php if ( $members > 0 ) : ?>
+								<span class="mantia-mygroup-meta"><?php
+									echo esc_html( sprintf(
+										/* translators: %d: members in this penca. */
+										_n( '%d jugador', '%d jugadores', $members, 'mantia' ),
+										$members
+									) );
+								?></span>
+							<?php endif; ?>
+							<span class="mantia-mygroup-arrow" aria-hidden="true">→</span>
+						</a>
 					<?php endforeach; ?>
 				</section>
 			<?php endif; ?>

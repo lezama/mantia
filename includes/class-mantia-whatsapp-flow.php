@@ -11,7 +11,15 @@ final class Mantia_Whatsapp_Flow {
 
 	public static function register(): void {
 		add_filter( 'openclawp_pre_chat_turn', array( __CLASS__, 'maybe_handle_command' ), 10, 2 );
-		add_action( 'openclawp_image_message_received', array( __CLASS__, 'handle_inbound_image' ), 10, 1 );
+		// Inbound photos are ignored by default. A user reported sending a
+		// photo by accident (2026-05-26) and the bot auto-replaced their
+		// avatar + spent a Graph API roundtrip + a WhatsApp send to
+		// confirm. Filter-flipping `mantia_auto_avatar_from_image` to true
+		// re-enables the old behavior for the next time we want a
+		// deliberate "envíame una foto" onboarding step.
+		if ( apply_filters( 'mantia_auto_avatar_from_image', false ) ) {
+			add_action( 'openclawp_image_message_received', array( __CLASS__, 'handle_inbound_image' ), 10, 1 );
+		}
 	}
 
 	/**
