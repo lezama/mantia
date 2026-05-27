@@ -1661,7 +1661,7 @@ final class Mantia_Whatsapp_Flow {
 			// on dev and "mantia3.wpcomstaging.com" on staging — both
 			// intimidate without adding value (stakeholder-sim flagged).
 			return array(
-				'reply'       => 'Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.',
+				'reply'       => 'Hola, soy *Mantia* — pronósticos de fútbol.',
 				'interactive' => array(
 					'type'    => 'button',
 					'buttons' => array(
@@ -1788,7 +1788,7 @@ final class Mantia_Whatsapp_Flow {
 			: ucfirst( $plural );
 
 		$lines = array(
-			'*Mantia* — pronósticos de fútbol con tus amigos.',
+			'*Mantia* — pronósticos de fútbol.',
 			'',
 			sprintf( 'Funciona por chat o por la web: %s', home_url( '/' ) ),
 			'',
