@@ -757,6 +757,23 @@ final class Mantia_Repository {
 	}
 
 	/**
+	 * Single source of truth for "can this match accept a new prediction
+	 * right now?". Used by both the write path (register_prediction) and
+	 * the read path (handle_match_detail's "show picker vs show locked
+	 * state" branch) — without this helper the two drifted by 10 minutes
+	 * and users saw a prediction picker for a match the write path was
+	 * about to reject, generating the exact "interacción innecesaria" the
+	 * stakeholder flagged on 2026-05-26.
+	 */
+	public static function accepts_new_predictions( array $match ): bool {
+		if ( 'scheduled' !== ( $match['status'] ?? '' ) ) {
+			return false;
+		}
+		$lockout = (int) apply_filters( 'mantia_prediction_lockout_seconds', 600 );
+		return (int) ( $match['kickoff_ts'] ?? 0 ) > ( time() + max( 0, $lockout ) );
+	}
+
+	/**
 	 * Like find_prediction(), but treats auto-filled rows as "no prediction".
 	 *
 	 * Used by pending counters that want to surface 0-0 default-fills as
@@ -1394,14 +1411,7 @@ final class Mantia_Repository {
 		if ( empty( $match ) ) {
 			return new WP_Error( 'mantia_match_not_found', __( 'No encuentro ese partido.', 'mantia' ) );
 		}
-		// Predictions lock $lockout seconds before kickoff (default 10 min)
-		// so a user typing "2-1" at the 60-second mark doesn't race the
-		// match start. Tournament admins can shorten via the filter.
-		$lockout = (int) apply_filters( 'mantia_prediction_lockout_seconds', 600 );
-		if ( 'scheduled' !== $match['status'] || (int) $match['kickoff_ts'] <= ( time() + max( 0, $lockout ) ) ) {
-			// Distinguish the two cases — "already finished" vs "too late to
-			// edit before kickoff" — so the bot reply matches what the user
-			// actually saw (the match might not even have started yet).
+		if ( ! self::accepts_new_predictions( $match ) ) {
 			$msg = ( 'scheduled' !== $match['status'] )
 				? __( 'Ese partido ya cerró para pronósticos.', 'mantia' )
 				: __( 'Ese partido cierra para pronósticos antes del arranque. Ya no se puede cambiar.', 'mantia' );

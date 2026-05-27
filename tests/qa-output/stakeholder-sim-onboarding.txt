@@ -1,5 +1,5 @@
 === scenario: stakeholder-sim onboarding — multi-persona (Alice creates, Bob joins) ===
-captured: 2026-05-26T23:38:14+00:00
+captured: 2026-05-27T00:36:52+00:00
 personas:
   Alice — phone 999900001 (creator, logged in via WA bridge)
   Bob   — phone 999900002 (invited, joins via Alice's code)
@@ -12,7 +12,7 @@ Transcript format:
   [button] / [section] / [row] — interactive payload on the preceding bot bubble
 
 [from Alice] hola
-[to Alice · reply] Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.
+[to Alice · reply] Hola, soy *Mantia* — pronósticos de fútbol.
    [button] ➕ Crear penca
    [button] 🔑 Tengo código
    [button] ❓ Cómo funciona
@@ -25,13 +25,13 @@ Transcript format:
 [from Alice] mantia:newcomp:mundial-2026
 [to Alice · reply] *🌎 Mundial 2026* — ¿cómo se va a llamar tu penca?
 
-Mandame un nombre cortito (ej: *La Familia*) y la creo. Mandá *cancelar* si cambiaste de idea.
+Mandame un nombre cortito (ej: *Los Pibes*) y la creo. Mandá *cancelar* si cambiaste de idea.
 [from Alice] MundialAlice
 [to Alice · invite_card]
    🏆 *Sumate a MundialAlice*
    
    Tocá el link para sumarte:
-   http://localhost:8889/pronostico/sumate/MUNDIALNGFWN/
+   http://localhost:8889/pronostico/sumate/MUNDIALK2NTR/
    
    _— Mantia, fútbol por WhatsApp_
 [to Alice · reply] ✅ Creaste *MundialAlice* para 🌎 Mundial 2026.
@@ -42,13 +42,23 @@ _Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sum
    [button] 📤 Compartir
    [button] 📅 Ver y pronosticar
    [button] ❓ Ayuda
+[from Alice] mantia:cmd:share-link
+[to Alice · invite_card]
+   🏆 *Sumate a MundialAlice*
+   
+   Tocá el link para sumarte:
+   http://localhost:8889/pronostico/sumate/MUNDIALK2NTR/
+   
+   _— Mantia, fútbol por WhatsApp_
+[to Alice · reply] _↑ Reenviá la tarjeta de arriba a tus amigos._
+
+*MundialAlice* (🌎 Mundial 2026)
+👥 1 en la penca
+
+Código: *MUNDIALK2NTR*
 [from Alice] partidos
 [to Alice · reply] Tocá un partido para ver detalle o cargar pronóstico:
-   [section] mar 16 jun
-     [row] Iraq vs Norway — 19:00 • ○ sin pronóstico
-     [row] Argentina vs Algeria — 22:00 • ○ sin pronóstico
    [section] mié 17 jun
-     [row] Austria vs Jordan — 01:00 • ○ sin pronóstico
      [row] Portugal vs Congo DR — 14:00 • ○ sin pronóstico
      [row] England vs Croatia — 17:00 • ○ sin pronóstico
      [row] Ghana vs Panama — 20:00 • ○ sin pronóstico
@@ -57,6 +67,10 @@ _Reenviá la tarjeta de arriba ↑ a cualquier grupo de WhatsApp para que se sum
      [row] Czechia vs South Africa — 13:00 • ○ sin pronóstico
      [row] Switzerland vs Bosnia a… — 16:00 • ○ sin pronóstico
      [row] Canada vs Qatar — 19:00 • ○ sin pronóstico
+     [row] Mexico vs Korea Republic — 22:00 • ○ sin pronóstico
+   [section] vie 19 jun
+     [row] USA vs Australia — 16:00 • ○ sin pronóstico
+     [row] Scotland vs Morocco — 19:00 • ○ sin pronóstico
 [from Alice] tabla
 [to Alice · reply] *MundialAlice*
 
@@ -64,18 +78,18 @@ Todavía no hay puntos.
 
 Te faltan *50* pronósticos. Mandame *pendientes* para pronosticarlos.
 [from Bob] hola
-[to Bob · reply] Hola, soy *Mantia* — pronósticos de fútbol con tus amigos.
+[to Bob · reply] Hola, soy *Mantia* — pronósticos de fútbol.
    [button] ➕ Crear penca
    [button] 🔑 Tengo código
    [button] ❓ Cómo funciona
 [from Bob] mantia:cmd:have-code
 [to Bob · reply] Mandame el codigo de invitacion (5-20 caracteres, sin espacios). Ejemplo: *FAMILIA2026*.
-[from Bob] MUNDIALNGFWN
+[from Bob] MUNDIALK2NTR
 [to Bob · invite_card]
    🏆 *Sumate a MundialAlice*
    
    Tocá el link para sumarte:
-   http://localhost:8889/pronostico/sumate/MUNDIALNGFWN/
+   http://localhost:8889/pronostico/sumate/MUNDIALK2NTR/
    
    _— Mantia, fútbol por WhatsApp_
 [to Bob · reply] Listo, te sume a *MundialAlice*. Esa queda como tu penca activa.

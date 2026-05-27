@@ -2417,11 +2417,14 @@ final class Mantia_Whatsapp_Flow {
 		// "scheduled" in meta status doesn't auto-flip to "in_progress" on
 		// kickoff — status only changes when a workflow marks it finished.
 		// So a match can read $status === 'scheduled' but be 2 hours into
-		// the second half. Use the kickoff_ts vs now check to decide if
-		// the picker should appear at all.
+		// the second half. Use the shared accepts_new_predictions() helper
+		// so the picker only appears for matches the write path would also
+		// accept (10-min buffer baked in). Without this we showed the
+		// picker, took a user score, then bounced with "ese partido cierra
+		// antes del arranque" — wasted interaction.
 		$kickoff_ts    = (int) ( $match['kickoff_ts'] ?? 0 );
-		$can_predict   = 'scheduled' === $status && $kickoff_ts > 0 && $kickoff_ts > time();
-		$kicked_off    = 'scheduled' === $status && $kickoff_ts > 0 && $kickoff_ts <= time();
+		$can_predict   = Mantia_Repository::accepts_new_predictions( $match );
+		$kicked_off    = 'scheduled' === $status && $kickoff_ts > 0 && ! $can_predict;
 
 		if ( $can_predict ) {
 			$current_score = null;
@@ -2445,11 +2448,13 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// Match already kicked off (scheduled-in-meta but past kickoff_ts)
-		// OR finished but unresolved. Show what the user predicted, mark
-		// it as locked, and give nav buttons — no picker.
+		// Match either past kickoff OR inside the lockout window (10 min
+		// pre-kickoff by default). Show locked state + the user's frozen
+		// pronóstico if any; nav buttons only.
 		if ( $kicked_off ) {
-			$lines[] = '⏱️ Ya arrancó — pronóstico bloqueado.';
+			$lines[] = $kickoff_ts <= time()
+				? '⏱️ Ya arrancó — pronóstico bloqueado.'
+				: sprintf( '🔒 Pronósticos cerrados — arranca a las %s.', self::time_only( (string) $match['kickoff_gmt'] ) );
 			if ( $any_prediction ) {
 				$ph = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true );
 				$pa = (int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true );

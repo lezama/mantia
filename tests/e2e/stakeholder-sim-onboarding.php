@@ -121,6 +121,13 @@ $alice_turns = array(
 	'mantia:cmd:new-penca',
 	'mantia:newcomp:mundial-2026',
 	'__E2E__ MundialAlice',
+	// Tap Compartir right after create. Canary for the 2026-05-26
+	// prod regression where this exact button reply read "Todavía no
+	// tenés pencas" — a user-not-found false positive on a user who
+	// HAD just been created two turns ago. Anything similar in the
+	// future should now fail this scenario at the inline say-do
+	// assertion below ("share-link must not say no tenés pencas").
+	'mantia:cmd:share-link',
 	'partidos',
 	'tabla',
 	// "mi pronostico" intentionally NOT in the canonical sim — it's
@@ -234,6 +241,35 @@ foreach ( $transcript as $i => $line ) {
 Mantia_E2E::assert_true(
 	'' === $say_do_card_break,
 	'reply mentioning "tarjeta de arriba" has a real invite_card outbound preceding it (' . ( '' === $say_do_card_break ? 'ok' : 'break: ' . substr( $say_do_card_break, 0, 80 ) ) . ')'
+);
+
+// Post-create Compartir tap must NOT say "Todavía no tenés pencas".
+// Real prod regression on 2026-05-26: after creating PRUEBA4 the user
+// tapped the 📤 Compartir button on the confirmation reply and the
+// bot answered with the user-not-found message. find_user_by_phone()
+// returned null for a user that had just been created two turns ago.
+// Canary lives here so the next regression of that shape lands in CI.
+$no_pencas_after_create = false;
+$saw_share_tap          = false;
+foreach ( $transcript as $line ) {
+	if ( 0 === strpos( $line, '[from Alice] mantia:cmd:share-link' ) ) {
+		$saw_share_tap = true;
+		continue;
+	}
+	if ( ! $saw_share_tap ) {
+		continue;
+	}
+	if ( (bool) preg_match( '/^\[to Alice · reply\]/', $line ) ) {
+		if ( false !== stripos( $line, 'no tenés' ) || false !== stripos( $line, 'no tenes' ) ) {
+			$no_pencas_after_create = true;
+		}
+		break;
+	}
+}
+Mantia_E2E::assert_true( $saw_share_tap, 'transcript exercises the post-create share-link tap' );
+Mantia_E2E::assert_true(
+	! $no_pencas_after_create,
+	'share-link tap after create does NOT say "no tenés pencas" (regression canary for 2026-05-26 prod bug)'
 );
 
 /* ─────────────────────────────────────────────────────────────────────── */
