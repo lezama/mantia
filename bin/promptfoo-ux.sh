@@ -100,17 +100,29 @@ run_eval() {
 run_review() {
   cd "$UX_DIR"
   if ! [ -s "$VARS_DIR/share_token.txt" ]; then
-    echo "no vars on disk — run \`bin/promptfoo-ux.sh setup\` first" >&2
+    echo "no canonical vars — run \`bin/promptfoo-ux.sh setup\` first" >&2
     return 2
   fi
   if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "ANTHROPIC_API_KEY not set — the LLM rubric pass needs it" >&2
-    echo "export it (or add to ~/.zshrc) and retry" >&2
+    echo "ANTHROPIC_API_KEY not set" >&2
     return 2
   fi
-  echo "▶ free section-by-section UX review via promptfoo (LLM rubric)"
-  echo "  → per-section findings will land in the result viewer (\`view\`)"
+  echo "▶ canonical LLM review (4 pages × Alice)"
   npx --yes promptfoo@latest eval -c promptfooconfig.review.yaml --no-cache "$@"
+}
+
+run_review_matrix() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/alice_share.txt" ]; then
+    echo "no matrix vars — run \`bin/promptfoo-ux.sh setup-matrix\` first" >&2
+    return 2
+  fi
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "ANTHROPIC_API_KEY not set" >&2
+    return 2
+  fi
+  echo "▶ matrix LLM review (6 (URL × identity) combos × Alice + Bob + Carol)"
+  npx --yes promptfoo@latest eval -c promptfooconfig.matrix.review.yaml --no-cache "$@"
 }
 
 view_results() {
@@ -165,6 +177,10 @@ case "$cmd" in
   review)
     shift
     run_review "$@"
+    ;;
+  review-matrix)
+    shift
+    run_review_matrix "$@"
     ;;
   view)
     view_results

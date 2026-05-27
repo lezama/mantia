@@ -1,0 +1,186 @@
+# Mantia · UX matrix review (LLM rubrics, multi-user surface)
+#
+# Companion to promptfooconfig.matrix.yaml (deterministic) — same
+# 3-user × 2-penca fixture, but each canonical (URL × identity)
+# combo gets a free-form LLM audit instead of a fixed-string assert.
+# Where matrix.yaml checks "Alice's badge shows", this config asks
+# Claude to walk the entire page and judge whether it reads CORRECTLY
+# for that identity's context — catching the bugs the explicit
+# checklist doesn't know to look for yet.
+#
+# Run: bin/promptfoo-ux.sh review-matrix
+# Needs: ANTHROPIC_API_KEY exported.
+
+description: Mantia UX matrix review — multi-user section-by-section audit
+
+prompts:
+  - 'GET {{url}}'
+
+providers:
+  - id: 'https'
+    label: web fetch
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective-matrix-review/1.0
+        Accept: text/html
+      transformResponse: 'text'
+
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    ALICE_SHARE: file://vars/alice_share.txt
+    BOB_SHARE: file://vars/bob_share.txt
+    CAROL_SHARE: file://vars/carol_share.txt
+    LIBE_VIEW: file://vars/libe_view.txt
+    LIBE_NAME: file://vars/libe_name.txt
+    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
+    FIXTURE: |
+      Multi-user fixture state on this install:
+        Alice    creator of P_LIBE_MTX (libertadores-prueba)
+                 + P_MUN_MTX (mundial-2026).
+                 Predicted 1-1 on match A (libe), 2-0 on match B (libe).
+        Bob      joiner of P_LIBE_MTX only. Predicted 0-3 on match A.
+                 NOT a member of P_MUN_MTX.
+        Carol    member of both. NO manual predictions yet (auto-fill 0-0).
+      Mantia rule: only manually-set predictions render the ✓ badge.
+      Auto-filled 0-0 defaults stay as "pending" — no badge.
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5
+      config:
+        max_tokens: 1500
+        temperature: 0.2
+
+tests:
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'libe·alice — creator audit'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the HTML rendered for ALICE (the penca's
+          creator) viewing her own libertadores penca.
+
+          {{FIXTURE}}
+
+          Walk through each section and judge:
+            - CTA: should be member-facing (NOT "Sumate · código X").
+              "Invitar amigos · código …" is acceptable as the share
+              CTA but flag if the design feels off (e.g. why does the
+              member need to see the code text — they already know).
+            - Leaderboard: roster shows Alice with "vos" marker.
+            - Matches: ✓ 1-1 on match A (Indep del Valle), ✓ 2-0 on
+              match B. NO badges on the rest. BOB'S 0-3 must NOT
+              appear anywhere — that's a privacy leak.
+            - Footer / outro: reasonable for a member.
+          PASS unless something is wrong for a creator's context.
+
+  - description: 'libe·bob — joiner audit'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the HTML rendered for BOB (a joiner, NOT
+          the creator) viewing the same libertadores penca.
+
+          {{FIXTURE}}
+
+          Walk the page. Critical checks:
+            - CTA: "Invitar amigos" is fine (he's a member). Should
+              NOT say "Sumate" (he's already in).
+            - Leaderboard: Bob has the "vos" marker, Alice does NOT.
+            - Matches: ✓ 0-3 on match A only (his pick). Alice's
+              1-1 / 2-0 must NOT leak.
+            - Page should feel symmetrical with what Alice sees —
+              same chrome / CTA / sections, just different "vos".
+
+  - description: 'mun·bob — non-member audit (Bob is NOT in mundial)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the HTML for BOB viewing the MUNDIAL
+          penca — but he is NOT a member of this one.
+
+          {{FIXTURE}}
+
+          The interesting case: Bob has a valid ?as= token (identity
+          is resolved), but he's NOT in this penca. So the page
+          should:
+            - Show the Sumate · código CTA (join action — he's not in)
+            - NOT show "Invitar amigos" (he can't invite to a penca
+              he isn't part of)
+            - NOT show a "vos" marker on any leaderboard row
+            - NOT show any of his libertadores predictions (those
+              belong to the OTHER penca, not this one)
+          Flag any leak between competitions.
+
+  - description: 'libe-comp·alice — competition page personalized'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the HTML of the libertadores COMPETITION
+          page for ALICE.
+
+          {{FIXTURE}}
+
+          The page should personalize:
+            - "Mis pencas de Libertadores …" section renders WITH a
+              clickable card to P_LIBE_MTX (the 2026-05-26 regression
+              was "eyebrow says 1 penca but card body empty" — flag if
+              you see that exact shape).
+            - "Próximos partidos · tus pronósticos" eyebrow
+            - ✓ 1-1 and ✓ 2-0 badges inline on the match rows
+            - Bob's ✓ 0-3 must NOT appear (private to him)
+            - "Crear penca de Libertadores …" still rendered at the
+              bottom as a secondary action (Alice could create another
+              penca for the same comp).
+
+  - description: 'libe-comp·bob — competition page for joiner'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{BOB_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the libertadores competition page for BOB.
+
+          {{FIXTURE}}
+
+          Should personalize to Bob's pencas + predictions:
+            - "Mis pencas de Libertadores …" with the SAME P_LIBE_MTX
+              card (he's a member). Member count says 3 (Alice + Bob
+              + Carol).
+            - ✓ 0-3 badge on match A. Alice's 1-1 / 2-0 must NOT
+              appear (private to her).
+          Specifically check that Alice's predictions stay hidden from
+          Bob — this is the highest-value privacy invariant.
+
+  - description: 'mun-comp·carol — member with no predictions'
+    vars:
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{CAROL_SHARE}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are reviewing the mundial competition page for CAROL,
+          who's a member but has not yet made any manual predictions.
+
+          {{FIXTURE}}
+
+          Should:
+            - "Mis pencas" section renders Carol's mundial card.
+            - "Próximos partidos · tus pronósticos" eyebrow renders
+              (she's a member of a mundial penca even though no manual
+              predictions yet — the eyebrow signal should reflect
+              membership, not prediction state).
+            - NO ✓ badges anywhere (auto-fill 0-0 doesn't render).
+            - "Crear penca de Mundial" still appears at the bottom.
