@@ -133,7 +133,7 @@ tests:
   # ═════════════════════════════════════════════════════════════════
   - description: 'libe-comp·alice — sees her 1 libe penca + her badges + member CTA'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
     assert:
       - { type: contains, value: 'mis pencas de' }
       - { type: contains, value: '{{LIBE_NAME}}' }
@@ -155,7 +155,7 @@ tests:
 
   - description: 'libe-comp·bob — sees his 1 libe penca + his 0-3 badge + member CTA'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{BOB_SHARE}}'
     assert:
       - { type: contains, value: 'mis pencas de' }
       - { type: contains, value: '{{LIBE_NAME}}' }
@@ -166,7 +166,7 @@ tests:
 
   - description: 'libe-comp·carol — member, no manual predictions, no badges'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{CAROL_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{CAROL_SHARE}}'
     assert:
       - { type: contains, value: 'mis pencas de' }
       - { type: contains, value: '{{LIBE_NAME}}' }
@@ -195,7 +195,7 @@ tests:
 
   - description: 'libe-comp·anon — no "mis pencas", no per-user badges'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/'
     assert:
       - { type: not-contains, value: 'mis pencas de' }
       - { type: not-contains, value: 'tus pronósticos' }
@@ -233,7 +233,7 @@ tests:
 
   - description: 'freshness · libe-comp anon match list has zero past kickoffs'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/'
     assert:
       - type: javascript
         value: |

@@ -46,13 +46,13 @@ setup_state() {
     "$PROJECT_DIR/tests/ux/${script}" \
     "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/${script}" \
     >/dev/null
-  # setup-matrix.php re-runs deploy-libertadores-prueba.php inline to
+  # setup-matrix.php re-runs deploy-brasileirao-prueba.php inline to
   # refresh match kickoffs dynamically (the seed used to carry hardcoded
   # 2026-05-26..28 dates that rotted into the past). Make sure the deploy
   # script on the remote is current too.
   rsync -avz -e "ssh -o ConnectTimeout=15" \
-    "$PROJECT_DIR/tools/deploy-libertadores-prueba.php" \
-    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/deploy-libertadores-prueba.php" \
+    "$PROJECT_DIR/tools/deploy-brasileirao-prueba.php" \
+    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/deploy-brasileirao-prueba.php" \
     >/dev/null
 
   local out
@@ -70,7 +70,7 @@ setup_state() {
   # predictions on already-played matches (2026-05-27 incident).
   if echo "$out" | grep -q "^STALE_MATCHES:"; then
     echo "$out" | grep -E "^(STALE_MATCHES|MATCHES_PAST|MATCHES_FUTURE|FIXTURE_SLOTS):" >&2
-    echo "✗ libertadores-prueba fixture has past kickoffs — refusing to seed users on top of stale matches" >&2
+    echo "✗ brasileirao-prueba fixture has past kickoffs — refusing to seed users on top of stale matches" >&2
     return 3
   fi
   # Surface the freshness summary on success too — easy to spot in logs.
@@ -97,7 +97,7 @@ setup_state() {
     echo -n "$(get_val VIEW_TOKEN)"  > "$VARS_DIR/view_token.txt"
     echo -n "$(get_val GROUP_NAME)"  > "$VARS_DIR/group_name.txt"
     echo -n "$(get_val INVITE_CODE)" > "$VARS_DIR/invite_code.txt"
-    echo -n "libertadores-prueba"    > "$VARS_DIR/comp_slug.txt"
+    echo -n "brasileirao-prueba"    > "$VARS_DIR/comp_slug.txt"
     echo "  · canonical: $(get_val GROUP_NAME) (code $(get_val INVITE_CODE))"
   else
     echo -n "$(get_val ALICE_SHARE)" > "$VARS_DIR/alice_share.txt"

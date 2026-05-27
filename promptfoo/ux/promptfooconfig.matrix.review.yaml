@@ -41,7 +41,7 @@ defaultTest:
     MUN_CODE: file://vars/mun_code.txt
     FIXTURE: |
       Multi-user fixture state on this install:
-        Alice    creator of P_LIBE_MTX (libertadores-prueba)
+        Alice    creator of P_LIBE_MTX (brasileirao-prueba)
                  + P_MUN_MTX (mundial-2026).
                  Predicted 1-1 on match A (libe), 2-0 on match B (libe).
         Bob      joiner of P_LIBE_MTX only. Predicted 0-3 on match A.
@@ -125,7 +125,7 @@ tests:
 
   - description: 'libe-comp·alice — competition page personalized'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
     assert:
       - type: llm-rubric
         value: |
@@ -148,7 +148,7 @@ tests:
 
   - description: 'libe-comp·bob — competition page for joiner'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{BOB_SHARE}}'
     assert:
       - type: llm-rubric
         value: |

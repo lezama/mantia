@@ -1,7 +1,7 @@
 <?php
 /**
  * One-off deployment script: nuke everything that isn't Mundial 2026,
- * create a fresh test competition (slug stays 'libertadores-prueba' for
+ * create a fresh test competition (slug stays 'brasileirao-prueba' for
  * backwards compatibility with promptfoo configs + setup-matrix), and
  * seed it with REAL Brasileirão Serie A weekend fixtures.
  *
@@ -9,10 +9,10 @@
  * Weekend 30-31 may 2026 — the last round before the Mundial 2026 break.
  *
  * Run via:
- *   ssh mantia3.wordpress.com@ssh.wp.com "cd htdocs && wp eval-file wp-content/plugins/mantia/tools/deploy-libertadores-prueba.php"
+ *   ssh mantia3.wordpress.com@ssh.wp.com "cd htdocs && wp eval-file wp-content/plugins/mantia/tools/deploy-brasileirao-prueba.php"
  *
  * Idempotent: each match has a stable external_id so re-running updates
- * in place. Competition slug is fixed at 'libertadores-prueba'.
+ * in place. Competition slug is fixed at 'brasileirao-prueba'.
  *
  * When the weekend passes, refresh by re-querying ESPN/Soccerway and
  * replacing the $matches array below. The freshness guard in
@@ -74,15 +74,15 @@ foreach ( $orphans as $mid ) {
 	if ( 'mundial-2026' === $cid || 'mundial-semana' === $cid ) {
 		continue;
 	}
-	// Will be either a leftover Libertadores match or the new libertadores-prueba
+	// Will be either a leftover Libertadores match or the new brasileirao-prueba
 	// (which we haven't inserted yet, so this is safe). Delete blanket.
 	wp_delete_post( (int) $mid, true );
 	$nuked_matches++;
 }
 echo "  · total: $nuked_comps competitions + $nuked_matches matches deleted\n\n";
 
-/* ── 2. Create the libertadores-prueba competition ────────────── */
-$existing = Mantia_Competitions::find_post( 'libertadores-prueba' );
+/* ── 2. Create the brasileirao-prueba competition ────────────── */
+$existing = Mantia_Competitions::find_post( 'brasileirao-prueba' );
 if ( $existing ) {
 	wp_delete_post( (int) $existing->ID, true );
 }
@@ -90,7 +90,7 @@ $prueba_id = wp_insert_post( array(
 	'post_type'    => Mantia_CPTs::COMPETITION,
 	'post_status'  => 'publish',
 	'post_title'   => 'Brasileirão · finde (prueba)',
-	'post_name'    => 'libertadores-prueba',
+	'post_name'    => 'brasileirao-prueba',
 	'post_excerpt' => 'Fixture de prueba — Brasileirão Serie A, 30-31 may 2026 (real fixtures via ESPN)',
 	'menu_order'   => 5,
 ), true );
@@ -102,18 +102,18 @@ update_post_meta( (int) $prueba_id, Mantia_Competitions::META_EMOJI, '🧪' );
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_IS_DEFAULT, 1 );  // set as default
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_SORT_ORDER, 5 );
 // Aliases the bot accepts when a user mentions the competition. The
-// slug stays 'libertadores-prueba' for back-compat with promptfoo +
+// slug stays 'brasileirao-prueba' for back-compat with promptfoo +
 // setup-matrix, but every alias the user is likely to type points to
 // the same comp.
 update_post_meta( (int) $prueba_id, Mantia_Competitions::META_ALIASES, array(
-	'brasileirao', 'brasileirão', 'brasileiro', 'serie a', 'finde', 'fin de semana',
-	'libertadores', 'libertadores-prueba', 'prueba'
+	'brasileirao', 'brasileirão', 'brasileiro', 'serie a',
+	'finde', 'fin de semana', 'prueba',
 ) );
-echo "  + created competition slug='libertadores-prueba' title='Brasileirão · finde (prueba)' (id=$prueba_id)\n";
+echo "  + created competition slug='brasileirao-prueba' title='Brasileirão · finde (prueba)' (id=$prueba_id)\n";
 
 // Unset the previous default flag if it was on a different comp.
 foreach ( $comps as $c ) {
-	if ( $c->post_name !== 'libertadores-prueba' && (int) $c->ID !== (int) $prueba_id ) {
+	if ( $c->post_name !== 'brasileirao-prueba' && (int) $c->ID !== (int) $prueba_id ) {
 		delete_post_meta( (int) $c->ID, Mantia_Competitions::META_IS_DEFAULT );
 	}
 }
@@ -157,7 +157,7 @@ foreach ( $matches as $i => $m ) {
 		'status'         => 'scheduled',
 		'home_score'     => null,
 		'away_score'     => null,
-		'competition_id' => 'libertadores-prueba',
+		'competition_id' => 'brasileirao-prueba',
 	) );
 	if ( $post_id > 0 ) {
 		$inserted++;

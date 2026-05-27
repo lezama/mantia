@@ -152,7 +152,7 @@ tests:
 
   - description: 'libe-comp·alice — expert audit (competition page personalized)'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
       CONTEXT: 'Alice on the global competition page. She has pencas in this comp + predictions made.'
     assert:
       - type: llm-rubric
@@ -171,7 +171,7 @@ tests:
 
   - description: 'libe-comp·anon — expert audit (competition page anonymous)'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/'
       CONTEXT: 'Anonymous visitor on a competition page. No personalization. Should function as both a landing page AND a discovery surface for the comp.'
     assert:
       - type: llm-rubric

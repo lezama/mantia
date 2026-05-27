@@ -20,11 +20,11 @@ The user gives you a directory of HTML dumps captured by `tests/ux/run-canonical
 
 - `group_as.html` — `/pronostico/g/<view_token>/?as=<share_token>` for Alice (a member)
 - `group_anon.html` — same group, no `?as=` (anonymous visitor)
-- `comp_as.html` — `/pronostico/libertadores-prueba/?as=<share_token>` for Alice
+- `comp_as.html` — `/pronostico/brasileirao-prueba/?as=<share_token>` for Alice
 - `comp_anon.html` — same competition, anonymous
 
 The state is fixed:
-- Alice exists, is a member of penca `P_UX_TEST` for `libertadores-prueba`
+- Alice exists, is a member of penca `P_UX_TEST` for `brasileirao-prueba`
 - Alice has ONE manual prediction: 1-1 on the first upcoming match
 - All other matches are default 0-0 (auto_filled, no badge)
 

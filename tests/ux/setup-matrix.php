@@ -5,7 +5,7 @@
  * URL × identity surface instead of just one happy-path slice.
  *
  * Fixture shape:
- *   Alice   creator of two pencas (libertadores-prueba, mundial-2026)
+ *   Alice   creator of two pencas (brasileirao-prueba, mundial-2026)
  *   Bob     joiner of Alice's libertadores penca
  *   Carol   joiner of Alice's libertadores penca AND mundial penca
  *
@@ -29,9 +29,9 @@ if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
 }
 
 /**
- * Refresh the libertadores-prueba fixture so its match kickoffs are
+ * Refresh the brasileirao-prueba fixture so its match kickoffs are
  * always in the future relative to NOW. The seed itself
- * (deploy-libertadores-prueba.php) computes kickoffs dynamically, so
+ * (deploy-brasileirao-prueba.php) computes kickoffs dynamically, so
  * running it idempotently before every matrix setup keeps the bot from
  * ever offering predictions on matches that have already happened.
  *
@@ -39,7 +39,7 @@ if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
  * passed; the bot offered "Peñarol vs Indep. Santa Fe" at "hoy 21:30"
  * to a user who knew the real match had been played the day before.
  */
-$fixture_seed = dirname( __DIR__, 2 ) . '/tools/deploy-libertadores-prueba.php';
+$fixture_seed = dirname( __DIR__, 2 ) . '/tools/deploy-brasileirao-prueba.php';
 if ( file_exists( $fixture_seed ) ) {
 	ob_start();
 	include $fixture_seed;
@@ -95,7 +95,7 @@ $bob   = ux_create_user( '+59899900043', 'Bob' );
 $carol = ux_create_user( '+59899900044', 'Carol' );
 
 /** ── pencas (Alice creates both) ─────────────────────────────────── */
-$libe = ux_create_penca( 'P_LIBE_MTX', 'libertadores-prueba' );
+$libe = ux_create_penca( 'P_LIBE_MTX', 'brasileirao-prueba' );
 $mun  = ux_create_penca( 'P_MUN_MTX',  'mundial-2026' );
 ux_join( $alice, $libe );
 ux_join( $alice, $mun );
@@ -106,9 +106,9 @@ ux_join( $carol, $libe );
 ux_join( $carol, $mun );
 
 /** ── predictions: mixed manual + auto ───────────────────────────── */
-$libe_matches = Mantia_Repository::upcoming_matches_for_competition( 'libertadores-prueba', 24 * 365 );
+$libe_matches = Mantia_Repository::upcoming_matches_for_competition( 'brasileirao-prueba', 24 * 365 );
 if ( count( $libe_matches ) < 2 ) {
-	echo "ERROR: libertadores-prueba needs ≥2 upcoming matches\n";
+	echo "ERROR: brasileirao-prueba needs ≥2 upcoming matches\n";
 	exit( 1 );
 }
 $canary_a = $libe_matches[0];
@@ -119,12 +119,12 @@ ux_predict( $alice, (int) $libe['id'], (int) $canary_b['id'], 2, 0 );
 ux_predict( $bob,   (int) $libe['id'], (int) $canary_a['id'], 0, 3 );
 // Carol stays on auto-fill 0-0 — pending state for both her pencas.
 
-/** ── freshness check: every libertadores-prueba match must be future ─ */
+/** ── freshness check: every brasileirao-prueba match must be future ─ */
 // After seeding, count past vs future kickoffs for the libertadores
 // fixture. If any are in the past, emit STALE_MATCHES so the wrapper
 // can bail BEFORE the test layers run (and BEFORE the user sees a bot
 // asking for predictions on a match that already happened).
-$all_libe = Mantia_Repository::upcoming_matches_for_competition( 'libertadores-prueba', 24 * 365 );
+$all_libe = Mantia_Repository::upcoming_matches_for_competition( 'brasileirao-prueba', 24 * 365 );
 $past     = 0;
 $future   = 0;
 $now      = time();
@@ -135,7 +135,7 @@ $all_in_comp = get_posts( array(
 	'fields'         => 'ids',
 	'no_found_rows'  => true,
 	'meta_query'     => array(
-		array( 'key' => Mantia_Competitions::META_KEY, 'value' => 'libertadores-prueba' ),
+		array( 'key' => Mantia_Competitions::META_KEY, 'value' => 'brasileirao-prueba' ),
 	),
 ) );
 foreach ( $all_in_comp as $mid ) {
@@ -146,7 +146,7 @@ foreach ( $all_in_comp as $mid ) {
 echo "MATCHES_FUTURE: $future\n";
 echo "MATCHES_PAST: $past\n";
 if ( $past > 0 ) {
-	echo "STALE_MATCHES: $past — libertadores-prueba has past kickoffs after seeding; the dynamic-date logic in deploy-libertadores-prueba.php broke.\n";
+	echo "STALE_MATCHES: $past — brasileirao-prueba has past kickoffs after seeding; the dynamic-date logic in deploy-brasileirao-prueba.php broke.\n";
 }
 
 /** ── emit ────────────────────────────────────────────────────────── */

@@ -147,9 +147,9 @@ tests:
 
           You opened this page as: {{WHO}}. Same JSON.
 
-  - description: 'libertadores-prueba competition · viewed as Alice'
+  - description: 'brasileirao-prueba competition · viewed as Alice'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
       WHO: 'Alice opens the global libertadores page after creating her penca via the bot.'
     assert:
       - type: llm-rubric
@@ -158,9 +158,9 @@ tests:
 
           You opened this page as: {{WHO}}. Same JSON.
 
-  - description: 'libertadores-prueba competition · viewed anonymously'
+  - description: 'brasileirao-prueba competition · viewed anonymously'
     vars:
-      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      url: '{{BASE}}/pronostico/brasileirao-prueba/'
       WHO: 'Someone curious about Mantia who clicked a generic share. Anonymous.'
     assert:
       - type: llm-rubric
