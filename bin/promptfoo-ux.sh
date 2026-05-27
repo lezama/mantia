@@ -128,6 +128,21 @@ run_matrix() {
   npx --yes promptfoo@latest eval -c promptfooconfig.matrix.yaml --no-cache "$@"
 }
 
+run_interactive() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/alice_share.txt" ]; then
+    echo "no matrix vars on disk — run \`bin/promptfoo-ux.sh setup-matrix\` first" >&2
+    return 2
+  fi
+  if [ ! -d node_modules/playwright ]; then
+    echo "▶ installing playwright (first run)"
+    npm install --save playwright >/dev/null 2>&1
+    npx playwright install chromium >/dev/null 2>&1
+  fi
+  echo "▶ driving end-to-end interactive scenarios via headless Chrome"
+  node interactive.mjs "$@"
+}
+
 case "$cmd" in
   setup)
     setup_state setup-canonical-user.php
@@ -142,6 +157,10 @@ case "$cmd" in
   matrix)
     shift
     run_matrix "$@"
+    ;;
+  interactive)
+    shift
+    run_interactive "$@"
     ;;
   review)
     shift
@@ -160,11 +179,12 @@ case "$cmd" in
     setup_state setup-canonical-user.php && run_eval && run_review
     ;;
   *)
-    echo "usage: $0 {setup|setup-matrix|run|matrix|review|view|all|all-matrix|full}" >&2
+    echo "usage: $0 {setup|setup-matrix|run|matrix|interactive|review|view|all|all-matrix|full}" >&2
     echo "  setup          canonical 1-user fixture (Alice)" >&2
     echo "  setup-matrix   multi-user fixture (Alice + Bob + Carol × 2 pencas)" >&2
     echo "  run            deterministic asserts on canonical fixture (fast, free)" >&2
     echo "  matrix         deterministic asserts on matrix fixture (multi-user surface)" >&2
+    echo "  interactive    end-to-end Playwright flows (click, navigate, snapshot)" >&2
     echo "  review         LLM-rubric per-page review (slow, costs tokens)" >&2
     echo "  view           open the result viewer" >&2
     echo "  all            setup + run" >&2

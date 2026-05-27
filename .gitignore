@@ -26,3 +26,6 @@ phpstan-baseline.neon
 /tests/fixtures/uploads/*
 !/tests/fixtures/uploads/.gitkeep
 promptfoo/ux/vars/
+promptfoo/ux/node_modules/
+promptfoo/ux/interactive_dumps/
+promptfoo/ux/package-lock.json
