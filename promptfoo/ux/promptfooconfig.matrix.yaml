@@ -206,6 +206,50 @@ tests:
       - { type: contains, value: 'Crear tu propia penca de' }
 
   # ═════════════════════════════════════════════════════════════════
+  # FRESHNESS — no match in the picker can have a past kickoff. The
+  # 2026-05-27 incident: hardcoded fixture dates in the seed rotted
+  # into the past, and the bot offered "Peñarol vs Indep. Santa Fe"
+  # at "hoy 21:30" on a match the user knew had been played the day
+  # before. Now every match row carries a data-kickoff-ts attribute,
+  # and this assertion fails fast if any row points to the past.
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'freshness · libe·alice match list has zero past kickoffs'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+    assert:
+      - type: javascript
+        value: |
+          const html = output || '';
+          const matches = [...html.matchAll(/data-kickoff-ts="(\d+)"/g)].map(m => parseInt(m[1], 10));
+          if (matches.length === 0) {
+            throw new Error('no match rows with data-kickoff-ts found — picker empty or attribute regressed');
+          }
+          const now = Math.floor(Date.now() / 1000);
+          const past = matches.filter(ts => ts < now);
+          if (past.length > 0) {
+            throw new Error(`STALE picker on libe·alice: ${past.length}/${matches.length} kickoffs already happened`);
+          }
+          return true;
+
+  - description: 'freshness · libe-comp anon match list has zero past kickoffs'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/'
+    assert:
+      - type: javascript
+        value: |
+          const html = output || '';
+          const matches = [...html.matchAll(/data-kickoff-ts="(\d+)"/g)].map(m => parseInt(m[1], 10));
+          if (matches.length === 0) {
+            throw new Error('no match rows with data-kickoff-ts on the anon comp page');
+          }
+          const now = Math.floor(Date.now() / 1000);
+          const past = matches.filter(ts => ts < now);
+          if (past.length > 0) {
+            throw new Error(`STALE picker on comp page: ${past.length}/${matches.length} kickoffs already happened`);
+          }
+          return true;
+
+  # ═════════════════════════════════════════════════════════════════
   # GLOBAL HYGIENE — no infrastructure leaks on any (URL × identity)
   # ═════════════════════════════════════════════════════════════════
   - description: 'hygiene · libe·alice has no PHP / token leaks'

@@ -28,6 +28,28 @@ if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
 	exit( 1 );
 }
 
+/**
+ * Refresh the libertadores-prueba fixture so its match kickoffs are
+ * always in the future relative to NOW. The seed itself
+ * (deploy-libertadores-prueba.php) computes kickoffs dynamically, so
+ * running it idempotently before every matrix setup keeps the bot from
+ * ever offering predictions on matches that have already happened.
+ *
+ * 2026-05-27 incident: hardcoded dates in the fixture rotted as time
+ * passed; the bot offered "Peñarol vs Indep. Santa Fe" at "hoy 21:30"
+ * to a user who knew the real match had been played the day before.
+ */
+$fixture_seed = dirname( __DIR__, 2 ) . '/tools/deploy-libertadores-prueba.php';
+if ( file_exists( $fixture_seed ) ) {
+	ob_start();
+	include $fixture_seed;
+	$seed_output = (string) ob_get_clean();
+	// Surface a one-line summary so the wrapper can pick it up.
+	if ( preg_match( '/slots: [^\n]+/', $seed_output, $m ) ) {
+		echo 'FIXTURE_SLOTS: ' . $m[0] . "\n";
+	}
+}
+
 /** ── helpers ─────────────────────────────────────────────────────── */
 function ux_create_user( string $phone, string $name ): WP_User {
 	$user = WA_Identity_Bridge::resolve_or_create( $phone, $name );
@@ -96,6 +118,36 @@ ux_predict( $alice, (int) $libe['id'], (int) $canary_a['id'], 1, 1 );
 ux_predict( $alice, (int) $libe['id'], (int) $canary_b['id'], 2, 0 );
 ux_predict( $bob,   (int) $libe['id'], (int) $canary_a['id'], 0, 3 );
 // Carol stays on auto-fill 0-0 — pending state for both her pencas.
+
+/** ── freshness check: every libertadores-prueba match must be future ─ */
+// After seeding, count past vs future kickoffs for the libertadores
+// fixture. If any are in the past, emit STALE_MATCHES so the wrapper
+// can bail BEFORE the test layers run (and BEFORE the user sees a bot
+// asking for predictions on a match that already happened).
+$all_libe = Mantia_Repository::upcoming_matches_for_competition( 'libertadores-prueba', 24 * 365 );
+$past     = 0;
+$future   = 0;
+$now      = time();
+$all_in_comp = get_posts( array(
+	'post_type'      => Mantia_CPTs::MATCH,
+	'post_status'    => 'publish',
+	'posts_per_page' => -1,
+	'fields'         => 'ids',
+	'no_found_rows'  => true,
+	'meta_query'     => array(
+		array( 'key' => Mantia_Competitions::META_KEY, 'value' => 'libertadores-prueba' ),
+	),
+) );
+foreach ( $all_in_comp as $mid ) {
+	$ts = (int) get_post_meta( (int) $mid, Mantia_Repository::META_KICKOFF_TS, true );
+	if ( $ts <= 0 ) { continue; }
+	if ( $ts < $now ) { $past++; } else { $future++; }
+}
+echo "MATCHES_FUTURE: $future\n";
+echo "MATCHES_PAST: $past\n";
+if ( $past > 0 ) {
+	echo "STALE_MATCHES: $past — libertadores-prueba has past kickoffs after seeding; the dynamic-date logic in deploy-libertadores-prueba.php broke.\n";
+}
 
 /** ── emit ────────────────────────────────────────────────────────── */
 $ut = static fn ( WP_User $u ): string => Mantia_Repository::user_share_token( (int) $u->ID );

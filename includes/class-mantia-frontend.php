@@ -2931,7 +2931,7 @@ JS;
 					$user_pred  = $predictions[ $mid ] ?? null;
 					$is_locked  = ! Mantia_Repository::accepts_new_predictions( $m );
 					?>
-					<div class="mantia-match-row<?php echo $is_locked ? ' mantia-match-row-locked' : ''; ?>">
+					<div class="mantia-match-row<?php echo $is_locked ? ' mantia-match-row-locked' : ''; ?>" data-kickoff-ts="<?php echo (int) $entry['ts']; ?>">
 						<div class="mantia-match-time"><?php echo esc_html( $hm ); ?></div>
 						<div class="mantia-match-teams">
 							<div class="mantia-match-names">

@@ -46,6 +46,14 @@ setup_state() {
     "$PROJECT_DIR/tests/ux/${script}" \
     "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/${script}" \
     >/dev/null
+  # setup-matrix.php re-runs deploy-libertadores-prueba.php inline to
+  # refresh match kickoffs dynamically (the seed used to carry hardcoded
+  # 2026-05-26..28 dates that rotted into the past). Make sure the deploy
+  # script on the remote is current too.
+  rsync -avz -e "ssh -o ConnectTimeout=15" \
+    "$PROJECT_DIR/tools/deploy-libertadores-prueba.php" \
+    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/deploy-libertadores-prueba.php" \
+    >/dev/null
 
   local out
   out=$(ssh -o ConnectTimeout=15 "$SSH_HOST" "cd /srv/htdocs \
@@ -55,6 +63,20 @@ setup_state() {
   if echo "$out" | grep -q "^ERROR:"; then
     echo "$out" | grep "^ERROR:" >&2
     return 2
+  fi
+  # Freshness guard: setup-matrix.php emits MATCHES_PAST / STALE_MATCHES
+  # lines when the libertadores fixture has stale kickoffs after the
+  # seed runs. Bail loudly — proceeding would let the bot offer
+  # predictions on already-played matches (2026-05-27 incident).
+  if echo "$out" | grep -q "^STALE_MATCHES:"; then
+    echo "$out" | grep -E "^(STALE_MATCHES|MATCHES_PAST|MATCHES_FUTURE|FIXTURE_SLOTS):" >&2
+    echo "✗ libertadores-prueba fixture has past kickoffs — refusing to seed users on top of stale matches" >&2
+    return 3
+  fi
+  # Surface the freshness summary on success too — easy to spot in logs.
+  if echo "$out" | grep -q "^MATCHES_FUTURE:"; then
+    echo "  · $(echo "$out" | grep '^FIXTURE_SLOTS:' | head -1 | sed 's/^FIXTURE_SLOTS: //')"
+    echo "  · $(echo "$out" | grep '^MATCHES_FUTURE:' | head -1)"
   fi
 
   get_val() {

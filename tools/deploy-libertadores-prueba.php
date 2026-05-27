@@ -106,26 +106,49 @@ foreach ( $comps as $c ) {
 }
 
 /* ── 3. Insert the 12 matchday-6 fixtures ────────────────────── */
-// Uruguay is UTC-3; the image shows UY local times. 7:00 PM UY = 22:00 UTC,
-// 9:30 PM UY = 00:30 UTC the NEXT day. Today is 2026-05-26 UY.
+// Kickoffs are computed dynamically so the seed never ages into the
+// past. Real Copa Libertadores fecha 6 shape: 12 matches across 2 days,
+// two slots per day (19:00 UY and 21:30 UY = 22:00 UTC / 00:30 UTC).
+// We anchor "day 0" to today UY, OR tomorrow UY if it's already past
+// 17:00 UY locally (so the first 19:00 UY slot is still in the future).
 //
-// today  19:00 UY → 22:00 UTC 2026-05-26
-// today  21:30 UY → 00:30 UTC 2026-05-27
-// tomorrow 19:00 UY → 22:00 UTC 2026-05-27
-// tomorrow 21:30 UY → 00:30 UTC 2026-05-28
+// 2026-05-27 incident: prior version had hardcoded 2026-05-26..28 dates;
+// once we crossed 05-27 the Peñarol fixture rendered "hoy 21:30" while
+// the real-life match had been played the day before — bot offered to
+// take a prediction on a match the user knew was already over.
+$now_utc           = time();
+// $base_midnight_utc is the UTC timestamp that corresponds to 00:00 UY
+// of the day we anchor to. UY is UTC-3, so 00:00 UY = 03:00 UTC.
+$today_uy_midnight = strtotime( gmdate( 'Y-m-d', $now_utc - 3 * HOUR_IN_SECONDS ) . ' 03:00:00 UTC' );
+// 17:00 UY = 20:00 UTC. If we're past that, push base to tomorrow so
+// even the earliest slot (19:00 UY) is still in the future.
+$base_midnight_utc = $today_uy_midnight + ( $now_utc >= $today_uy_midnight + 17 * HOUR_IN_SECONDS ? DAY_IN_SECONDS : 0 );
+
+// Slot offsets from base (00:00 UY): just add the local UY hour. We
+// don't add 22h/24h — that double-counts the UTC offset already baked
+// into $base_midnight_utc.
+//   19:00 UY → base + 19h
+//   21:30 UY → base + 21h30m
+$slot_d0_19 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + 19 * HOUR_IN_SECONDS );
+$slot_d0_21 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + 21 * HOUR_IN_SECONDS + 30 * MINUTE_IN_SECONDS );
+$slot_d1_19 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + DAY_IN_SECONDS + 19 * HOUR_IN_SECONDS );
+$slot_d1_21 = gmdate( 'Y-m-d H:i:s', $base_midnight_utc + DAY_IN_SECONDS + 21 * HOUR_IN_SECONDS + 30 * MINUTE_IN_SECONDS );
+
+printf( "  · slots: d0/19=%s · d0/21=%s · d1/19=%s · d1/21=%s\n", $slot_d0_19, $slot_d0_21, $slot_d1_19, $slot_d1_21 );
+
 $matches = array(
-	array( 'home' => 'LDU Quito',              'away' => 'Always Ready',           'kickoff' => '2026-05-26 22:00:00' ),
-	array( 'home' => 'Lanús',                  'away' => 'Mirassol',               'kickoff' => '2026-05-26 22:00:00' ),
-	array( 'home' => 'Nacional',               'away' => 'Coquimbo Unido',         'kickoff' => '2026-05-27 00:30:00' ),
-	array( 'home' => 'Flamengo',               'away' => 'Cusco FC',               'kickoff' => '2026-05-27 00:30:00' ),
-	array( 'home' => 'Estudiantes',            'away' => 'Independiente Medellín', 'kickoff' => '2026-05-27 00:30:00' ),
-	array( 'home' => 'Universitario',          'away' => 'Deportes Tolima',        'kickoff' => '2026-05-27 00:30:00' ),
-	array( 'home' => 'Independiente del Valle','away' => 'Rosario Central',        'kickoff' => '2026-05-27 22:00:00' ),
-	array( 'home' => 'Libertad',               'away' => 'Universidad Central',    'kickoff' => '2026-05-27 22:00:00' ),
-	array( 'home' => 'Peñarol',                'away' => 'Independiente Santa Fe', 'kickoff' => '2026-05-28 00:30:00' ),
-	array( 'home' => 'Fluminense',             'away' => 'Deportivo La Guaira',    'kickoff' => '2026-05-28 00:30:00' ),
-	array( 'home' => 'Corinthians',            'away' => 'Atlético Platense',      'kickoff' => '2026-05-28 00:30:00' ),
-	array( 'home' => 'Bolívar',                'away' => 'Independiente Rivadavia','kickoff' => '2026-05-28 00:30:00' ),
+	array( 'home' => 'LDU Quito',              'away' => 'Always Ready',           'kickoff' => $slot_d0_19 ),
+	array( 'home' => 'Lanús',                  'away' => 'Mirassol',               'kickoff' => $slot_d0_19 ),
+	array( 'home' => 'Nacional',               'away' => 'Coquimbo Unido',         'kickoff' => $slot_d0_21 ),
+	array( 'home' => 'Flamengo',               'away' => 'Cusco FC',               'kickoff' => $slot_d0_21 ),
+	array( 'home' => 'Estudiantes',            'away' => 'Independiente Medellín', 'kickoff' => $slot_d0_21 ),
+	array( 'home' => 'Universitario',          'away' => 'Deportes Tolima',        'kickoff' => $slot_d0_21 ),
+	array( 'home' => 'Independiente del Valle','away' => 'Rosario Central',        'kickoff' => $slot_d1_19 ),
+	array( 'home' => 'Libertad',               'away' => 'Universidad Central',    'kickoff' => $slot_d1_19 ),
+	array( 'home' => 'Peñarol',                'away' => 'Independiente Santa Fe', 'kickoff' => $slot_d1_21 ),
+	array( 'home' => 'Fluminense',             'away' => 'Deportivo La Guaira',    'kickoff' => $slot_d1_21 ),
+	array( 'home' => 'Corinthians',            'away' => 'Atlético Platense',      'kickoff' => $slot_d1_21 ),
+	array( 'home' => 'Bolívar',                'away' => 'Independiente Rivadavia','kickoff' => $slot_d1_21 ),
 );
 
 $inserted = 0;
