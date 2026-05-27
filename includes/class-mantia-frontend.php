@@ -608,7 +608,17 @@ final class Mantia_Frontend {
 			//   - Non-members (someone who landed via a public link without
 			//     auth) see the original "Sumate" CTA that posts the join
 			//     message to the bot.
-			$current_uid = get_current_user_id();
+			//
+			// Identity resolution falls through three sources, in order:
+			//   1. Cookie auth (get_current_user_id) — write-capable.
+			//   2. ?as=<share_token> — leak-safe read-only handle the bot
+			//      links carry. Without this fallback a member arriving
+			//      via the chat link saw "Sumate" instead of "Invitar".
+			//   3. Otherwise → anonymous, "Sumate" is correct.
+			$current_uid = (int) get_current_user_id();
+			if ( 0 === $current_uid && null !== $me_id ) {
+				$current_uid = (int) $me_id;
+			}
 			$is_member   = false;
 			if ( $current_uid > 0 ) {
 				foreach ( $members as $m ) {
