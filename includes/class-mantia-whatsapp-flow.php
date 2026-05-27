@@ -1916,12 +1916,22 @@ final class Mantia_Whatsapp_Flow {
 				$buckets[ $bucket ] = array();
 				$bucket_order[]    = $bucket;
 			}
+			// Row description includes the day-of-week abbrev for everything
+			// EXCEPT "Hoy", so the row stays self-describing after the user
+			// taps it — post-selection the chat shows the row title +
+			// description WITHOUT the section header, and "21:30 · ✓ 0-0"
+			// alone reads ambiguously ("21:30 of which day?"). Today: only
+			// time. Tomorrow / weekday / further out: "mié 21:30 · ✓ 0-0".
+			$day_prefix = 'Hoy' !== $bucket ? self::row_day_prefix( (string) $m['kickoff_gmt'] ) : '';
+			$desc_parts = array_filter( array(
+				'' !== $day_prefix ? $day_prefix : null,
+				self::time_only( (string) $m['kickoff_gmt'] ),
+				$predicted ?: null,
+			) );
 			$buckets[ $bucket ][] = array(
 				'id'          => 'mantia:match:' . (int) $m['id'],
 				'title'       => self::format_matchup( (string) $m['home_team'], (string) $m['away_team'] ),
-				// Within a bucket the day is redundant — show just the time
-				// + prediction status so the line stays scannable.
-				'description' => trim( self::time_only( (string) $m['kickoff_gmt'] ) . ( $predicted ? ' • ' . $predicted : '' ) ),
+				'description' => implode( ' · ', $desc_parts ),
 			);
 			++$rows_total;
 		}
@@ -1991,6 +2001,39 @@ final class Mantia_Whatsapp_Flow {
 		$d   = (int) gmdate( 'j', $match_local );
 		$m   = (int) gmdate( 'n', $match_local ) - 1;
 		return sprintf( '%s %d %s', $days[ $dow ], $d, $months[ $m ] );
+	}
+
+	/**
+	 * Render a compact "day-of-week" prefix for a match row that's NOT
+	 * happening today. Returns "mañana" for tomorrow, "mié" / "sáb" /
+	 * etc. for the rest. Used in interactive-list row descriptions so
+	 * post-selection (when the section header is no longer visible) the
+	 * row still tells the user which day the match is on. Empty string
+	 * means "today" — caller drops the prefix entirely.
+	 */
+	private static function row_day_prefix( string $gmt ): string {
+		if ( '' === $gmt ) {
+			return '';
+		}
+		$ts = strtotime( $gmt . ( str_ends_with( $gmt, 'Z' ) ? '' : ' UTC' ) );
+		if ( false === $ts ) {
+			return '';
+		}
+		static $days = array( 'dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb' );
+		$now_local      = time() - 3 * HOUR_IN_SECONDS;
+		$match_local    = $ts - 3 * HOUR_IN_SECONDS;
+		$today_midnight = (int) strtotime( gmdate( 'Y-m-d', $now_local ) . ' 00:00:00 UTC' );
+		$match_midnight = (int) strtotime( gmdate( 'Y-m-d', $match_local ) . ' 00:00:00 UTC' );
+		$delta_days     = (int) round( ( $match_midnight - $today_midnight ) / DAY_IN_SECONDS );
+
+		if ( $delta_days <= 0 ) {
+			return '';
+		}
+		if ( 1 === $delta_days ) {
+			return 'mañana';
+		}
+		$dow = (int) gmdate( 'w', $match_local );
+		return $days[ $dow ] ?? '';
 	}
 
 	/**
