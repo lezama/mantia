@@ -145,6 +145,26 @@ run_free_review() {
   echo "    less $UX_DIR/last-free-review.md"
 }
 
+run_expert_review() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/alice_share.txt" ]; then
+    echo "no matrix vars — run \`bin/promptfoo-ux.sh setup-matrix\` first" >&2
+    return 2
+  fi
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "ANTHROPIC_API_KEY not set" >&2
+    return 2
+  fi
+  echo "▶ senior UX expert audit (Nielsen heuristics + mobile + conversion)"
+  local out="/tmp/mantia-ux-expert.json"
+  npx --yes promptfoo@latest eval -c promptfooconfig.expertreview.yaml --output "$out" --no-cache "$@"
+  echo
+  echo "▶ extracting findings → promptfoo/ux/last-expert-review.md"
+  python3 "$PROJECT_DIR/bin/ux-format-expert-review.py" "$out" > "$UX_DIR/last-expert-review.md"
+  echo "  done. Open with:"
+  echo "    less $UX_DIR/last-expert-review.md"
+}
+
 view_results() {
   cd "$UX_DIR"
   npx --yes promptfoo@latest view
@@ -205,6 +225,10 @@ case "$cmd" in
   free-review)
     shift
     run_free_review "$@"
+    ;;
+  expert-review)
+    shift
+    run_expert_review "$@"
     ;;
   view)
     view_results

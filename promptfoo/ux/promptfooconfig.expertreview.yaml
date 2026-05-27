@@ -1,0 +1,211 @@
+# Mantia · UX detective — EXPERT REVIEW
+#
+# Third lens after deterministic (run/matrix) and casual-user
+# (freereview). This config asks the LLM to don the hat of a senior
+# UX designer auditing the page against established heuristics —
+# Nielsen 10, mobile-first conventions, conversion-funnel thinking,
+# accessibility basics, microcopy quality, visual hierarchy.
+#
+# Where freereview asks "would a Uruguayan WhatsApp user be confused",
+# this asks "what would a UX professional flag in design review".
+# Different lens, different findings — both valuable.
+#
+# Run: bin/promptfoo-ux.sh expert-review
+# Output: promptfoo/ux/last-expert-review.md
+
+description: Mantia UX — senior designer audit against Nielsen + mobile heuristics
+
+prompts:
+  - 'GET {{url}}'
+
+providers:
+  - id: 'https'
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective-expert/1.0
+        Accept: text/html
+      transformResponse: 'text'
+
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    ALICE_SHARE: file://vars/alice_share.txt
+    BOB_SHARE: file://vars/bob_share.txt
+    CAROL_SHARE: file://vars/carol_share.txt
+    LIBE_VIEW: file://vars/libe_view.txt
+    LIBE_NAME: file://vars/libe_name.txt
+    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
+    EXPERT_BRIEF: |
+      You are a senior UX designer auditing a mobile-first web page
+      for Mantia, a WhatsApp-bot-driven football prediction game used
+      across Latin America. The product runs in WhatsApp; the web is
+      complementary (richer leaderboards, predictions form, share
+      cards). Users come from Spanish-speaking countries; most are on
+      Android phones; many have intermittent connectivity.
+
+      Apply your full toolkit:
+        - Nielsen's 10 usability heuristics (visibility of system
+          status, match to real world, user control, consistency,
+          error prevention, recognition vs recall, flexibility &
+          efficiency, aesthetic minimalism, error recovery, help)
+        - Mobile-first conventions (tap targets ≥44px, thumb zones,
+          progressive disclosure, single primary action per screen)
+        - Conversion funnel thinking (what's the next step? is the
+          CTA frictionless? what blocks completion?)
+        - Microcopy quality (clear action verbs, no jargon, error
+          messages that explain + suggest)
+        - Visual hierarchy (size, weight, color, whitespace lead
+          the eye in the right order?)
+        - Accessibility basics (semantic structure, alt text, color
+          contrast hints)
+        - Trust signals (does the page feel legitimate? is identity
+          / authorship clear?)
+
+      Fixture context on this install:
+        Alice — creator of P_LIBE_MTX (libertadores) + P_MUN_MTX
+                (mundial). Predicted 1-1 + 2-0 on libe.
+        Bob   — joined libe only. Predicted 0-3.
+        Carol — joined both. No manual predictions.
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5
+      config:
+        max_tokens: 2500
+        temperature: 0.3
+
+tests:
+  - description: 'libe·alice — expert audit (creator with predictions)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      CONTEXT: 'Alice (the creator) viewing her own libertadores penca via the share-token soft-resolve.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          Walk the page through your full UX lens. For each finding,
+          name the heuristic / principle being violated or upheld.
+          Don't list things that are fine — surface the things a
+          senior designer would call out in a design review.
+
+          Output JSON (always emit, even if nothing critical):
+          {
+            "page_role":        "what this page is supposed to do for this user — one sentence",
+            "primary_action":   "what's the intended next step, and is it the most prominent thing?",
+            "strengths":        [{"observation": "…", "principle": "…"}],
+            "issues":           [{"severity": "blocker|polish|nit",
+                                  "observation": "…",
+                                  "principle":   "Nielsen #N / mobile / microcopy / hierarchy / accessibility",
+                                  "suggestion":  "concrete change"}],
+            "overall_grade":    "A / B / C / D / F",
+            "would_release":    "yes / yes-with-polish / no"
+          }
+
+          PASS the rubric unless overall_grade is D or F.
+
+  - description: 'libe·bob — expert audit (joiner with one prediction)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      CONTEXT: 'Bob, who joined Alice''s penca via invite code, has predicted 1 match. Member but not creator.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          Same UX lens. Pay special attention to:
+            - Is the member's identity reflected clearly? ("vos" marker, etc.)
+            - Are member actions discoverable? (can Bob predict, share,
+              switch group, leave penca, see his history?)
+            - Does the visual hierarchy match what a returning user needs?
+
+          Same JSON shape. Always emit.
+
+  - description: 'libe·anon — expert audit (anonymous visitor)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      CONTEXT: 'Anonymous visitor — someone who got a forwarded link without context. This page should onboard them clearly into the join flow.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          Focus on the CONVERSION FUNNEL:
+            - Is the value proposition immediate?
+            - Is the join action frictionless?
+            - What might cause a stranger to bounce?
+            - Trust signals: does the page feel legitimate / safe?
+          Privacy: confirm no member data (predictions, profile info)
+          leaks to anonymous.
+
+          Same JSON shape.
+
+  - description: 'libe-comp·alice — expert audit (competition page personalized)'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/?as={{ALICE_SHARE}}'
+      CONTEXT: 'Alice on the global competition page. She has pencas in this comp + predictions made.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          This page balances three roles: (1) public marketing for the
+          competition, (2) personalized hub for Alice's pencas, (3)
+          discovery surface for upcoming matches.
+          Critique the ranking of these — does the page lead with the
+          right one for a returning member?
+
+          Same JSON shape.
+
+  - description: 'libe-comp·anon — expert audit (competition page anonymous)'
+    vars:
+      url: '{{BASE}}/pronostico/libertadores-prueba/'
+      CONTEXT: 'Anonymous visitor on a competition page. No personalization. Should function as both a landing page AND a discovery surface for the comp.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          For an anonymous landing page, ask:
+            - Does the hero communicate the value prop in 3 seconds?
+            - Is "Crear penca" vs "Sumate a una existente" clear?
+            - Is the activity hint ("1 penca activa · 3 jugadores")
+              effective social proof or buried?
+            - Spacing, typography, visual hierarchy — does the eye
+              land where intended?
+
+          Same JSON shape.
+
+  - description: 'mun·bob — expert audit (NON-member viewing)'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
+      CONTEXT: 'Bob has a share_token but is NOT in this penca (mundial). Should be treated as a stranger to this penca despite having identity.'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{EXPERT_BRIEF}}
+
+          Audit context: {{CONTEXT}}
+
+          This is an edge case: identified visitor + not-a-member.
+          Critique:
+            - Does the page handle this gracefully or feel awkward?
+            - Should there be a different copy treatment ("you have
+              an account but you're not in this one — want to join?")
+            - Privacy: confirm no member data leaks.
+
+          Same JSON shape.
