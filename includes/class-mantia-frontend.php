@@ -637,8 +637,13 @@ final class Mantia_Frontend {
 				// already sends so people pasting from web get the same
 				// rich-preview link in their friends' chats.
 				$share_landing = home_url( '/pronostico/sumate/' . $invite_code . '/' );
+				// Visible separators between segments — WhatsApp's wa.me
+				// pre-fill collapses \n\n on some clients (user reported
+				// "P7Tocá" run-together on 2026-05-26). The em-dash + space
+				// pair survives the flattening; the OG card preview above
+				// the message body already does the heavy visual lifting.
 				$share_text    = sprintf(
-					"🏆 Sumate a %s\n\nTocá el link para sumarte:\n%s",
+					'🏆 Sumate a %s — tocá el link: %s',
 					$group['name'],
 					$share_landing
 				);
