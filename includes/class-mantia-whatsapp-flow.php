@@ -1219,13 +1219,16 @@ final class Mantia_Whatsapp_Flow {
 			delete_transient( self::pending_create_key( $identity['phone'] ) );
 		}
 
-		// Prefer the native WhatsApp Flow: a single full-screen form with
-		// torneo dropdown + name input + "Crear" CTA. Collapses the
-		// 3-bubble dialogue (ask torneo → ask name → confirm) into one
-		// screen. If the Flow isn't published yet on this install
-		// (operator hasn't run `wp eval 'Mantia_Whatsapp_Flows::publish(
-		// "create_penca" )'`), fall through to the legacy chat flow.
-		if ( class_exists( 'Mantia_Whatsapp_Flows' ) ) {
+		// Native WhatsApp Flow path — single full-screen form replacing
+		// the 3-bubble dialogue. Gated behind `mantia_flows_enabled`
+		// because the WABA needs to be past Meta's Integrity gate for
+		// Flow messages to render; an unverified business gets a 400
+		// (#139000) and the user sees the body text without a CTA.
+		// The operator flips the option (`wp option update
+		// mantia_flows_enabled 1`) once their WABA is approved + the
+		// Flow is PUBLISHED on Meta. Default stays false so a fresh
+		// install gets the working legacy flow.
+		if ( get_option( 'mantia_flows_enabled', false ) && class_exists( 'Mantia_Whatsapp_Flows' ) ) {
 			$noun  = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 			$cta   = Mantia_Vocab::word( 'create', $identity['phone'] ?? '' );
 			$flow  = Mantia_Whatsapp_Flows::build_flow_message(
