@@ -79,8 +79,24 @@ run_eval() {
     echo "no vars on disk — run \`bin/promptfoo-ux.sh setup\` first" >&2
     return 2
   fi
-  echo "▶ evaluating UX invariants via promptfoo"
+  echo "▶ evaluating UX invariants via promptfoo (deterministic)"
   npx --yes promptfoo@latest eval -c promptfooconfig.yaml --no-cache "$@"
+}
+
+run_review() {
+  cd "$UX_DIR"
+  if ! [ -s "$VARS_DIR/share_token.txt" ]; then
+    echo "no vars on disk — run \`bin/promptfoo-ux.sh setup\` first" >&2
+    return 2
+  fi
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "ANTHROPIC_API_KEY not set — the LLM rubric pass needs it" >&2
+    echo "export it (or add to ~/.zshrc) and retry" >&2
+    return 2
+  fi
+  echo "▶ free section-by-section UX review via promptfoo (LLM rubric)"
+  echo "  → per-section findings will land in the result viewer (\`view\`)"
+  npx --yes promptfoo@latest eval -c promptfooconfig.review.yaml --no-cache "$@"
 }
 
 view_results() {
@@ -96,14 +112,27 @@ case "$cmd" in
     shift
     run_eval "$@"
     ;;
+  review)
+    shift
+    run_review "$@"
+    ;;
   view)
     view_results
     ;;
   all)
     setup_state && run_eval
     ;;
+  full)
+    setup_state && run_eval && run_review
+    ;;
   *)
-    echo "usage: $0 {setup|run|view|all}" >&2
+    echo "usage: $0 {setup|run|review|view|all|full}" >&2
+    echo "  setup    reset prod + create canonical Alice state" >&2
+    echo "  run      deterministic promptfoo asserts (fast, free)" >&2
+    echo "  review   LLM-rubric per-page section review (slow, costs tokens)" >&2
+    echo "  view     open the result viewer" >&2
+    echo "  all      setup + run" >&2
+    echo "  full     setup + run + review" >&2
     exit 2
     ;;
 esac

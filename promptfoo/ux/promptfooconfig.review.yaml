@@ -1,0 +1,176 @@
+# Mantia · UX detective — LLM-rubric free review
+#
+# Sibling to promptfooconfig.yaml (deterministic asserts). This file
+# drives an LLM-rubric pass over each canonical page that walks every
+# section, judges copy/scope/hierarchy in context, and emits prose
+# findings in the "reason" field of each assertion.
+#
+# Slower + costs API tokens — run it deliberately:
+#   bin/promptfoo-ux.sh review
+# (Falls back to a no-op if ANTHROPIC_API_KEY isn't set.)
+
+description: Mantia UX detective — free section-by-section page review (LLM)
+
+prompts:
+  - 'GET {{url}}'
+
+providers:
+  - id: 'https'
+    label: web fetch
+    config:
+      method: GET
+      url: '{{url}}'
+      headers:
+        User-Agent: mantia-ux-detective-review/1.0
+        Accept: text/html
+      transformResponse: 'text'
+
+# Every rubric below uses the same context block so the LLM judges
+# against a fixed canonical state. Updating the canonical state? Mirror
+# the changes in tests/ux/setup-canonical-user.php and here.
+defaultTest:
+  vars:
+    BASE: file://vars/base_url.txt
+    SHARE_TOKEN: file://vars/share_token.txt
+    VIEW_TOKEN: file://vars/view_token.txt
+    GROUP_NAME: file://vars/group_name.txt
+    INVITE_CODE: file://vars/invite_code.txt
+    COMP_SLUG: file://vars/comp_slug.txt
+    CANONICAL_STATE: |
+      The canonical test state on this install:
+      - User: Alice (phone +59899900042)
+      - Penca: P_UX_TEST in libertadores-prueba (6 matches)
+      - Alice is a member of this penca
+      - Alice has ONE manual prediction: 1-1 on the first upcoming match
+      - All other matches are 0-0 default (auto_filled — NOT user-decided,
+        should NOT render a prediction badge per Mantia's pending semantics)
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5
+      config:
+        max_tokens: 1200
+        temperature: 0.2
+
+tests:
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'group_as · full-page section review'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are a Mantia UX reviewer. The output above is the HTML of
+          a group page (/pronostico/g/<view_token>/?as=<share_token>),
+          rendered for a logged-in member via the share-token soft-resolve.
+
+          {{CANONICAL_STATE}}
+
+          Walk through each major section of the page IN ORDER and emit
+          a structured finding per section. Sections you should locate:
+            1. Topbar / chrome
+            2. Hero (penca name, meta line, breadcrumb)
+            3. CTA (the pink primary button)
+            4. Tabla del grupo (leaderboard)
+            5. Próximos partidos (match list)
+            6. Cómo se puntúa (scoring rules)
+            7. Footer / outro links
+
+          For each section, report:
+            - PRESENT or MISSING
+            - any copy that's wrong for a MEMBER context (e.g. "Sumate
+              · código X" is wrong here — Alice is already a member)
+            - empty/placeholder rendering (section eyebrow with no body)
+            - missing personalization (Alice's "vos" marker, her ✓ 1-1
+              badge on the first match, etc.)
+            - any internal-infrastructure leak (PHP errors, raw tokens
+              like "wa_auth_t=", unbalanced markup)
+
+          PASS only if every section reads correctly for a member's
+          context. FAIL with section-by-section notes if anything is
+          off. Put your detailed walkthrough in the "reason" field
+          regardless of pass/fail.
+
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'group_anon · full-page section review'
+    vars:
+      url: '{{BASE}}/pronostico/g/{{VIEW_TOKEN}}/'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are a Mantia UX reviewer. The output above is the HTML of
+          the same penca page rendered ANONYMOUSLY (no ?as=, no cookie).
+
+          {{CANONICAL_STATE}}
+
+          Walk through each section. The judging context shifts: the
+          page should now read like a PUBLIC LANDING for a stranger
+          considering joining. Specifically check:
+            - CTA reads "Sumate · código {{INVITE_CODE}}" (join action)
+            - NO "Invitar amigos" copy (that's member-only)
+            - Roster is present (everyone can see who's in)
+            - NO prediction badges anywhere (badges are scoped to
+              the viewing user; an anonymous visitor must NOT see
+              anyone's predictions)
+            - NO "vos" marker (no user identity bound)
+
+          PASS only if the page reads like a clean stranger-facing
+          invite landing. Section-by-section walkthrough in reason.
+
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'comp_as · full-page section review'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/?as={{SHARE_TOKEN}}'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are a Mantia UX reviewer. The output above is the HTML of
+          the COMPETITION page (/pronostico/<slug>/?as=<share_token>) —
+          the global view for libertadores-prueba, rendered for Alice
+          via share-token soft-resolve.
+
+          {{CANONICAL_STATE}}
+
+          Walk through each section. The competition page is unique
+          because it personalizes WHEN the visitor has pencas in the
+          competition. Specifically check:
+            1. Hero: title "Libertadores fecha 6 (prueba)", meta line,
+               tabs for sibling competitions
+            2. "Mis pencas de Libertadores …" section: MUST render
+               with at least one card (Alice's P_UX_TEST). A common
+               regression: the section eyebrow renders "1 penca" but
+               the card body is empty — flag if you see it.
+            3. Ranking global section: ok if empty ("Todavía no hay
+               puntos cargados") since there's just 1 player
+            4. Próximos partidos: eyebrow should say "tus pronósticos"
+               (personalization tail). The first match must have a
+               ✓ 1-1 badge inline.
+            5. Crear penca CTA at the bottom (still appropriate as a
+               secondary action)
+            6. Footer
+
+          PASS only if Alice's identity threads through cleanly.
+
+  # ─────────────────────────────────────────────────────────────────
+  - description: 'comp_anon · full-page section review'
+    vars:
+      url: '{{BASE}}/pronostico/{{COMP_SLUG}}/'
+    assert:
+      - type: llm-rubric
+        value: |
+          You are a Mantia UX reviewer. The output above is the HTML of
+          the competition page rendered ANONYMOUSLY.
+
+          {{CANONICAL_STATE}}
+
+          Anonymous = no personalization. Check:
+            - NO "Mis pencas" section (privacy: no other user's pencas
+              should leak to anonymous visitors)
+            - Próximos partidos eyebrow stays generic "próximos partidos"
+              (no "tus pronósticos" tail)
+            - NO prediction badges (✓ 1-1 must not appear)
+            - "Crear penca de Libertadores …" CTA is the primary
+              call-to-action since the visitor has nothing
+            - Hero, ranking, scoring rules, footer render fine
+
+          PASS only if the page reads as a clean public landing with
+          no per-user data leaking. Section-by-section in reason.
