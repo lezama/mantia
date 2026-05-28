@@ -272,6 +272,84 @@ Mantia_E2E::assert_true(
 	'share-link tap after create does NOT say "no tenés pencas" (regression canary for 2026-05-26 prod bug)'
 );
 
+// 2026-05-27 live incident (Diego N. joining Miguel's CAPRITEST): when
+// a brand-new joiner sent the invite code, the bot's FIRST outbound
+// was the same "🏆 Sumate a <penca>" invite_card the joiner had just
+// used to join, BEFORE the actual "Listo te sume" confirmation. Read
+// as "the bot didn't notice you joined". The card is gone now — the
+// "📤 Invitar" button on the confirmation lets a joiner request it on
+// demand. Canary: no [to Bob · invite_card] outbound between Bob's
+// invite-code turn and the next turn boundary.
+//
+// The transcript renderer runs $scrub_test_noise() on every line — it
+// strips the __E2E__ prefix that the test harness bakes into invite
+// codes — so we compare against the SCRUBBED invite code, not the raw
+// DB value.
+$scrubbed_code             = $scrub_test_noise( $invite_code );
+$bob_received_card_on_join = false;
+$saw_bob_invite_code_turn  = false;
+$joiner_reply_idx          = -1;
+foreach ( $transcript as $i => $line ) {
+	if ( ! $saw_bob_invite_code_turn ) {
+		if ( (bool) preg_match( '/^\[from Bob\]/', $line ) && false !== stripos( $line, $scrubbed_code ) ) {
+			$saw_bob_invite_code_turn = true;
+		}
+		continue;
+	}
+	// Stop scanning at the next [from …] boundary — we only care about
+	// what the bot pushed BETWEEN Bob sending the code and his next turn.
+	if ( 0 === strpos( $line, '[from ' ) ) {
+		break;
+	}
+	if ( (bool) preg_match( '/^\[to Bob · invite_card\]/', $line ) ) {
+		$bob_received_card_on_join = true;
+	}
+	if ( -1 === $joiner_reply_idx && (bool) preg_match( '/^\[to Bob · reply\]/', $line ) ) {
+		$joiner_reply_idx = $i;
+	}
+}
+Mantia_E2E::assert_true( $saw_bob_invite_code_turn, 'transcript captures Bob sending the invite code' );
+Mantia_E2E::assert_true(
+	! $bob_received_card_on_join,
+	'fresh joiner does NOT receive an invite_card as their first bot outbound (regression canary for 2026-05-27 CAPRITEST bug — Diego saw "Sumate a X" before "Listo te sume")'
+);
+
+// And the joiner's confirmation MUST offer "📅 Ver y pronosticar" as
+// a button. A brand-new joiner with 6 matches on auto-fill 0-0 needs
+// a single-tap path into the predict picker — landing on "📋 Mis
+// pencas" / "🏠 Resumen" forces extra steps before the user can do
+// the one thing they joined to do.
+$joiner_reply_buttons = array();
+if ( $joiner_reply_idx >= 0 ) {
+	for ( $i = $joiner_reply_idx + 1; $i < count( $transcript ); $i++ ) {
+		$line = $transcript[ $i ];
+		// Buttons appear as `   [button] <title>` indented under the reply.
+		// Any new `[from …]` or new top-level `[to …` (no indent) ends the
+		// scope.
+		if ( (bool) preg_match( '/^\s+\[button\]\s+(.*)$/', $line, $btn_match ) ) {
+			$joiner_reply_buttons[] = trim( $btn_match[1] );
+			continue;
+		}
+		if ( 0 === strpos( $line, '[from ' ) || 0 === strpos( $line, '[to ' ) ) {
+			break;
+		}
+	}
+}
+$joiner_has_predict_button = false;
+foreach ( $joiner_reply_buttons as $btn ) {
+	if ( false !== stripos( $btn, 'pronosticar' ) || false !== stripos( $btn, 'partidos' ) ) {
+		$joiner_has_predict_button = true;
+		break;
+	}
+}
+Mantia_E2E::assert_true(
+	$joiner_has_predict_button,
+	sprintf(
+		'fresh joiner confirmation offers a "Ver y pronosticar" button (saw: %s)',
+		empty( $joiner_reply_buttons ) ? '<none>' : implode( ' · ', $joiner_reply_buttons )
+	)
+);
+
 /* ─────────────────────────────────────────────────────────────────────── */
 Mantia_E2E::step( '4. Failure-path: when send_invite_card returns false, reply must inline the link instead of pointing at a phantom card' );
 /* ─────────────────────────────────────────────────────────────────────── */
