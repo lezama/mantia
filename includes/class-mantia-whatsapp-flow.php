@@ -2599,11 +2599,26 @@ final class Mantia_Whatsapp_Flow {
 					(int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_HOME_SCORE, true ),
 					(int) get_post_meta( (int) $any_prediction->ID, Mantia_Repository::META_PRED_AWAY_SCORE, true ),
 				);
-				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — tocá para cambiarlo.', $current_score[0], $current_score[1] );
+				// Combine the change-existing hint with the "or just type"
+				// hint so the user knows both paths are open regardless of
+				// whether they already have a prediction. Previously the
+				// chat-typing hint only appeared on first predict — a live
+				// user (2026-05-27) noted "nada sugiere que se puede
+				// escribir en el chat directamente" on the change-existing
+				// branch.
+				$lines[] = sprintf( 'Pronóstico actual: *%d-%d* — tocá un marcador o escribí el nuevo (ej *2-1*).', $current_score[0], $current_score[1] );
 			} else {
 				$lines[] = 'Tocá un marcador o escribí el tuyo (ej *3-1*).';
 			}
+			// Offer the web fallback for users who'd rather cargar el
+			// marcador en la web than navigate WhatsApp lists. user_view_url
+			// returns the auth-token-bearing /me/ link that drops the user
+			// straight into their edit form (no login form, no extra step).
 			if ( $user_id > 0 ) {
+				$me_url = Mantia_Repository::user_view_url( $user_id );
+				if ( '' !== $me_url ) {
+					$lines[] = sprintf( '🌐 O cargalo desde la web: %s', $me_url );
+				}
 				self::stash_pending_match( $identity['phone'], $match_id );
 			}
 
