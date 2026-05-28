@@ -1951,8 +1951,35 @@ final class Mantia_Whatsapp_Flow {
 			? Mantia_Repository::group_to_array( $active_id )['competition_name']
 			: 'Fixture';
 
+		// Surface the web fixture grid ABOVE the picker list. Live user
+		// (Diego, 2026-05-27) banged his head on the multi-tap picker
+		// flow — "no puedo elegir resultado" → "ta muy complicado" →
+		// "WhatsApp es una garcha · el fixture con los partidos y las
+		// cajitas para poner los resultados via web". The bot picker
+		// stays as a fallback for users who prefer chat-only, but the
+		// web grid is the recommended path when there's more than one
+		// match to predict.
+		$reply_lines = array();
+		if ( $user && count( $upcoming ) > 1 ) {
+			$me_token = Mantia_Repository::user_view_token( (int) $user->ID );
+			if ( '' !== $me_token ) {
+				$me_url = home_url( '/pronostico/me/' . $me_token . '/' );
+				$reply_lines[] = sprintf(
+					/* translators: 1: match count, 2: web URL. */
+					'📋 *Cargá los %d partidos de una vez en la web:*',
+					count( $upcoming )
+				);
+				$reply_lines[] = '🌐 ' . $me_url;
+				$reply_lines[] = '';
+				$reply_lines[] = '_o tocá un partido acá abajo si preferís el chat:_';
+			}
+		}
+		if ( empty( $reply_lines ) ) {
+			$reply_lines[] = 'Tocá un partido para ver detalle o cargar pronóstico:';
+		}
+
 		return array(
-			'reply'       => 'Tocá un partido para ver detalle o cargar pronóstico:',
+			'reply'       => implode( "\n", $reply_lines ),
 			'interactive' => array(
 				'type'         => 'list',
 				'header'       => $header,
