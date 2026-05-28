@@ -1,0 +1,244 @@
+# Mantia · stakeholder-sim LLM review of e2e bot transcripts
+#
+# Companion layer to the deterministic e2e harness (bin/e2e.sh).
+# Where the e2e asserts exact-match strings ("transcript captures Bob
+# sending the invite code"), THIS config hands the same transcript to
+# Claude and asks "would a real Uruguayan WhatsApp user be confused?".
+# Different lens, different findings.
+#
+# Pipeline:
+#   1. bin/e2e.sh stakeholder-sim-onboarding   → dumps transcript on mantia3
+#   2. wrapper rsyncs the transcript back to tests/qa-output/
+#   3. provider.mjs loads the local file as the "model output"
+#   4. each test's llm-rubric grades that output through a persona lens
+#
+# Run: bin/promptfoo-transcript.sh        (refresh + review)
+# Run: bin/promptfoo-transcript.sh review (just review the cached file)
+
+description: Mantia bot · stakeholder-sim review of e2e transcript
+
+providers:
+  - id: file://provider.mjs
+    label: e2e transcript
+
+prompts:
+  - 'INSPECT_TRANSCRIPT'  # provider ignores the prompt; transcript comes from disk
+
+defaultTest:
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5
+      config:
+        max_tokens: 2500
+        temperature: 0.3
+  vars:
+    STAKEHOLDER_BRIEF: |
+      You are a Mantia stakeholder reviewing a WhatsApp bot transcript
+      that was captured by the e2e harness against staging (mantia3).
+      Mantia is a WhatsApp-bot-driven football prediction game for the
+      Latin American market. Users are real people on Android phones,
+      mostly Uruguay/Argentina/Brazil, talking to the bot inside
+      WhatsApp.
+
+      You look at the transcript through the eyes of a real user
+      reading these bubbles on their phone. You don't read code, you
+      don't care about internal vars — you react to what the bot
+      visibly shows.
+
+      Transcript format reminders:
+        [from <Name>] <text>           = what the user wrote
+        [to <Name> · reply] <text>     = main bot reply bubble
+        [to <Name> · invite_card] <text> = an additional bot bubble (a
+                                           forwardable invite card)
+        [to <Name> · button] <text>    = OR a button on the reply bubble
+        Indented "[button] <title>"    = an interactive button title
+
+      Voice / market rules the bot must follow:
+        • Spanish rioplatense voseo ("vos", "sumate", "mandá", "tocá")
+        • No English copy, no emoji spam, anchor-emojis only
+        • No bot enthusiasm ("genial", "increíble", "vamos!") — calm,
+          functional tone
+        • Country-aware vocab via Mantia_Vocab (UY/PY → "penca",
+          AR/CL/MX/ES → "pronóstico", BR → "bolão") — the bot picks
+          per the user's phone prefix
+
+      Bot must never:
+        • re-ask for a phone number it already knows (the bot is
+          identified by WhatsApp; never "necesito tu teléfono" after
+          first contact)
+        • ship a >300-char message bubble (giant URLs read as spam on
+          phones)
+        • say one thing and do another (say-do consistency)
+        • offer interactive buttons whose label doesn't match the
+          action they trigger
+
+tests:
+  # ────────────────────────────────────────────────────────────────
+  # The smoking-gun test: did we regress the 2026-05-27 Diego incident?
+  # ────────────────────────────────────────────────────────────────
+  - description: 'joiner-onboarding · Bob receives a clean welcome after sending the invite code'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Focus EXCLUSIVELY on the moment Bob sends the invite code
+          (the third [from Bob] turn). Look at every bubble the bot
+          ships back AFTER that turn and BEFORE the next user turn.
+
+          Hard rules (any violation = blocker):
+            R1. The FIRST bot bubble after Bob's invite-code turn must
+                be the join confirmation ("Listo, te sumé / te sume a
+                <penca>"). It must NOT be an [invite_card] bubble.
+            R2. NO [invite_card] outbound at all in Bob's onboarding
+                sequence — sending him the same card he just used to
+                join reads as "the bot didn't notice you joined".
+            R3. The reply must reference the penca name + the autofill
+                behavior so Bob understands why he's already at 0-0 on
+                six matches.
+            R4. The interactive button row must include "📅 Ver y
+                pronosticar" (or equivalent predict-CTA). A fresh
+                joiner with 6 autofilled matches needs a one-tap path
+                into the picker.
+
+          Soft rules (polish):
+            P1. The roster line ("Quiénes están") helps social proof —
+                it should show Bob with "(vos)" so he sees his identity.
+            P2. The bot should not push "Reenviá esta tarjeta" before
+                Bob has had a chance to predict — invite-after-predict
+                feels less spammy than invite-on-arrival.
+
+          Emit ONLY this JSON (no prose around it):
+          {
+            "scene":    "joiner-onboarding",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "R1|R2|R3|R4", "observation": "what you saw"}],
+            "polish":   [{"rule": "P1|P2|...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS the rubric only when "verdict" === "PASS" AND blockers
+          array is empty.
+
+  # ────────────────────────────────────────────────────────────────
+  # Creator flow — Alice creates a Mundial penca
+  # ────────────────────────────────────────────────────────────────
+  - description: 'creator-flow · Alice creates Mundial penca from scratch'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Focus on Alice's create-penca flow at the start of the
+          transcript: the [from Alice] turns that ask for a new
+          Mundial penca, name it, and reach the "Creaste X" reply.
+
+          Hard rules:
+            R1. The "Creaste <name>" confirmation must reference the
+                actual competition name (Mundial 2026, NOT Libertadores
+                or any other comp the user didn't pick).
+            R2. The post-create interactive must offer a predict CTA
+                ("Ver y pronosticar" / "Pronosticar partidos") as the
+                primary button — Alice has 6 matches to fill.
+            R3. There must be an [invite_card] bubble before the
+                "Creaste" reply (so Alice has something to forward to
+                friends), AND the reply that mentions "↑ Reenviá la
+                tarjeta de arriba" must come AFTER a real [invite_card]
+                outbound — never as a say-do mismatch.
+            R4. The bot must not say "Necesito tu teléfono" anywhere —
+                Alice is already authenticated through WhatsApp.
+
+          Soft rules:
+            P1. The post-create reply should keep the autofill note
+                short — six lines max so it fits the WhatsApp viewport.
+
+          JSON only:
+          {
+            "scene":    "creator-flow",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "...", "observation": "..."}],
+            "polish":   [{"rule": "...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS only if verdict === PASS AND blockers is empty.
+
+  # ────────────────────────────────────────────────────────────────
+  # Voice / market — copy quality across the whole transcript
+  # ────────────────────────────────────────────────────────────────
+  - description: 'voice · rioplatense + no-enthusiasm + country-aware vocab'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Read the ENTIRE transcript. Audit voice quality only.
+
+          Hard rules:
+            R1. No English words in user-visible copy (button labels,
+                replies, invite cards). "Predictions" / "settings" /
+                "leaderboard" must all be Spanish.
+            R2. Verb conjugation must be rioplatense voseo: "sumate"
+                (not "súmate"), "mandá" (not "manda"), "tocá" (not
+                "toca"). Tú-style conjugations are a regression.
+            R3. No enthusiasm spam: bot does not say "¡genial!",
+                "¡vamos!", "¡increíble!". Tone stays calm + functional.
+            R4. No raw URLs >120 chars in a single bubble — magic-link
+                blobs are the canonical regression here.
+
+          Soft rules:
+            P1. Anchor-emojis only (one per bubble at most: 🏆 / ✅ /
+                📅). No emoji decoration runs.
+            P2. Microcopy uses concrete action verbs ("tocá", "mandá")
+                — abstract "click here" or "select an option" reads
+                wrong on WhatsApp.
+
+          JSON only:
+          {
+            "scene":    "voice",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "...", "observation": "..."}],
+            "polish":   [{"rule": "...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS only if verdict === PASS AND blockers is empty.
+
+  # ────────────────────────────────────────────────────────────────
+  # Say-do consistency — bot says X, then actually does X
+  # ────────────────────────────────────────────────────────────────
+  - description: 'say-do · bot promises match what the bot then ships'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Audit the FULL transcript for say-do mismatches: places
+          where the bot's reply references something it then fails to
+          deliver, OR where the bot's reply contradicts a side effect
+          captured elsewhere in the transcript.
+
+          Hard rules:
+            R1. Any reply that mentions "↑ Reenviá la tarjeta de
+                arriba" (or similar "above" phrasing) must have an
+                [invite_card] outbound IMMEDIATELY before it in the
+                same persona's lane.
+            R2. The "partidos" / "Ver partidos" reply that follows a
+                Mundial create must list Mundial fixtures — never
+                Libertadores / Brasileirão / unrelated comps.
+            R3. The roster line "Quiénes están (N)" must match the
+                actual member count emitted elsewhere in the bot's
+                replies (no off-by-one between confirmation and
+                roster).
+
+          Soft rules:
+            P1. The "Creaste X" reply should not double-state info that
+                the [invite_card] bubble above already covers (link +
+                CTA both on the same screen feels redundant).
+
+          JSON only:
+          {
+            "scene":    "say-do",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "...", "observation": "..."}],
+            "polish":   [{"rule": "...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS only if verdict === PASS AND blockers is empty.
