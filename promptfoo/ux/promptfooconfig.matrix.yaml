@@ -47,6 +47,9 @@ defaultTest:
     MUN_VIEW: file://vars/mun_view.txt
     MUN_NAME: file://vars/mun_name.txt
     MUN_CODE: file://vars/mun_code.txt
+    ALICE_ME: file://vars/alice_me.txt
+    BOB_ME: file://vars/bob_me.txt
+    CAROL_ME: file://vars/carol_me.txt
 
 tests:
   # ═════════════════════════════════════════════════════════════════
@@ -204,6 +207,65 @@ tests:
       # change after the free-review surfaced that bare "Crear penca de"
       # didn't disambiguate vs joining an existing penca).
       - { type: contains, value: 'Crear tu propia penca de' }
+
+  # ═════════════════════════════════════════════════════════════════
+  # /me/ PAGE — ranking widget leads, stat-grid is conditional.
+  # Added 2026-05-27 after Diego's live feedback: "lo importante es
+  # el ranking" — the cold-start /me/ page led with 0 puntos · 0
+  # exactos · 0 pronósticos instead of "where do I stand".
+  # ═════════════════════════════════════════════════════════════════
+  # The DOM-vs-CSS distinction matters here: ".mantia-stat-grid"
+  # appears in the stylesheet + the IntersectionObserver script
+  # regardless of whether the SECTION renders. The JS assertion
+  # below looks for the actual `<section class="mantia-stat-grid">`
+  # marker, not just the class name string.
+  - description: 'me·alice — /me/ page leads with the ranking widget'
+    vars:
+      url: '{{BASE}}/pronostico/me/{{ALICE_ME}}/'
+    assert:
+      - { type: contains, value: '<section class="mantia-rank-card">' }
+      - { type: contains, value: 'tu posición en' }
+      - { type: contains, value: '{{LIBE_NAME}}' }
+      # No matches resolved yet in the fixture → empty branch fires.
+      - { type: contains, value: 'mantia-rank-empty' }
+      - { type: contains, value: 'tabla todavía vacía' }
+      - { type: contains, value: 'Son 3 jugadores en la penca' }
+      # The DOM order check: <section.mantia-rank-card> must appear
+      # BEFORE any <section.mantia-stat-grid> in the body so the
+      # "ranking first" reordering can't silently drift.
+      - type: javascript
+        value: |
+          const html  = output || '';
+          const rankIdx = html.indexOf('<section class="mantia-rank-card">');
+          const statIdx = html.indexOf('<section class="mantia-stat-grid">');
+          if (rankIdx < 0) {
+            throw new Error('<section class="mantia-rank-card"> missing from /me/ page');
+          }
+          if (statIdx >= 0 && statIdx < rankIdx) {
+            throw new Error(`stat-grid appears before rank-card in the DOM (stat@${statIdx}, rank@${rankIdx}) — reordering regressed`);
+          }
+          return true;
+
+  - description: 'me·bob — /me/ page shows ranking; stat-grid suppressed (no resolved matches)'
+    vars:
+      url: '{{BASE}}/pronostico/me/{{BOB_ME}}/'
+    assert:
+      - { type: contains, value: '<section class="mantia-rank-card">' }
+      - { type: contains, value: 'tu posición en' }
+      - { type: contains, value: 'tabla todavía vacía' }
+      # $total_preds counts RESOLVED predictions (leaderboard rows),
+      # not pending ones. Bob has 1 manual prediction but no match
+      # has finished — stat grid stays suppressed. Diego's "0 PUNTOS
+      # · 0 EXACTOS · 0 PRONÓSTICOS" cold-start screen is fixed.
+      - { type: not-contains, value: '<section class="mantia-stat-grid">' }
+
+  - description: 'me·carol — /me/ page shows ranking; stat-grid suppressed (no preds + no results)'
+    vars:
+      url: '{{BASE}}/pronostico/me/{{CAROL_ME}}/'
+    assert:
+      - { type: contains, value: '<section class="mantia-rank-card">' }
+      - { type: contains, value: 'tabla todavía vacía' }
+      - { type: not-contains, value: '<section class="mantia-stat-grid">' }
 
   # ═════════════════════════════════════════════════════════════════
   # FRESHNESS — no match in the picker can have a past kickoff. The

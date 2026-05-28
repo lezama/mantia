@@ -110,6 +110,9 @@ setup_state() {
     echo -n "$(get_val MUN_VIEW)"    > "$VARS_DIR/mun_view.txt"
     echo -n "$(get_val MUN_NAME)"    > "$VARS_DIR/mun_name.txt"
     echo -n "$(get_val MUN_CODE)"    > "$VARS_DIR/mun_code.txt"
+    echo -n "$(get_val ALICE_ME)"    > "$VARS_DIR/alice_me.txt"
+    echo -n "$(get_val BOB_ME)"      > "$VARS_DIR/bob_me.txt"
+    echo -n "$(get_val CAROL_ME)"    > "$VARS_DIR/carol_me.txt"
     echo "  · matrix: 3 users × 2 pencas × mixed predictions ready"
   fi
   echo "  · vars written to $VARS_DIR/"

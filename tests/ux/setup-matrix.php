@@ -167,3 +167,9 @@ echo "CANARY_A_HOME: " . $canary_a['home_team'] . "\n";
 echo "CANARY_A_AWAY: " . $canary_a['away_team'] . "\n";
 echo "CANARY_B_HOME: " . $canary_b['home_team'] . "\n";
 echo "CANARY_B_AWAY: " . $canary_b['away_team'] . "\n";
+// Per-user /me/ tokens — needed by the matrix YAML to assert the new
+// ranking widget on /pronostico/me/<token>/ (added 2026-05-27 after
+// Diego's "lo importante es el ranking" feedback).
+echo "ALICE_ME: " . Mantia_Repository::user_view_token( (int) $alice->ID ) . "\n";
+echo "BOB_ME: "   . Mantia_Repository::user_view_token( (int) $bob->ID )   . "\n";
+echo "CAROL_ME: " . Mantia_Repository::user_view_token( (int) $carol->ID ) . "\n";
