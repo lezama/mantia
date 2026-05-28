@@ -416,6 +416,43 @@ foreach ( $transcript as $line ) {
 		break;
 	}
 }
+// Before drilling into match-detail asserts: the reply Bob got
+// IMMEDIATELY after `mantia:cmd:matches` (the picker reply) must
+// lead with the web fixture URL when there's more than one match
+// pending. Diego's feedback on 2026-05-27 made this concrete:
+// "el fixture con los partidos y las cajitas para poner los
+// resultados via web · whatsapp es una garcha". Web-native users
+// should be able to skip the chat picker entirely.
+$picker_reply = '';
+$saw_bob_matches_tap = false;
+foreach ( $transcript as $line ) {
+	if ( ! $saw_bob_matches_tap && (bool) preg_match( '/^\[from Bob\] mantia:cmd:matches/', $line ) ) {
+		$saw_bob_matches_tap = true;
+		continue;
+	}
+	if ( ! $saw_bob_matches_tap ) {
+		continue;
+	}
+	if ( (bool) preg_match( '/^\[to Bob · reply\]/', $line ) ) {
+		$picker_reply = $line;
+		break;
+	}
+}
+Mantia_E2E::assert_true( $saw_bob_matches_tap, 'transcript captures Bob tapping `Ver y pronosticar`' );
+Mantia_E2E::assert_true(
+	false !== stripos( $picker_reply, '🌐' )
+		&& false !== stripos( $picker_reply, '/pronostico/me/' ),
+	'picker reply leads with the web fixture URL (🌐 .../pronostico/me/) so web-natives can skip the chat picker'
+);
+Mantia_E2E::assert_true(
+	false !== stripos( $picker_reply, 'Cargá los' ) && false !== stripos( $picker_reply, 'web' ),
+	'picker reply frames the web URL as the bulk-predict shortcut ("Cargá los N ... web")'
+);
+Mantia_E2E::assert_true(
+	false !== stripos( $picker_reply, 'preferís el chat' ) || false !== stripos( $picker_reply, 'tocá un partido' ),
+	'picker reply still surfaces the in-chat picker as the secondary path'
+);
+
 Mantia_E2E::assert_true( $saw_bob_match_tap, 'transcript captures Bob tapping into a match-detail card' );
 Mantia_E2E::assert_true(
 	false !== stripos( $match_detail_reply, '🌐' ) && false !== stripos( $match_detail_reply, 'web' ),

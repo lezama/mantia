@@ -247,6 +247,62 @@ tests:
           PASS only if verdict === PASS AND blockers is empty.
 
   # ────────────────────────────────────────────────────────────────
+  # Picker-lead — when the user has N>1 matches to predict, the bot
+  # offers the web grid FIRST and the chat picker as a fallback.
+  # ────────────────────────────────────────────────────────────────
+  - description: 'picker-lead · "Ver y pronosticar" reply leads with the web grid for multi-match flows'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Find the [from Bob] turn for `mantia:cmd:matches` (Bob
+          tapping "Ver y pronosticar" right after joining the
+          penca). Focus on the bot's [to Bob · reply] right after.
+
+          Diego, a real Uruguay-based user, tested this flow on
+          2026-05-27. His exact words: "no puedo elegir resultado",
+          "ta muy complicado", and ultimately "el fixture con los
+          partidos y las cajitas para poner los resultados via web ·
+          whatsapp es una garcha". The redesign promotes the web URL
+          ABOVE the chat picker so web-native users get a single-
+          screen escape hatch.
+
+          Hard rules:
+            R1. The reply opens with a clearly-anchored web URL line
+                (🌐 https://.../pronostico/me/<token>/) — NOT buried
+                after the picker, NOT introduced only as "you can
+                also try the web", but as the primary affordance.
+            R2. The picker is STILL there as a fallback (the
+                interactive list with "Ver partidos" / match rows).
+                We add the web option, we don't remove the chat one.
+            R3. Framing tells the user what the web URL does — a
+                phrase like "cargá los N partidos de una" / "fixture
+                con cajitas" / "todo en una pantalla". Not just
+                "abrí la web".
+
+          Soft rules:
+            P1. The phrase that opens the chat-fallback line is
+                user-friendly ("o tocá acá si preferís el chat" or
+                similar), not apologetic.
+            P2. If only ONE match is pending, leading with the web
+                URL is overkill — the picker tap is faster. (The
+                code path: only ship the web URL when count(upcoming)
+                > 1. The LLM doesn't need to verify the threshold,
+                just check that the reply isn't broken in either
+                case.)
+
+          JSON only:
+          {
+            "scene":    "picker-lead",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "...", "observation": "..."}],
+            "polish":   [{"rule": "...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS only if verdict === PASS AND blockers is empty.
+
+  # ────────────────────────────────────────────────────────────────
   # URL hygiene — short stable tokens, never JWT magic-link blobs
   # ────────────────────────────────────────────────────────────────
   - description: 'url-hygiene · bot ships short stable-token URLs, never JWT magic-links'
