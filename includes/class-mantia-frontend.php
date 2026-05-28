@@ -1246,6 +1246,89 @@ final class Mantia_Frontend {
 				</div>
 			</section>
 
+			<?php
+			// Ranking widget — lifts the leaderboard onto the /me/ page so
+			// returning users see "where do I stand" before they see "what
+			// did I score across all matches". Live feedback (Diego N,
+			// 2026-05-27): "lo importante es el ranking" — the cold-start
+			// stat grid (0 puntos · 0 exactos · 0 pronósticos) was useless
+			// noise next to the missing leaderboard he actually wanted.
+			//
+			// For now we render the leaderboard of the FIRST group the
+			// user belongs to (most users only have one penca per comp).
+			// Multi-penca users will need a per-group switcher — out of
+			// scope for this round.
+			$primary_group   = ! empty( $groups ) ? reset( $groups ) : null;
+			$primary_gid     = $primary_group ? (int) $primary_group['id'] : 0;
+			$primary_lb      = $primary_gid > 0 ? Mantia_Leaderboard::rows( $primary_gid, 50 ) : array();
+			$members         = $primary_gid > 0 ? Mantia_Repository::group_members( $primary_gid ) : array();
+			$has_results     = false;
+			foreach ( $primary_lb as $row ) {
+				if ( (int) ( $row['points'] ?? 0 ) > 0 ) { $has_results = true; break; }
+			}
+			$my_position     = 0;
+			$my_points       = 0;
+			foreach ( $primary_lb as $i => $row ) {
+				if ( (int) ( $row['user_id'] ?? 0 ) === $user_id ) {
+					$my_position = $i + 1;
+					$my_points   = (int) ( $row['points'] ?? 0 );
+					break;
+				}
+			}
+			if ( $primary_gid > 0 ) :
+			?>
+				<section class="mantia-rank-card">
+					<div class="mantia-rank-eyebrow">
+						<?php
+						printf(
+							/* translators: %s: penca name */
+							esc_html__( '🏆 tu posición en %s', 'mantia' ),
+							esc_html( (string) $primary_group['name'] )
+						);
+						?>
+					</div>
+					<?php if ( $has_results ) : ?>
+						<div class="mantia-rank-headline">
+							<?php
+							printf(
+								/* translators: 1: rank, 2: total players, 3: points */
+								esc_html__( '%1$dº de %2$d · %3$d pts', 'mantia' ),
+								max( 1, $my_position ),
+								max( count( $primary_lb ), count( $members ) ),
+								$my_points
+							);
+							?>
+						</div>
+						<?php self::render_leaderboard( array_slice( $primary_lb, 0, 5 ), 'group', $user_id ); ?>
+					<?php else : ?>
+						<div class="mantia-rank-empty">
+							<?php esc_html_e( '— tabla todavía vacía —', 'mantia' ); ?>
+						</div>
+						<p class="mantia-rank-empty-hint">
+							<?php
+							printf(
+								/* translators: %d: members in penca */
+								esc_html( _n(
+									'Sos %d jugador en la penca. La tabla aparece después del primer partido resuelto.',
+									'Son %d jugadores en la penca. La tabla aparece después del primer partido resuelto.',
+									count( $members ),
+									'mantia'
+								) ),
+								count( $members )
+							);
+							?>
+						</p>
+					<?php endif; ?>
+				</section>
+			<?php endif; ?>
+
+			<?php
+			// Stat grid is now subordinate to the ranking — show only when
+			// the user has at least one result to show; otherwise it
+			// renders as three useless zeros next to the ranking placeholder
+			// (Diego's "es horrible" was partly this).
+			if ( $has_results || $total_preds > 0 ) :
+			?>
 			<section class="mantia-stat-grid">
 				<div class="mantia-stat">
 					<div class="mantia-stat-value"><?php echo (int) $total_points; ?></div>
@@ -1260,6 +1343,7 @@ final class Mantia_Frontend {
 					<div class="mantia-stat-label"><?php echo esc_html( _n( 'pronóstico', 'pronósticos', (int) $total_preds, 'mantia' ) ); ?></div>
 				</div>
 			</section>
+			<?php endif; ?>
 
 			<?php
 			$has_manual = Mantia_Repository::user_has_manual_prediction( $user_id );
@@ -4523,6 +4607,53 @@ body {
 }
 .mantia-hero-user-text { min-width: 0; }
 .mantia-hero-user-text .mantia-h1 { margin-top: 6px; }
+
+/* Ranking card on /me/ — added 2026-05-27 after a live user (Diego)
+   flagged "lo importante es el ranking". Lives between the hero and
+   the stat grid, so a returning user sees their position before
+   their personal totals. */
+.mantia-rank-card {
+	margin: 4px 0 22px;
+	padding: 18px 18px 14px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 16px;
+	box-shadow: 5px 5px 0 var(--ink);
+}
+.mantia-rank-eyebrow {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 13px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink);
+	margin-bottom: 6px;
+}
+.mantia-rank-headline {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 28px;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+	line-height: 1.05;
+	margin-bottom: 14px;
+}
+.mantia-rank-empty {
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	color: var(--ink);
+	opacity: 0.6;
+	margin-bottom: 6px;
+}
+.mantia-rank-empty-hint {
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--ink);
+	margin: 0;
+	line-height: 1.45;
+}
 
 /* Sticky compact bar on /me/. Hidden by default; revealed by the
    IntersectionObserver in print_pwa_register() when the user
