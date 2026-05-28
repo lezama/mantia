@@ -204,7 +204,13 @@ foreach ( explode( "\n", $transcript_str ) as $line ) {
 	}
 }
 Mantia_E2E::assert_true( $max_prose_line <= 300, sprintf( 'no prose bot reply line longer than 300 chars (longest: %d)', $max_prose_line ) );
-Mantia_E2E::assert_true( $max_url_line <= 500, sprintf( 'URL lines stay under 500 chars even with magic-link token (longest: %d)', $max_url_line ) );
+// URL cap tightened from 500 → 150 after f9abab1. We no longer ship
+// JWT magic-link URLs from the match-detail path — both /me/ and /g/
+// links now use stable 24-hex view_tokens, so any URL line should fit
+// comfortably under 150 chars. Regressing to a JWT (e.g. someone
+// re-introduces user_view_url() inadvertently) blows past this and
+// fails loudly.
+Mantia_E2E::assert_true( $max_url_line <= 150, sprintf( 'URL lines stay short — view_token format, not JWT magic-link (longest: %d)', $max_url_line ) );
 
 // Rule 1 — `wa_auth_t=` is the magic-link auth mechanism for /me/,
 // so the bot legitimately ships it when anchored as a "🌐 …" web

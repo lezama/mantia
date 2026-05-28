@@ -247,6 +247,61 @@ tests:
           PASS only if verdict === PASS AND blockers is empty.
 
   # ────────────────────────────────────────────────────────────────
+  # URL hygiene — short stable tokens, never JWT magic-link blobs
+  # ────────────────────────────────────────────────────────────────
+  - description: 'url-hygiene · bot ships short stable-token URLs, never JWT magic-links'
+    assert:
+      - type: llm-rubric
+        value: |
+          {{STAKEHOLDER_BRIEF}}
+
+          Scan EVERY URL the bot ships in the transcript and judge
+          each one against Mantia's URL contract:
+
+          GOOD URL shapes (short, stable, readable):
+            • /pronostico/g/<24-hex>/                  (group view)
+            • /pronostico/g/<24-hex>/?as=<24-hex>      (group view + highlight)
+            • /pronostico/me/<24-hex>/                 (user predict form)
+            • /pronostico/sumate/<INVITECODE>/         (join landing)
+            • https://wa.me/<digits>?text=<short>      (wa share)
+
+          BAD URL shapes (regression smell):
+            • anything containing "wa_auth_t=" (JWT magic-link)
+            • anything containing "wa_auth_go="
+            • any URL whose query string is longer than the path
+            • any URL > 120 chars total — view-tokens fit in ~70
+
+          Hard rules:
+            R1. Zero URLs in the transcript contain "wa_auth_t="
+                (the JWT magic-link is reserved for first-time login
+                flows that don't currently go through this transcript).
+            R2. Every internal URL (mantia3.wpcomstaging.com / our
+                home host) is ≤120 chars. wa.me URLs may run longer
+                due to the prefilled-text payload — those are fine.
+            R3. Every URL line in a reply renders alongside an
+                anchor — "🌐 …" or "Tocá el link …" or similar —
+                never bare in the body.
+
+          Soft rules:
+            P1. When the bot offers a web fallback URL, it should
+                also tell the user what they'll be able to do on
+                that page (predict, see standings, share, etc.) —
+                not just dump the URL.
+            P2. If multiple URLs appear in the same reply, they
+                should target different actions; redundant URLs in
+                one bubble feel like spam.
+
+          JSON only:
+          {
+            "scene":    "url-hygiene",
+            "verdict":  "PASS" or "FAIL",
+            "blockers": [{"rule": "...", "observation": "..."}],
+            "polish":   [{"rule": "...", "observation": "...", "suggestion": "..."}]
+          }
+
+          PASS only if verdict === PASS AND blockers is empty.
+
+  # ────────────────────────────────────────────────────────────────
   # Say-do consistency — bot says X, then actually does X
   # ────────────────────────────────────────────────────────────────
   - description: 'say-do · bot promises match what the bot then ships'
