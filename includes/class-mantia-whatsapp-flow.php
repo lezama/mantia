@@ -838,15 +838,14 @@ final class Mantia_Whatsapp_Flow {
 			? sprintf( 'Listo, %s %s: *%s*.', $noun, $activa, $g['name'] )
 			: sprintf( 'Listo, te sume a *%s*. Esa queda como tu %s %s.', $g['name'], $noun, $activa );
 
-		// Ship a forwardable invite card to the joiner too — previously
-		// only the creator got one (stakeholder-sim rule 2: asymmetric
-		// onboarding between creator and joiner). Bob can now long-press
-		// → Forward the card to invite his own contacts to the same pool.
-		// Skip on already_member: re-joins shouldn't spam a fresh card.
-		$card_sent = empty( $result['already_member'] )
-			? self::send_invite_card( $identity['recipient'], $g )
-			: false;
-
+		// NO invite card on join. A live user (Diego, 2026-05-27) joined
+		// via Miguel's CAPRITEST link and the bot greeted him with the
+		// SAME "🏆 Sumate a Capritest" card BEFORE the "Listo te sumé"
+		// confirmation, telling him to "reenviá la tarjeta de arriba" —
+		// the tarjeta he had just used to join himself. Reads as the bot
+		// not noticing the join completed. The "📤 Invitar" button below
+		// already lets a fresh joiner request the card on demand once
+		// they've understood they're in.
 		$lines = array( $intro );
 		if ( $autofilled > 0 ) {
 			$lines[] = sprintf(
@@ -857,31 +856,27 @@ final class Mantia_Whatsapp_Flow {
 		$lines[] = '';
 		$lines = array_merge( $lines, self::member_lines( (int) $g['id'], $me_id ) );
 
-		if ( $card_sent ) {
-			$lines[] = '';
-			$lines[] = '_↑ Reenviá la tarjeta de arriba para sumar más amigos._';
-		} elseif ( '' !== ( $g['share_url'] ?? '' ) ) {
-			$lines[] = '';
-			$lines[] = 'Para invitar amigos, reenviá este link:';
-			$lines[] = $g['share_url'];
-		}
-
+		// Brand-new joiner has 6 matches sitting on auto-fill 0-0. The
+		// single most important next action is to actually predict, not
+		// browse the home or invite others before they've engaged. Lead
+		// with "Ver y pronosticar" — same primary CTA the creator gets
+		// after creating the penca (kept symmetric on purpose).
 		return array(
 			'reply'       => implode( "\n", $lines ),
 			'interactive' => array(
 				'type'    => 'button',
 				'buttons' => array(
 					array(
-						'id' => 'mantia:cmd:share-link',
+						'id'    => 'mantia:cmd:matches',
+						'title' => '📅 Ver y pronosticar',
+					),
+					array(
+						'id'    => 'mantia:cmd:share-link',
 						'title' => '📤 Invitar',
 					),
 					array(
-						'id' => 'mantia:cmd:home',
+						'id'    => 'mantia:cmd:home',
 						'title' => '🏠 Resumen',
-					),
-					array(
-						'id' => 'mantia:cmd:my-groups',
-						'title' => sprintf( '📋 Mis %s', Mantia_Vocab::word( 'plural', $identity['phone'] ?? '' ) ),
 					),
 				),
 			),
