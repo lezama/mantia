@@ -2611,12 +2611,16 @@ final class Mantia_Whatsapp_Flow {
 				$lines[] = 'Tocá un marcador o escribí el tuyo (ej *3-1*).';
 			}
 			// Offer the web fallback for users who'd rather cargar el
-			// marcador en la web than navigate WhatsApp lists. user_view_url
-			// returns the auth-token-bearing /me/ link that drops the user
-			// straight into their edit form (no login form, no extra step).
+			// marcador en la web than navigate WhatsApp lists. Use the
+			// SHORT path-based /me/<view_token>/ form (24 hex chars) —
+			// stable, no JWT, no query string. Earlier draft used
+			// user_view_url() which signs a magic-link JWT and produced
+			// ~430-char URLs; live user (2026-05-27) flagged it as
+			// intimidating next to the bot's other short links.
 			if ( $user_id > 0 ) {
-				$me_url = Mantia_Repository::user_view_url( $user_id );
-				if ( '' !== $me_url ) {
+				$me_token = Mantia_Repository::user_view_token( $user_id );
+				if ( '' !== $me_token ) {
+					$me_url = home_url( '/pronostico/me/' . $me_token . '/' );
 					$lines[] = sprintf( '🌐 O cargalo desde la web: %s', $me_url );
 				}
 				self::stash_pending_match( $identity['phone'], $match_id );
