@@ -166,22 +166,63 @@ foreach ( $bob_turns as $msg ) {
 	$send_turn( $bob, $msg );
 }
 
+// After joining, drive Bob into the match-detail card so the
+// transcript captures the picker → match-detail handoff (where the
+// 2026-05-27 follow-up shipped two copy fixes: web fallback URL +
+// chat-typing hint on the change-existing branch).
+$bob_pick_match_id = 0;
+$alice_group_comp  = $alice_group_id > 0 ? Mantia_Repository::group_competition_id( $alice_group_id ) : '';
+if ( '' !== $alice_group_comp ) {
+	$ms = Mantia_Repository::upcoming_matches_for_competition( $alice_group_comp, 24 * 365 );
+	if ( ! empty( $ms ) ) {
+		$bob_pick_match_id = (int) $ms[0]['id'];
+	}
+}
+if ( $bob_pick_match_id > 0 ) {
+	$send_turn( $bob, 'mantia:cmd:matches' );
+	$send_turn( $bob, 'mantia:match:' . $bob_pick_match_id );
+}
+
 /* ─────────────────────────────────────────────────────────────────────── */
 Mantia_E2E::step( '3. Inline lived-UX asserts' );
 /* ─────────────────────────────────────────────────────────────────────── */
 $transcript_str = implode( "\n", $transcript );
 
-// Rule 1 — intimidación: no single line >300 chars (would be a giant URL).
-$max_line = 0;
+// Rule 1 — intimidación: no NON-URL line >300 chars (giant prose
+// bubbles intimidate). Lines that contain an http URL are inherently
+// long when they carry a magic-link token (the /me/ auth path); we
+// exempt those, because the URL IS the value the user clicks. The
+// follow-up below caps the URL-only line so it can't run wild either.
+$max_prose_line = 0;
+$max_url_line   = 0;
 foreach ( explode( "\n", $transcript_str ) as $line ) {
-	$max_line = max( $max_line, mb_strlen( $line ) );
+	$len = mb_strlen( $line );
+	if ( false !== stripos( $line, 'http' ) ) {
+		$max_url_line = max( $max_url_line, $len );
+	} else {
+		$max_prose_line = max( $max_prose_line, $len );
+	}
 }
-Mantia_E2E::assert_true( $max_line <= 300, sprintf( 'no bot reply line longer than 300 chars (longest: %d)', $max_line ) );
+Mantia_E2E::assert_true( $max_prose_line <= 300, sprintf( 'no prose bot reply line longer than 300 chars (longest: %d)', $max_prose_line ) );
+Mantia_E2E::assert_true( $max_url_line <= 500, sprintf( 'URL lines stay under 500 chars even with magic-link token (longest: %d)', $max_url_line ) );
 
-// Rule 1 — no `wa_auth_t=` magic-link blob visible.
+// Rule 1 — `wa_auth_t=` is the magic-link auth mechanism for /me/,
+// so the bot legitimately ships it when anchored as a "🌐 …" web
+// fallback. Forbid it ONLY when it appears without the 🌐 anchor —
+// that's the leak pattern (e.g. a bare token in a non-URL context,
+// or a URL the user can't tell is a deliberate web jump-off).
+$wa_auth_lines_missing_anchor = array();
+foreach ( explode( "\n", $transcript_str ) as $line ) {
+	if ( false !== stripos( $line, 'wa_auth_t=' ) && false === strpos( $line, '🌐' ) ) {
+		$wa_auth_lines_missing_anchor[] = $line;
+	}
+}
 Mantia_E2E::assert_true(
-	false === stripos( $transcript_str, 'wa_auth_t=' ),
-	'no magic-link wa_auth_t= blob in user-visible replies'
+	empty( $wa_auth_lines_missing_anchor ),
+	sprintf(
+		'magic-link wa_auth_t= URLs only appear anchored with "🌐 …" (unanchored: %s)',
+		empty( $wa_auth_lines_missing_anchor ) ? 'none' : substr( $wa_auth_lines_missing_anchor[0], 0, 80 )
+	)
 );
 
 // Rule 2 — no "Necesito tu teléfono / pasame tu número / código de país" after a
@@ -348,6 +389,35 @@ Mantia_E2E::assert_true(
 		'fresh joiner confirmation offers a "Ver y pronosticar" button (saw: %s)',
 		empty( $joiner_reply_buttons ) ? '<none>' : implode( ' · ', $joiner_reply_buttons )
 	)
+);
+
+// Match-detail card asserts (e3ab2fa). Bob just tapped a match — the
+// bot's reply must (a) drop the per-user /me/ URL so a phone-fatigued
+// user can switch to web, AND (b) surface the chat-typing hint
+// ("escribí ... 2-1") so the user knows they can bypass the picker.
+$match_detail_reply = '';
+$saw_bob_match_tap  = false;
+foreach ( $transcript as $line ) {
+	if ( ! $saw_bob_match_tap && (bool) preg_match( '/^\[from Bob\] mantia:match:/', $line ) ) {
+		$saw_bob_match_tap = true;
+		continue;
+	}
+	if ( ! $saw_bob_match_tap ) {
+		continue;
+	}
+	if ( (bool) preg_match( '/^\[to Bob · reply\]/', $line ) ) {
+		$match_detail_reply = $line;
+		break;
+	}
+}
+Mantia_E2E::assert_true( $saw_bob_match_tap, 'transcript captures Bob tapping into a match-detail card' );
+Mantia_E2E::assert_true(
+	false !== stripos( $match_detail_reply, '🌐' ) && false !== stripos( $match_detail_reply, 'web' ),
+	'match-detail reply offers a web fallback link (🌐 ... web)'
+);
+Mantia_E2E::assert_true(
+	false !== stripos( $match_detail_reply, 'escrib' ),
+	'match-detail reply hints that the user can write the score in chat ("escribí ...")'
 );
 
 /* ─────────────────────────────────────────────────────────────────────── */
