@@ -40,24 +40,25 @@ cmd="${1:-all}"
 
 setup_state() {
   local script="${1:-setup-canonical-user.php}"
-  echo "▶ resetting + seeding UX state ($script) on $SSH_HOST"
+  echo "▶ scoped reset + seed of UX fixture ($script) on $SSH_HOST"
+  echo "  · preserves real-user data (use \`$0 nuke\` if you really want the full wipe)"
   ssh -o ConnectTimeout=15 "$SSH_HOST" "mkdir -p /srv/htdocs/${PLUGIN_PATH}/tests/ux" >/dev/null
   rsync -avz -e "ssh -o ConnectTimeout=15" \
     "$PROJECT_DIR/tests/ux/${script}" \
     "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/${script}" \
     >/dev/null
   # setup-matrix.php re-runs deploy-brasileirao-prueba.php inline to
-  # refresh match kickoffs dynamically (the seed used to carry hardcoded
-  # 2026-05-26..28 dates that rotted into the past). Make sure the deploy
-  # script on the remote is current too.
+  # refresh match kickoffs. Make sure both deploy script + the new
+  # scoped reset script are current on the remote.
   rsync -avz -e "ssh -o ConnectTimeout=15" \
     "$PROJECT_DIR/tools/deploy-brasileirao-prueba.php" \
-    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/deploy-brasileirao-prueba.php" \
+    "$PROJECT_DIR/tools/reset-ux-fixture.php" \
+    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/" \
     >/dev/null
 
   local out
   out=$(ssh -o ConnectTimeout=15 "$SSH_HOST" "cd /srv/htdocs \
-    && wp eval-file ${PLUGIN_PATH}/tools/reset-users-and-groups.php 2>&1 | tail -1 \
+    && wp eval-file ${PLUGIN_PATH}/tools/reset-ux-fixture.php 2>&1 | tail -1 \
     && wp eval-file ${PLUGIN_PATH}/tests/ux/${script} 2>&1")
 
   if echo "$out" | grep -q "^ERROR:"; then
@@ -222,12 +223,31 @@ run_interactive() {
   node interactive.mjs "$@"
 }
 
+nuke_all() {
+  # Explicit full wipe — every mantia_player user, every group, every
+  # prediction across the install. Reserved for "limpiar todo a pedido
+  # expreso". Default setup uses scoped reset (reset-ux-fixture.php),
+  # which preserves real-user data.
+  echo "▶ FULL nuke of all mantia_player users + groups + predictions on $SSH_HOST"
+  echo "  · this wipes Miguel + Diego + every other live user. Press Ctrl+C in 3s to abort."
+  sleep 3
+  rsync -avz -e "ssh -o ConnectTimeout=15" \
+    "$PROJECT_DIR/tools/reset-users-and-groups.php" \
+    "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/reset-users-and-groups.php" \
+    >/dev/null
+  ssh -o ConnectTimeout=15 "$SSH_HOST" "cd /srv/htdocs \
+    && wp eval-file ${PLUGIN_PATH}/tools/reset-users-and-groups.php 2>&1 | tail -10"
+}
+
 case "$cmd" in
   setup)
     setup_state setup-canonical-user.php
     ;;
   setup-matrix)
     setup_state setup-matrix.php
+    ;;
+  nuke|nuke-all)
+    nuke_all
     ;;
   run)
     shift
@@ -270,9 +290,10 @@ case "$cmd" in
     setup_state setup-canonical-user.php && run_eval && run_review
     ;;
   *)
-    echo "usage: $0 {setup|setup-matrix|run|matrix|interactive|review|view|all|all-matrix|full}" >&2
-    echo "  setup          canonical 1-user fixture (Alice)" >&2
-    echo "  setup-matrix   multi-user fixture (Alice + Bob + Carol × 2 pencas)" >&2
+    echo "usage: $0 {setup|setup-matrix|nuke|run|matrix|interactive|review|view|all|all-matrix|full}" >&2
+    echo "  setup          canonical 1-user fixture (Alice) — SCOPED reset, real-user data preserved" >&2
+    echo "  setup-matrix   multi-user fixture (Alice + Bob + Carol × 2 pencas) — SCOPED reset" >&2
+    echo "  nuke           DESTRUCTIVE full wipe of every mantia_player user + group on the install" >&2
     echo "  run            deterministic asserts on canonical fixture (fast, free)" >&2
     echo "  matrix         deterministic asserts on matrix fixture (multi-user surface)" >&2
     echo "  interactive    end-to-end Playwright flows (click, navigate, snapshot)" >&2

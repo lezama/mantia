@@ -465,6 +465,87 @@ if ( $is_empty_tabla ) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────── */
+Mantia_E2E::step( '4.5. Link-liveness — every URL the bot shipped must resolve' );
+/* ─────────────────────────────────────────────────────────────────────── */
+// 2026-05-27 incident: a live user opened a stale link from before a
+// fixture reset and saw a Mantia 404 page. That was correct behavior —
+// the resource really was gone. But the deeper risk is the bot
+// shipping a URL that 404s the moment it's sent (e.g. a malformed
+// view_token, a missing competition, a typo in a slug template). This
+// canary scrapes every http URL the bot ever shipped during the
+// transcript and confirms each one resolves (≤300 status). wa.me is
+// external and treated as opaque; we just confirm it's syntactically
+// well-formed.
+$transcript_urls = array();
+foreach ( $transcript as $line ) {
+	if ( 0 !== strpos( $line, '[to ' ) ) {
+		continue; // user turns, not bot output
+	}
+	if ( preg_match_all( '#https?://[^\s)>"]+#', $line, $m ) ) {
+		foreach ( $m[0] as $url ) {
+			$url = rtrim( $url, '.,;:!?)' );
+			$transcript_urls[ $url ] = true;
+		}
+	}
+}
+$transcript_urls = array_keys( $transcript_urls );
+Mantia_E2E::assert_true(
+	count( $transcript_urls ) > 0,
+	sprintf( 'transcript contains at least one bot-shipped URL (saw %d)', count( $transcript_urls ) )
+);
+
+$dead_links = array();
+$leak_urls  = array();
+foreach ( $transcript_urls as $url ) {
+	$host = parse_url( $url, PHP_URL_HOST );
+	if ( ! $host ) {
+		$leak_urls[] = "malformed: $url";
+		continue;
+	}
+	// wa.me is WhatsApp's redirect — outside our control; HEAD often
+	// rejects. Skip — the e2e doesn't own that hostname.
+	if ( false !== stripos( $host, 'wa.me' ) ) {
+		continue;
+	}
+	// Anything that isn't on our staging/prod host is unexpected. Flag
+	// for review rather than silently passing.
+	$base_host = parse_url( home_url(), PHP_URL_HOST );
+	if ( $host !== $base_host ) {
+		$leak_urls[] = "off-host ($host): $url";
+		continue;
+	}
+	$resp = wp_remote_get( $url, array(
+		'timeout'     => 10,
+		'redirection' => 3,
+		'sslverify'   => false,
+	) );
+	if ( is_wp_error( $resp ) ) {
+		$dead_links[] = sprintf( '%s — %s', $url, $resp->get_error_message() );
+		continue;
+	}
+	$code = (int) wp_remote_retrieve_response_code( $resp );
+	if ( $code >= 400 ) {
+		$dead_links[] = sprintf( '%s — HTTP %d', $url, $code );
+	}
+}
+Mantia_E2E::assert_true(
+	empty( $dead_links ),
+	sprintf(
+		'every internal URL the bot shipped resolves (%d checked, %d dead: %s)',
+		count( $transcript_urls ),
+		count( $dead_links ),
+		empty( $dead_links ) ? 'none' : implode( ' | ', array_slice( $dead_links, 0, 2 ) )
+	)
+);
+Mantia_E2E::assert_true(
+	empty( $leak_urls ),
+	sprintf(
+		'no off-host or malformed URLs leaked into bot replies (saw: %s)',
+		empty( $leak_urls ) ? 'none' : implode( ' | ', array_slice( $leak_urls, 0, 2 ) )
+	)
+);
+
+/* ─────────────────────────────────────────────────────────────────────── */
 Mantia_E2E::step( '5. Dump full transcript for offline review' );
 /* ─────────────────────────────────────────────────────────────────────── */
 $out_dir = dirname( __DIR__ ) . '/qa-output';

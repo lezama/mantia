@@ -89,7 +89,13 @@ if ( $existing ) {
 $prueba_id = wp_insert_post( array(
 	'post_type'    => Mantia_CPTs::COMPETITION,
 	'post_status'  => 'publish',
-	'post_title'   => 'Brasileirão · finde (prueba)',
+	// Title must survive WhatsApp's 24-char interactive-list truncation
+	// without orphaning punctuation. "Brasileirão · finde (prueba)" got
+	// chopped to "Brasileirão · finde (" — a dangling open paren that
+	// reads as broken (live feedback 2026-05-27). The 🖍 emoji + the
+	// post_excerpt already signal this is a test fixture, no need to
+	// repeat "(prueba)" in the title.
+	'post_title'   => 'Brasileirão · finde',
 	'post_name'    => 'brasileirao-prueba',
 	'post_excerpt' => 'Fixture de prueba — Brasileirão Serie A, 30-31 may 2026 (real fixtures via ESPN)',
 	'menu_order'   => 5,
@@ -109,7 +115,7 @@ update_post_meta( (int) $prueba_id, Mantia_Competitions::META_ALIASES, array(
 	'brasileirao', 'brasileirão', 'brasileiro', 'serie a',
 	'finde', 'fin de semana', 'prueba',
 ) );
-echo "  + created competition slug='brasileirao-prueba' title='Brasileirão · finde (prueba)' (id=$prueba_id)\n";
+echo "  + created competition slug='brasileirao-prueba' title='Brasileirão · finde' (id=$prueba_id)\n";
 
 // Unset the previous default flag if it was on a different comp.
 foreach ( $comps as $c ) {
