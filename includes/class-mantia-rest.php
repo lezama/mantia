@@ -39,11 +39,11 @@ final class Mantia_Rest {
 				'permission_callback' => '__return_true',
 				'args'                => array(
 					'token'      => array(
-						'required'          => true,
+						'required'          => false,
 						'type'              => 'string',
 						'sanitize_callback' => 'sanitize_text_field',
 						'validate_callback' => static function ( $v ): bool {
-							return is_string( $v ) && (bool) preg_match( '/^[a-f0-9]{16,64}$/i', $v );
+							return null === $v || '' === $v || ( is_string( $v ) && (bool) preg_match( '/^[a-f0-9]{16,64}$/i', $v ) );
 						},
 					),
 					'match_id'   => array(
@@ -66,6 +66,48 @@ final class Mantia_Rest {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/groups',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'handle_create_group' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'group_name'     => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'competition_id' => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_title',
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/join',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'handle_join_group' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'invite_code' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $v ): bool {
+							return is_string( $v ) && '' !== Mantia_Repository::normalize_invite_code( $v );
+						},
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -81,7 +123,11 @@ final class Mantia_Rest {
 		$home_score = (int) $request->get_param( 'home_score' );
 		$away_score = (int) $request->get_param( 'away_score' );
 
-		$user = Mantia_Repository::find_user_by_view_token( $token );
+		$current_id = (int) get_current_user_id();
+		$user       = $current_id > 0 ? get_user_by( 'id', $current_id ) : null;
+		if ( ! $user && '' !== $token ) {
+			$user = Mantia_Repository::find_user_by_view_token( $token );
+		}
 		if ( ! $user ) {
 			return self::error( 'invalid_token', __( 'Tu link privado ya no funciona. Pedile al bot uno nuevo.', 'mantia' ), 404 );
 		}
@@ -147,6 +193,118 @@ final class Mantia_Rest {
 				'groups'     => $groups,
 			),
 			200
+		);
+	}
+
+	/**
+	 * POST /wp-json/mantia/v1/groups
+	 *
+	 * Cookie-authenticated via the WhatsApp magic-link session. Creates a
+	 * group, joins the current user, and returns web + WhatsApp share URLs.
+	 */
+	public static function handle_create_group( WP_REST_Request $request ): WP_REST_Response {
+		$current = self::require_current_user();
+		if ( $current instanceof WP_REST_Response ) {
+			return $current;
+		}
+
+		$group_name = trim( (string) $request->get_param( 'group_name' ) );
+		if ( '' === $group_name ) {
+			return self::error( 'group_name_required', __( 'Poné un nombre para la penca.', 'mantia' ), 400 );
+		}
+
+		$competition_id = sanitize_title( (string) $request->get_param( 'competition_id' ) );
+		$user           = get_userdata( $current );
+		$result         = Mantia_Abilities::create_group(
+			array(
+				'group_name'     => $group_name,
+				'competition_id' => $competition_id,
+				'user_name'      => $user ? (string) $user->display_name : '',
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return self::error( (string) $result->get_error_code(), (string) $result->get_error_message(), 400 );
+		}
+
+		$group = isset( $result['group'] ) && is_array( $result['group'] ) ? $result['group'] : array();
+		return new WP_REST_Response(
+			array(
+				'ok'    => true,
+				'group' => self::group_response( $group, $current ),
+			),
+			200
+		);
+	}
+
+	/**
+	 * POST /wp-json/mantia/v1/join
+	 *
+	 * Cookie-authenticated via the WhatsApp magic-link session. Anonymous
+	 * invite recipients use the wa.me handoff instead.
+	 */
+	public static function handle_join_group( WP_REST_Request $request ): WP_REST_Response {
+		$current = self::require_current_user();
+		if ( $current instanceof WP_REST_Response ) {
+			return $current;
+		}
+
+		$invite_code = Mantia_Repository::normalize_invite_code( (string) $request->get_param( 'invite_code' ) );
+		$user        = get_userdata( $current );
+		$result      = Mantia_Abilities::join_group(
+			array(
+				'invite_code' => $invite_code,
+				'user_name'   => $user ? (string) $user->display_name : '',
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$code   = (string) $result->get_error_code();
+			$status = 'mantia_group_not_found' === $code ? 404 : 400;
+			return self::error( $code, (string) $result->get_error_message(), $status );
+		}
+
+		$group = isset( $result['group'] ) && is_array( $result['group'] ) ? $result['group'] : array();
+		return new WP_REST_Response(
+			array(
+				'ok'    => true,
+				'group' => self::group_response( $group, $current ),
+			),
+			200
+		);
+	}
+
+	private static function require_current_user(): int|WP_REST_Response {
+		$current = (int) get_current_user_id();
+		if ( $current <= 0 ) {
+			return self::error( 'auth_required', __( 'Entrá por WhatsApp para seguir.', 'mantia' ), 401 );
+		}
+		$phone = Mantia_Repository::normalize_phone(
+			(string) get_user_meta( $current, Mantia_Repository::META_PHONE, true )
+		);
+		if ( '' === $phone ) {
+			return self::error( 'phone_required', __( 'No encuentro el WhatsApp de esta sesión. Pedile un link nuevo al bot.', 'mantia' ), 403 );
+		}
+		return $current;
+	}
+
+	private static function group_response( array $group, int $current_user_id ): array {
+		$group_id     = (int) ( $group['id'] ?? 0 );
+		$name         = (string) ( $group['name'] ?? '' );
+		$invite_code  = Mantia_Repository::normalize_invite_code( (string) ( $group['invite_code'] ?? '' ) );
+		$join_url     = '' !== $invite_code ? home_url( '/pronostico/sumate/' . $invite_code . '/' ) : '';
+		$share_text   = '' !== $join_url
+			? sprintf( 'Sumate a %s: %s', $name, $join_url )
+			: '';
+		$view_url     = $group_id > 0 ? Mantia_Repository::group_view_url( $group_id, $current_user_id ) : '';
+
+		return array(
+			'id'                 => $group_id,
+			'name'               => $name,
+			'invite_code'        => $invite_code,
+			'view_url'           => $view_url,
+			'join_url'           => $join_url,
+			'whatsapp_share_url' => '' !== $share_text ? 'https://wa.me/?text=' . rawurlencode( $share_text ) : '',
 		);
 	}
 

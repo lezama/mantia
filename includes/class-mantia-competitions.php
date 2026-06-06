@@ -36,29 +36,11 @@ final class Mantia_Competitions {
 	public static function default_seed(): array {
 		return array(
 			array(
-				'slug'        => 'libertadores-2026',
-				'name'        => 'Libertadores 2026',
-				'emoji'       => '🥇',
-				'description' => 'Copa Libertadores — torneo completo',
-				'is_default'  => true,
-				'sort'        => 20,
-				'aliases'     => array( 'libertadores', 'copa libertadores', 'libertadores completa' ),
-			),
-			array(
-				'slug'        => 'libertadores-semana',
-				'name'        => 'Libertadores semanal',
-				'emoji'       => '📆',
-				'description' => 'Solo partidos de Libertadores en los próximos 7 días',
-				'parent_slug' => 'libertadores-2026',
-				'window_days' => 7,
-				'sort'        => 21,
-				'aliases'     => array( 'libertadores semana', 'libertadores esta semana', 'libertadores — esta semana' ),
-			),
-			array(
 				'slug'        => 'mundial-2026',
 				'name'        => 'Mundial 2026',
 				'emoji'       => '🌎',
-				'description' => 'FIFA World Cup 2026 (US/Canada/Mexico) — torneo completo',
+				'description' => 'FIFA World Cup 2026 (US/Canada/Mexico)',
+				'is_default'  => true,
 				'sort'        => 10,
 				'aliases'     => array( 'mundial', 'world cup', 'copa del mundo', 'fifa', 'wc26' ),
 			),
@@ -70,21 +52,20 @@ final class Mantia_Competitions {
 	 * upgrade runner (v4) deletes them + their matches from existing
 	 * installs so the bot picker doesn't surface dead options.
 	 *
-	 * NOTE: `mundial-2026` was here through v6 but was reinstated in v9
-	 * once Mantia_Fifa_Fixture::sync started populating its matches from
-	 * the official FIFA endpoint. The slug stays absent from this list
-	 * so the v4 deletion path doesn't fire against it on fresh upgrades.
+	 * 2026-05-29: collapsed to mundial-only. Every non-mundial slug
+	 * goes here so the upgrade path cleans up legacy installs that
+	 * still carry Libertadores / Brasileirão / etc. data.
 	 */
 	public const REMOVED_COMPETITION_SLUGS = array(
 		'esta-semana',
 		'sudamericana-2026',
 		'liga-uy-2026',
 		'custom',
-		// v11: weekly view of the Mundial. Confusing UX — sat empty most
-		// of the year and made users think the bot had no Mundial data.
-		// Parent `mundial-2026` stays; users can still pick the global
-		// view from the picker.
 		'mundial-semana',
+		'libertadores-2026',
+		'libertadores-semana',
+		'brasileirao-prueba',
+		'libertadores-prueba',
 	);
 
 	/**

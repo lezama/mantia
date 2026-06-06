@@ -78,10 +78,10 @@ tests:
     vars:
       url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/'
     assert:
-      # Anon CTA reads "Sumate por WhatsApp · código X" — the more
-      # action-explicit framing introduced after the expert-review
-      # surfaced "código" alone as ambiguous (2026-05-27).
-      - { type: contains, value: 'Sumate por WhatsApp · código {{MUN_CODE}}' }
+      # Anon CTA reads "Ver invitación · código X" — points the user
+      # at the /pronostico/sumate/<code>/ landing rather than firing
+      # the WhatsApp deeplink directly (web-first creation flow).
+      - { type: contains, value: 'Ver invitación · código {{MUN_CODE}}' }
       # Anon must see a "what is Mantia" explainer before the CTA so
       # cold-traffic strangers aren't asked to join blind.
       - { type: contains, value: 'mantia-explainer-card' }

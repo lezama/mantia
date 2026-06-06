@@ -91,6 +91,16 @@ final class Mantia_Frontend {
 			'top'
 		);
 		add_rewrite_rule(
+			'^pronostico/crear/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=create',
+			'top'
+		);
+		add_rewrite_rule(
+			'^pronostico/crear/([a-z0-9-]+)/?$',
+			'index.php?' . self::QUERY_VAR_VIEW . '=create&' . self::QUERY_VAR_ID . '=$matches[1]',
+			'top'
+		);
+		add_rewrite_rule(
 			'^pronostico/g/([a-f0-9]+)/og/?$',
 			'index.php?' . self::QUERY_VAR_VIEW . '=join-og&' . self::QUERY_VAR_ID . '=$matches[1]',
 			'top'
@@ -206,6 +216,9 @@ final class Mantia_Frontend {
 			case 'join-landing':
 				echo self::render_join_landing( (string) $id );
 				break;
+			case 'create':
+				echo self::render_create_group( (string) $id );
+				break;
 			case 'join-og':
 				self::render_join_og_png( (string) $id ); // emits headers + body + exits.
 				break;
@@ -294,9 +307,11 @@ final class Mantia_Frontend {
 		$ranking_label = $default_comp
 			? sprintf( __( 'Ver %s', 'mantia' ), (string) $default_comp['name'] )
 			: __( 'Ver el ranking', 'mantia' );
+		$create_url = self::create_penca_web_url( $default_id );
+		$login_url  = self::login_wa_url();
 
 		ob_start();
-		self::page_header( 'Mantia · Penca por WhatsApp' );
+		self::page_header( 'Mantia · Penca web' );
 		?>
 		<main class="mantia-page mantia-home">
 			<?php // PWA install banner. Hidden by default; the inline JS in
@@ -320,33 +335,17 @@ final class Mantia_Frontend {
 				<p class="mantia-tagline"><?php esc_html_e( 'Pronosticá, picanteá el grupo, ganale a tus amigos. Sin app.', 'mantia' ); ?></p>
 			</div>
 
-			<?php if ( '' !== $wa ) : ?>
-				<a class="mantia-qr-card" href="<?php echo esc_url( $wa ); ?>" aria-label="<?php esc_attr_e( 'Abrir WhatsApp con Mantia', 'mantia' ); ?>">
-					<img class="mantia-qr-img" src="<?php echo esc_url( self::qr_image_url( $wa, 448 ) ); ?>"
-						alt="<?php esc_attr_e( 'Código QR para chatear con Mantia por WhatsApp', 'mantia' ); ?>"
-						width="224" height="224" loading="eager">
-					<div class="mantia-qr-caption"><?php esc_html_e( 'escaneá · mandá "hola"', 'mantia' ); ?></div>
+			<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $create_url ); ?>">
+				<?php esc_html_e( 'Crear una penca', 'mantia' ); ?>
+			</a>
+			<?php if ( get_current_user_id() > 0 ) : ?>
+				<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( home_url( '/pronostico/me/' ) ); ?>">
+					<?php esc_html_e( 'Mis pencas', 'mantia' ); ?>
 				</a>
-				<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $wa ); ?>">
+			<?php elseif ( '' !== $login_url ) : ?>
+				<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $login_url ); ?>">
 					<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7 0-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.7.1-.1.3-.4.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.2-.7-1.6-.9-2.2-.2-.6-.4-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.3 4.8.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.4.7 3 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>
-					<?php esc_html_e( 'Abrir WhatsApp', 'mantia' ); ?>
-				</a>
-			<?php else : ?>
-				<section class="mantia-empty-card">
-					<p><?php esc_html_e( 'El bot todavía no tiene número configurado.', 'mantia' ); ?></p>
-				</section>
-			<?php endif; ?>
-
-			<?php
-			// Logged-in shortcut: when the magic-link cookie is set, surface
-			// "Mis pencas" as the most prominent affordance. The QR + Abrir
-			// WhatsApp pair stays for the "fui a la home en otra máquina"
-			// case (escanear con el celu del bot, mandar hola).
-			if ( get_current_user_id() > 0 ) :
-				$me_url = home_url( '/pronostico/me/' );
-				?>
-				<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $me_url ); ?>">
-					<?php esc_html_e( '📋 Mis pencas', 'mantia' ); ?>
+					<?php esc_html_e( 'Entrar por WhatsApp', 'mantia' ); ?>
 				</a>
 			<?php endif; ?>
 
@@ -354,6 +353,19 @@ final class Mantia_Frontend {
 				<a class="mantia-pill mantia-pill-ghost" href="<?php echo esc_url( $ranking_url ); ?>">
 					<?php echo esc_html( $ranking_label ); ?>
 				</a>
+			<?php endif; ?>
+
+			<?php if ( '' !== $wa ) : ?>
+				<a class="mantia-qr-card" href="<?php echo esc_url( $wa ); ?>" aria-label="<?php esc_attr_e( 'Abrir WhatsApp con Mantia', 'mantia' ); ?>">
+					<img class="mantia-qr-img" src="<?php echo esc_url( self::qr_image_url( $wa, 448 ) ); ?>"
+						alt="<?php esc_attr_e( 'Código QR para chatear con Mantia por WhatsApp', 'mantia' ); ?>"
+						width="224" height="224" loading="eager">
+					<div class="mantia-qr-caption"><?php esc_html_e( 'escaneá · mandá "hola"', 'mantia' ); ?></div>
+				</a>
+			<?php else : ?>
+				<section class="mantia-empty-card">
+					<p><?php esc_html_e( 'El bot todavía no tiene número configurado.', 'mantia' ); ?></p>
+				</section>
 			<?php endif; ?>
 		</main>
 		<?php
@@ -371,7 +383,7 @@ final class Mantia_Frontend {
 		$title    = $comp['name'];
 		$rows     = Mantia_Repository::competition_leaderboard( $slug, 50 );
 		$matches  = Mantia_Repository::upcoming_matches_for_competition( $slug, 24 * 30 );
-		$create_url = self::create_penca_wa_url( $comp );
+		$create_url = self::create_penca_web_url( (string) $comp['id'] );
 
 		// Personalization: surface the user's own pencas in this competition
 		// + use their first one as the source for the inline prediction
@@ -660,8 +672,7 @@ final class Mantia_Frontend {
 				// — gives the "join an existing penca" path equal visual
 				// weight (expert-review: dual paths should be equally
 				// scannable, not one in body copy).
-				$join_wa = 'https://wa.me/' . rawurlencode( Mantia_Repository::bot_phone_e164() )
-					. '?text=' . rawurlencode( 'hola' );
+				$join_wa = self::login_wa_url( 'tengo un codigo de invitacion' );
 				?>
 				<section class="mantia-cta-section mantia-cta-stack">
 					<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( $join_wa ); ?>">
@@ -790,7 +801,7 @@ final class Mantia_Frontend {
 		if ( '' !== $as && '' !== $comp_url ) {
 			$comp_url .= ( false === strpos( $comp_url, '?' ) ? '?' : '&' ) . 'as=' . rawurlencode( $as );
 		}
-		$create_url = self::create_penca_wa_url();
+		$create_url = self::create_penca_web_url( $comp_id );
 		$members    = Mantia_Repository::group_members( $group_id );
 
 		// Share URL for the group view. Uses the group's slug (Phase 5 cutover)
@@ -900,13 +911,16 @@ final class Mantia_Frontend {
 			// Two CTAs surface the two paths users already know:
 			//   - "Pronosticar en privado" → /me/ (web form, edits inline)
 			//   - "Pronosticar por WhatsApp" → wa.me with a join-style intent
-			$predict_web_url = '';
-			$predict_wa_url  = '';
+			$predict_web_url   = '';
+			$predict_login_url = '';
+			$predict_wa_url    = '';
+			$auth_uid          = (int) get_current_user_id();
+			if ( $is_member && $auth_uid > 0 && $auth_uid === $current_uid ) {
+				$predict_web_url = home_url( '/pronostico/me/' );
+			} elseif ( $is_member ) {
+				$predict_login_url = self::login_wa_url();
+			}
 			if ( $is_member && $current_uid > 0 ) {
-				$me_token = Mantia_Repository::user_view_token( $current_uid );
-				if ( '' !== $me_token ) {
-					$predict_web_url = home_url( '/pronostico/me/' . $me_token . '/' );
-				}
 				$bot_phone = Mantia_Repository::bot_phone_e164();
 				if ( '' !== $bot_phone ) {
 					$predict_wa_url = 'https://wa.me/' . rawurlencode( $bot_phone )
@@ -914,11 +928,15 @@ final class Mantia_Frontend {
 				}
 			}
 			?>
-			<?php if ( $is_member && ( '' !== $predict_web_url || '' !== $predict_wa_url ) ) : ?>
+			<?php if ( $is_member && ( '' !== $predict_web_url || '' !== $predict_login_url || '' !== $predict_wa_url ) ) : ?>
 				<section class="mantia-cta-section mantia-cta-stack">
 					<?php if ( '' !== $predict_web_url ) : ?>
 						<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $predict_web_url ); ?>">
 							<?php esc_html_e( '✏️ Editar mis pronósticos', 'mantia' ); ?>
+						</a>
+					<?php elseif ( '' !== $predict_login_url ) : ?>
+						<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $predict_login_url ); ?>">
+							<?php esc_html_e( 'Entrar para editar en la web', 'mantia' ); ?>
 						</a>
 					<?php endif; ?>
 					<?php if ( '' !== $predict_wa_url ) : ?>
@@ -959,7 +977,8 @@ final class Mantia_Frontend {
 						?>
 					</a>
 				</section>
-			<?php elseif ( ! empty( $group['share_url'] ) ) : ?>
+			<?php elseif ( '' !== $invite_code ) : ?>
+				<?php $join_landing_url = self::join_landing_url( $invite_code ); ?>
 				<?php if ( $current_uid > 0 ) : ?>
 					<section class="mantia-handshake-card">
 						<div class="mantia-handshake-eyebrow"><?php esc_html_e( '👋 Te reconocemos', 'mantia' ); ?></div>
@@ -978,19 +997,18 @@ final class Mantia_Frontend {
 					</section>
 				<?php endif; ?>
 				<section class="mantia-cta-section">
-					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $group['share_url'] ); ?>">
+					<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $join_landing_url ); ?>">
 						<?php
 						if ( $current_uid > 0 ) {
 							printf(
-								/* translators: 1: penca name, 2: invite code. */
-								esc_html__( 'Sumate también a %1$s · código %2$s', 'mantia' ),
-								esc_html( $group['name'] ),
-								esc_html( $invite_code )
+								/* translators: %s: penca name. */
+								esc_html__( 'Sumate también a %1$s', 'mantia' ),
+								esc_html( $group['name'] )
 							);
 						} else {
 							printf(
 								/* translators: %s: invite code. */
-								esc_html__( 'Sumate por WhatsApp · código %s', 'mantia' ),
+								esc_html__( 'Ver invitación · código %s', 'mantia' ),
 								esc_html( $invite_code )
 							);
 						}
@@ -1184,15 +1202,16 @@ final class Mantia_Frontend {
 			status_header( 404 );
 			return self::render_not_found( __( 'No encuentro tu cuenta.', 'mantia' ) );
 		}
-		// The editable-matches form posts to the REST endpoint with a token
-		// for auth. We keep the user_view_token as a per-user secret here
-		// until Phase 6 lets the REST endpoint authenticate from the
-		// magic-link cookie session directly. Auto-generated lazily by
-		// user_view_token() on first use.
-		$token        = Mantia_Repository::user_view_token( $user_id );
-		$display_name = self::display_name_for( $user_id );
-		$groups       = Mantia_Repository::user_groups_to_array( $user_id );
-		$create_url   = self::create_penca_wa_url();
+		// The canonical /pronostico/me/ path is authenticated by the
+		// WhatsApp magic-link cookie and saves through the REST nonce. The
+		// legacy /pronostico/me/<token>/ route still embeds the old token
+		// so links already sitting in chat history keep working.
+		$is_cookie_authed = (int) get_current_user_id() === $user_id;
+		$token            = $is_cookie_authed ? '' : Mantia_Repository::user_view_token( $user_id );
+		$rest_nonce       = $is_cookie_authed ? wp_create_nonce( 'wp_rest' ) : '';
+		$display_name     = self::display_name_for( $user_id );
+		$groups           = Mantia_Repository::user_groups_to_array( $user_id );
+		$create_url       = self::create_penca_web_url();
 
 		// Aggregate stats: total points + exacts + prediction count across all groups.
 		$total_points = 0;
@@ -1412,7 +1431,8 @@ final class Mantia_Frontend {
 								array_slice( array_values( $comp['matches'] ), 0, 8 ),
 								$user_id,
 								(int) $comp['primary_group_id'],
-								$token
+								$token,
+								$rest_nonce
 							); ?>
 						<?php endforeach; ?>
 					</section>
@@ -1518,12 +1538,142 @@ final class Mantia_Frontend {
 		return (string) ob_get_clean();
 	}
 
+	private static function render_create_group( string $competition_id = '' ): string {
+		$competitions = Mantia_Competitions::all();
+		$selected_id  = sanitize_title( $competition_id );
+		if ( '' === $selected_id || ! Mantia_Competitions::get( $selected_id ) ) {
+			$selected_id = Mantia_Competitions::default_id();
+		}
+		$selected = Mantia_Competitions::get( $selected_id );
+
+		$current_id = (int) get_current_user_id();
+		$login_url  = self::login_wa_url();
+		$rest_url   = esc_url_raw( rest_url( Mantia_Rest::NAMESPACE_V1 . '/groups' ) );
+		$nonce      = $current_id > 0 ? wp_create_nonce( 'wp_rest' ) : '';
+
+		ob_start();
+		self::page_header( __( 'Crear penca — Mantia', 'mantia' ) );
+		?>
+		<main class="mantia-page mantia-page-narrow mantia-create-page">
+			<?php self::render_topbar(); ?>
+
+			<section class="mantia-hero">
+				<div class="mantia-eyebrow"><?php esc_html_e( 'nueva penca · 🌎 Mundial 2026', 'mantia' ); ?></div>
+				<h1 class="mantia-h1"><?php esc_html_e( 'Armá tu penca para el Mundial.', 'mantia' ); ?></h1>
+				<p class="mantia-hero-meta"><?php esc_html_e( 'Ponele un nombre y la creo.', 'mantia' ); ?></p>
+			</section>
+
+			<?php if ( $current_id <= 0 ) : ?>
+				<section class="mantia-join-card">
+					<div class="mantia-join-kicker"><?php esc_html_e( 'Entrá con WhatsApp para crearla con tu número.', 'mantia' ); ?></div>
+					<?php if ( '' !== $login_url ) : ?>
+						<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $login_url ); ?>">
+							<?php esc_html_e( 'Entrar por WhatsApp', 'mantia' ); ?>
+						</a>
+					<?php else : ?>
+						<p class="mantia-empty"><?php esc_html_e( 'El bot todavía no tiene número configurado.', 'mantia' ); ?></p>
+					<?php endif; ?>
+				</section>
+			<?php else : ?>
+				<form class="mantia-create-form"
+					data-create-endpoint="<?php echo esc_url( $rest_url ); ?>"
+					data-create-nonce="<?php echo esc_attr( $nonce ); ?>">
+					<label class="mantia-field">
+						<span><?php esc_html_e( 'Nombre', 'mantia' ); ?></span>
+						<input name="group_name" type="text" maxlength="80" required autocomplete="off"
+							placeholder="<?php esc_attr_e( 'Los del 92', 'mantia' ); ?>">
+					</label>
+					<input type="hidden" name="competition_id" value="<?php echo esc_attr( $selected_id ); ?>">
+					<?php // 2026-05-29: mundial-only — no competition select. ?>
+					<button class="mantia-pill mantia-pill-primary mantia-create-submit" type="submit">
+						<?php esc_html_e( 'Crear penca', 'mantia' ); ?>
+					</button>
+					<div class="mantia-create-status" hidden></div>
+				</form>
+
+				<section class="mantia-create-result" hidden>
+					<div class="mantia-join-kicker"><?php esc_html_e( 'Lista. Ahora compartila por WhatsApp.', 'mantia' ); ?></div>
+					<div class="mantia-created-name"></div>
+					<a class="mantia-pill mantia-pill-wa mantia-created-share" href="#">
+						<?php esc_html_e( 'Invitar por WhatsApp', 'mantia' ); ?>
+					</a>
+					<a class="mantia-pill mantia-pill-secondary mantia-created-view" href="#">
+						<?php esc_html_e( 'Ver la penca', 'mantia' ); ?>
+					</a>
+					<a class="mantia-ghost-link" href="<?php echo esc_url( home_url( '/pronostico/me/' ) ); ?>">
+						<?php esc_html_e( 'editar mis pronósticos →', 'mantia' ); ?>
+					</a>
+				</section>
+			<?php endif; ?>
+		</main>
+		<?php if ( $current_id > 0 ) : ?>
+			<script>
+			(function () {
+				var form = document.querySelector('.mantia-create-form');
+				if (!form) return;
+				var result = document.querySelector('.mantia-create-result');
+				var status = form.querySelector('.mantia-create-status');
+				var submit = form.querySelector('.mantia-create-submit');
+				function setStatus(msg, ok) {
+					if (!status) return;
+					status.hidden = !msg;
+					status.textContent = msg || '';
+					status.classList.toggle('is-ok', ok === true);
+					status.classList.toggle('is-err', ok === false);
+				}
+				form.addEventListener('submit', function (evt) {
+					evt.preventDefault();
+					var endpoint = form.getAttribute('data-create-endpoint') || '';
+					var nonce = form.getAttribute('data-create-nonce') || '';
+					var fd = new FormData(form);
+					var name = (fd.get('group_name') || '').toString().trim();
+					if (!endpoint || !nonce || !name) {
+						setStatus('Poné un nombre para la penca.', false);
+						return;
+					}
+					submit.disabled = true;
+					setStatus('Creando...', null);
+					fetch(endpoint, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-WP-Nonce': nonce },
+						body: JSON.stringify({ group_name: name, competition_id: fd.get('competition_id') || '' })
+					}).then(function (res) {
+						return res.json().then(function (body) { return { res: res, body: body }; });
+					}).then(function (r) {
+						submit.disabled = false;
+						if (!(r.res.ok && r.body && r.body.ok)) {
+							setStatus((r.body && r.body.message) || 'No se pudo crear.', false);
+							return;
+						}
+						form.hidden = true;
+						if (result) {
+							var group = r.body.group || {};
+							result.hidden = false;
+							var nameEl = result.querySelector('.mantia-created-name');
+							var share = result.querySelector('.mantia-created-share');
+							var view = result.querySelector('.mantia-created-view');
+							if (nameEl) nameEl.textContent = group.name || name;
+							if (share) share.href = group.whatsapp_share_url || '#';
+							if (view) view.href = group.view_url || '#';
+						}
+					}).catch(function () {
+						submit.disabled = false;
+						setStatus('Sin red. Intentá de nuevo en un toque.', false);
+					});
+				});
+			})();
+			</script>
+		<?php endif; ?>
+		<?php
+		self::page_footer();
+		return (string) ob_get_clean();
+	}
+
 	/**
 	 * Landing page for an invitation link. Pasted into a WhatsApp/Slack/
-	 * Discord chat, it renders a rich preview via OpenGraph tags pointing
-	 * at /og.png; a human tap immediately 302s to wa.me with the invite
-	 * code prefilled. The OG scraper sees the tags + image; the user
-	 * never lingers on this page.
+	 * Discord chat, it renders rich preview metadata, then keeps the human
+	 * on the web page. WhatsApp is still the auth handoff for anonymous
+	 * users; authenticated users can accept the invite in-browser.
 	 */
 	private static function render_join_landing( string $invite_code ): string {
 		// Resolve by invite_code — the only secret a recipient should need
@@ -1556,6 +1706,20 @@ final class Mantia_Frontend {
 		$view_token = Mantia_Repository::group_view_token( $group_id );
 		$og_image   = home_url( '/pronostico/g/' . $view_token . '/og/' );
 		$page_url   = home_url( '/pronostico/sumate/' . $invite_code . '/' );
+		$current_id = (int) get_current_user_id();
+		$is_member  = false;
+		if ( $current_id > 0 ) {
+			foreach ( $members as $member ) {
+				if ( (int) $member['id'] === $current_id ) {
+					$is_member = true;
+					break;
+				}
+			}
+		}
+		$group_url    = Mantia_Repository::group_view_url( $group_id, $current_id );
+		$rest_url     = esc_url_raw( rest_url( Mantia_Rest::NAMESPACE_V1 . '/join' ) );
+		$rest_nonce   = $current_id > 0 ? wp_create_nonce( 'wp_rest' ) : '';
+		$member_count = count( $members );
 
 		ob_start();
 		?>
@@ -1581,45 +1745,110 @@ final class Mantia_Frontend {
 <meta name="twitter:description" content="<?php echo esc_attr( $og_desc ); ?>">
 <meta name="twitter:image" content="<?php echo esc_url( $og_image ); ?>">
 
-<meta http-equiv="refresh" content="0; url=<?php echo esc_url( $wa_target ); ?>">
 <link rel="canonical" href="<?php echo esc_url( $page_url ); ?>">
 
 <style><?php echo self::stylesheet(); ?></style>
-<script>
-// Belt-and-braces redirect — meta refresh covers no-JS, this covers no-meta-refresh.
-window.location.replace(<?php echo wp_json_encode( $wa_target ); ?>);
-</script>
 </head>
-<body class="mantia-body-share">
-<main class="mantia-share">
-	<div class="mantia-share-card">
-		<div class="mantia-share-top">
-			<span class="mantia-share-wordmark">mantia</span>
-			<span class="mantia-share-comp"><?php echo esc_html( wp_strip_all_tags( $comp_name ) ); ?></span>
-		</div>
-		<div class="mantia-share-center">
-			<div class="mantia-share-mark">·</div>
-			<div class="mantia-share-name"><?php echo esc_html( (string) $group['name'] ); ?></div>
-			<div class="mantia-share-in"><?php echo esc_html( $og_desc ); ?></div>
-		</div>
-		<div class="mantia-share-url">
-			<?php esc_html_e( 'Abriendo WhatsApp…', 'mantia' ); ?>
-		</div>
-	</div>
-	<div class="mantia-share-actions">
-		<a class="mantia-share-copy" href="<?php echo esc_url( $wa_target ); ?>">
-			<?php esc_html_e( 'Tocá si no abre solo', 'mantia' ); ?>
-		</a>
-	</div>
-	<noscript>
-		<p style="color:#0a0a0a;margin-top:24px;text-align:center;font-weight:700">
-			<?php esc_html_e( 'Redirigiendo a WhatsApp…', 'mantia' ); ?>
-			<a href="<?php echo esc_url( $wa_target ); ?>" style="color:#0a0a0a;text-decoration:underline">
-				<?php esc_html_e( 'tocá acá', 'mantia' ); ?>
-			</a>
+<body>
+<main class="mantia-page mantia-page-narrow mantia-join-page">
+	<?php self::render_topbar(); ?>
+
+	<section class="mantia-hero">
+		<div class="mantia-eyebrow"><?php esc_html_e( 'invitación', 'mantia' ); ?></div>
+		<h1 class="mantia-h1 mantia-h1-balance"><?php echo esc_html( (string) $group['name'] ); ?></h1>
+		<p class="mantia-hero-meta">
+			<span><?php echo esc_html( wp_strip_all_tags( $comp_name ) ); ?></span>
+			<span class="mantia-dot"></span>
+			<span><?php echo esc_html( sprintf( _n( '%d jugador', '%d jugadores', $member_count, 'mantia' ), $member_count ) ); ?></span>
 		</p>
-	</noscript>
+	</section>
+
+	<section class="mantia-join-card"
+		data-join-endpoint="<?php echo esc_url( $rest_url ); ?>"
+		data-join-nonce="<?php echo esc_attr( $rest_nonce ); ?>"
+		data-invite-code="<?php echo esc_attr( $invite_code ); ?>"
+		data-group-url="<?php echo esc_url( $group_url ); ?>">
+		<?php if ( $current_id <= 0 ) : ?>
+			<div class="mantia-join-kicker"><?php esc_html_e( 'Entrá con tu WhatsApp para que la penca quede asociada a tu número.', 'mantia' ); ?></div>
+			<?php if ( '' !== $wa_target ) : ?>
+				<a class="mantia-pill mantia-pill-wa" href="<?php echo esc_url( $wa_target ); ?>">
+					<?php esc_html_e( 'Entrar y sumarme por WhatsApp', 'mantia' ); ?>
+				</a>
+			<?php else : ?>
+				<p class="mantia-empty"><?php esc_html_e( 'El bot todavía no tiene número configurado.', 'mantia' ); ?></p>
+			<?php endif; ?>
+		<?php elseif ( $is_member ) : ?>
+			<div class="mantia-join-kicker"><?php esc_html_e( 'Ya estás adentro.', 'mantia' ); ?></div>
+			<a class="mantia-pill mantia-pill-primary" href="<?php echo esc_url( $group_url ); ?>">
+				<?php esc_html_e( 'Ver la penca', 'mantia' ); ?>
+			</a>
+			<a class="mantia-pill mantia-pill-secondary" href="<?php echo esc_url( home_url( '/pronostico/me/' ) ); ?>">
+				<?php esc_html_e( 'Editar mis pronósticos', 'mantia' ); ?>
+			</a>
+		<?php else : ?>
+			<div class="mantia-join-kicker"><?php esc_html_e( 'Te reconocemos por WhatsApp. Podés sumarte sin escribirle al bot.', 'mantia' ); ?></div>
+			<button class="mantia-pill mantia-pill-primary mantia-join-submit" type="button">
+				<?php esc_html_e( 'Sumarme a esta penca', 'mantia' ); ?>
+			</button>
+			<div class="mantia-join-status" hidden></div>
+		<?php endif; ?>
+	</section>
+
+	<?php if ( ! empty( $members ) ) : ?>
+		<section class="mantia-block">
+			<div class="mantia-eyebrow"><?php esc_html_e( 'ya están jugando', 'mantia' ); ?></div>
+			<div class="mantia-roster">
+				<?php foreach ( array_slice( $members, 0, 8 ) as $member ) : ?>
+					<div class="mantia-roster-row">
+						<?php echo self::user_avatar( (int) $member['id'], 28 ); ?>
+						<span class="mantia-roster-name"><?php echo esc_html( (string) ( $member['display_name'] ?? __( 'Jugador', 'mantia' ) ) ); ?></span>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		</section>
+	<?php endif; ?>
 </main>
+<script>
+(function () {
+	var card = document.querySelector('.mantia-join-card');
+	var btn = card ? card.querySelector('.mantia-join-submit') : null;
+	if (!card || !btn) return;
+	var status = card.querySelector('.mantia-join-status');
+	function setStatus(msg, ok) {
+		if (!status) return;
+		status.hidden = !msg;
+		status.textContent = msg || '';
+		status.classList.toggle('is-ok', ok === true);
+		status.classList.toggle('is-err', ok === false);
+	}
+	btn.addEventListener('click', function () {
+		var endpoint = card.getAttribute('data-join-endpoint') || '';
+		var nonce = card.getAttribute('data-join-nonce') || '';
+		var invite = card.getAttribute('data-invite-code') || '';
+		if (!endpoint || !nonce || !invite) return;
+		btn.disabled = true;
+		setStatus('Sumando...', null);
+		fetch(endpoint, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-WP-Nonce': nonce },
+			body: JSON.stringify({ invite_code: invite })
+		}).then(function (res) {
+			return res.json().then(function (body) { return { res: res, body: body }; });
+		}).then(function (r) {
+			if (r.res.ok && r.body && r.body.ok) {
+				setStatus('Listo. Abriendo la penca...', true);
+				window.location.href = (r.body.group && r.body.group.view_url) || card.getAttribute('data-group-url') || '/';
+				return;
+			}
+			btn.disabled = false;
+			setStatus((r.body && r.body.message) || 'No se pudo sumar.', false);
+		}).catch(function () {
+			btn.disabled = false;
+			setStatus('Sin red. Intentá de nuevo en un toque.', false);
+		});
+	});
+})();
+</script>
 </body>
 </html>
 		<?php
@@ -2390,7 +2619,7 @@ SVG;
 		$bot_url       = '' !== $bot_phone ? sprintf( 'https://wa.me/%s?text=ayuda', $bot_phone ) : '';
 		$default_id    = Mantia_Competitions::default_id();
 		$home_url      = Mantia_Repository::competition_view_url( $default_id );
-		$create_url    = self::create_penca_wa_url();
+		$create_url    = self::create_penca_web_url();
 		// Dynamic CTA so the 404 recovery never points at a torneo that
 		// was removed from the seed. Falls back to a generic label.
 		$default_comp  = Mantia_Competitions::get( $default_id );
@@ -3047,13 +3276,12 @@ JS;
 	 * home/away number inputs (pre-filled when a prediction exists) and a
 	 * "Guardar" button that POSTs to /wp-json/mantia/v1/predictions.
 	 *
-	 * Token comes from the /me/<token>/ URL; we embed it as a data-attr
-	 * on the surrounding container so the inline JS can read it without
-	 * parsing window.location. The match still has to be in `scheduled`
-	 * state with a future kickoff — the server validates this again on
-	 * write, so this is purely a hint for the UI.
+	 * Auth comes from either the WhatsApp magic-link cookie (REST nonce)
+	 * or, for old /me/<token>/ links, the legacy view token. The match
+	 * still has to be in `scheduled` state with a future kickoff — the
+	 * server validates this again on write, so this is purely a hint.
 	 */
-	private static function render_editable_matches( array $matches, int $user_id, int $group_id, string $token ): void {
+	private static function render_editable_matches( array $matches, int $user_id, int $group_id, string $token, string $rest_nonce = '' ): void {
 		if ( empty( $matches ) ) {
 			return;
 		}
@@ -3076,7 +3304,9 @@ JS;
 		}
 
 		?>
-		<div class="mantia-edit-list" data-mantia-token="<?php echo esc_attr( $token ); ?>">
+		<div class="mantia-edit-list"
+			data-mantia-token="<?php echo esc_attr( $token ); ?>"
+			data-mantia-rest-nonce="<?php echo esc_attr( $rest_nonce ); ?>">
 			<?php
 			foreach ( $by_day as $entries ) :
 				$first_ts = $entries[0]['ts'];
@@ -3170,6 +3400,7 @@ JS;
 			var lists = document.querySelectorAll('.mantia-edit-list');
 			lists.forEach(function (list) {
 				var token = list.getAttribute('data-mantia-token') || '';
+				var nonce = list.getAttribute('data-mantia-rest-nonce') || '';
 
 				// Quick-tap chip: fill the inputs with the chip's score and
 				// trigger submit. One tap = one prediction saved, no typing
@@ -3199,10 +3430,14 @@ JS;
 					var btn = form.querySelector('.mantia-edit-save');
 					btn.disabled = true;
 					setStatus(form, 'Guardando…', null);
+					var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+					if (nonce) headers['X-WP-Nonce'] = nonce;
+					var payload = { match_id: matchId, home_score: home, away_score: away };
+					if (token) payload.token = token;
 					fetch(REST_URL, {
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-						body: JSON.stringify({ token: token, match_id: matchId, home_score: home, away_score: away })
+						headers: headers,
+						body: JSON.stringify(payload)
 					}).then(function (res) {
 						return res.json().then(function (body) { return { res: res, body: body }; });
 					}).then(function (r) {
@@ -3244,22 +3479,29 @@ JS;
 	 * Helpers
 	 * ================================================================= */
 
-	/**
-	 * Build a wa.me deeplink that prefills the WhatsApp draft with a "crear"
-	 * intent. When a competition is provided we hint the bot's preflight
-	 * regex; otherwise the bot will show the competition picker on tap.
-	 *
-	 * @param array<string,mixed>|null $competition Optional competition row.
-	 */
-	private static function create_penca_wa_url( ?array $competition = null ): string {
+	private static function create_penca_web_url( string $competition_id = '' ): string {
+		$competition_id = sanitize_title( $competition_id );
+		if ( '' !== $competition_id && Mantia_Competitions::get( $competition_id ) ) {
+			return home_url( '/pronostico/crear/' . $competition_id . '/' );
+		}
+		return home_url( '/pronostico/crear/' );
+	}
+
+	private static function join_landing_url( string $invite_code ): string {
+		$invite_code = Mantia_Repository::normalize_invite_code( $invite_code );
+		return '' !== $invite_code ? home_url( '/pronostico/sumate/' . $invite_code . '/' ) : '';
+	}
+
+	private static function login_wa_url( string $message = 'link' ): string {
 		$phone = Mantia_Repository::bot_phone_e164();
 		if ( '' === $phone ) {
 			return '';
 		}
-		$text = null !== $competition && ! empty( $competition['name'] )
-			? sprintf( 'Crear penca de %s', $competition['name'] )
-			: 'Crear penca';
-		return sprintf( 'https://wa.me/%s?text=%s', $phone, rawurlencode( $text ) );
+		$message = trim( $message );
+		if ( '' === $message ) {
+			$message = 'link';
+		}
+		return sprintf( 'https://wa.me/%s?text=%s', $phone, rawurlencode( $message ) );
 	}
 
 	/**
@@ -5012,6 +5254,118 @@ body {
 .mantia-scoring-row:first-child .mantia-numeral-s {
 	background: var(--accent-2);
 	border: 2px solid var(--ink);
+}
+
+/* ─── Web create / invite acceptance ─────────────────────────────── */
+
+.mantia-create-page,
+.mantia-join-page {
+	padding-bottom: 72px;
+}
+.mantia-create-form,
+.mantia-join-card,
+.mantia-create-result {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 18px;
+	background: var(--surface);
+	border: 2.5px solid var(--ink);
+	border-radius: 18px;
+	box-shadow: var(--shadow-stickerL);
+}
+.mantia-create-form[hidden],
+.mantia-create-result[hidden] {
+	display: none;
+}
+.mantia-field {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	font-family: var(--font-body);
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink);
+}
+.mantia-field input,
+.mantia-field select {
+	width: 100%;
+	min-height: 50px;
+	border: 2px solid var(--ink);
+	border-radius: 12px;
+	background: var(--bg);
+	color: var(--ink);
+	padding: 0 14px;
+	font-family: var(--font-body);
+	font-size: 16px;
+	font-weight: 800;
+	letter-spacing: 0;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+.mantia-field select {
+	appearance: none;
+	background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+	background-position: calc(100% - 20px) 21px, calc(100% - 14px) 21px;
+	background-size: 6px 6px, 6px 6px;
+	background-repeat: no-repeat;
+	padding-right: 38px;
+}
+.mantia-field input:focus,
+.mantia-field select:focus {
+	outline: 3px solid var(--accent-2);
+	outline-offset: 2px;
+}
+.mantia-create-submit,
+.mantia-join-submit {
+	appearance: none;
+	width: 100%;
+}
+.mantia-create-submit:disabled,
+.mantia-join-submit:disabled {
+	opacity: 0.68;
+	cursor: wait;
+	transform: none;
+}
+.mantia-create-status,
+.mantia-join-status {
+	padding: 10px 12px;
+	border: 2px solid var(--ink);
+	border-radius: 12px;
+	background: var(--field);
+	font-family: var(--font-body);
+	font-size: 13px;
+	font-weight: 800;
+	color: var(--ink);
+}
+.mantia-create-status[hidden],
+.mantia-join-status[hidden] {
+	display: none;
+}
+.mantia-create-status.is-ok,
+.mantia-join-status.is-ok {
+	background: var(--accent-2);
+}
+.mantia-create-status.is-err,
+.mantia-join-status.is-err {
+	background: var(--accent);
+	color: #ffffff;
+}
+.mantia-join-kicker {
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 800;
+	line-height: 1.45;
+	color: var(--ink);
+}
+.mantia-created-name {
+	font-family: var(--font-display);
+	font-size: 24px;
+	font-weight: 900;
+	letter-spacing: -0.025em;
+	line-height: 1.05;
+	color: var(--ink);
 }
 
 /* ─── Home ───────────────────────────────────────────────────────── */

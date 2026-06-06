@@ -70,7 +70,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 11;
+	private const DB_VERSION        = 13;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -113,7 +113,8 @@ final class Mantia_Bootstrap {
 		// own init hook — flush so existing installs stop serving the
 		// stale in-tree rewrite (and so the new one takes effect even if
 		// the standalone plugin activated AFTER Mantia did this cycle).
-		if ( $current < 10 ) {
+		// v12: web-first create routes (/pronostico/crear[/competition]/).
+		if ( $current < 12 ) {
 			flush_rewrite_rules();
 		}
 
@@ -139,6 +140,36 @@ final class Mantia_Bootstrap {
 		// iteration over REMOVED_COMPETITION_SLUGS — finds nothing on
 		// fresh installs, finds mundial-semana on upgrading installs.
 		if ( $current < 11 ) {
+			foreach ( Mantia_Competitions::REMOVED_COMPETITION_SLUGS as $slug ) {
+				$comp = Mantia_Competitions::find_post( $slug );
+				if ( ! $comp ) {
+					continue;
+				}
+				$match_ids = get_posts(
+					array(
+						'post_type'      => Mantia_CPTs::MATCH,
+						'post_status'    => 'any',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+						'no_found_rows'  => true,
+						'meta_key'       => Mantia_Competitions::META_KEY,
+						'meta_value'     => $slug,
+					)
+				);
+				foreach ( $match_ids as $mid ) {
+					wp_delete_post( (int) $mid, true );
+				}
+				wp_delete_post( (int) $comp->ID, true );
+			}
+		}
+
+		// v13: Mantia collapsed to mundial-only. libertadores-2026,
+		// libertadores-semana, brasileirao-prueba (legacy test fixture)
+		// were just added to REMOVED_COMPETITION_SLUGS. The v11 loop
+		// only fires for installs at < 11 — installs at 11+ need a
+		// separate idempotent pass to actually clear the new entries.
+		// Same delete shape as v11; fresh installs hit nothing.
+		if ( $current < 13 ) {
 			foreach ( Mantia_Competitions::REMOVED_COMPETITION_SLUGS as $slug ) {
 				$comp = Mantia_Competitions::find_post( $slug );
 				if ( ! $comp ) {

@@ -228,11 +228,15 @@ final class Mantia_Whatsapp_Flow {
 
 		if ( preg_match( '/^(?:nueva|nuevo|crear|criar|create|new)\s+' . $noun_alt . '\s+(.+)$/iu', $plain, $m ) ) {
 			$arg = trim( (string) $m[1] );
-			// "Crear penca de Mundial 2026" — competition hint short-circuits the
-			// flow and lands us on the name prompt with the competition pre-picked.
-			$competition_id = self::resolve_competition_hint( $arg );
-			if ( null !== $competition_id ) {
-				return self::handle_competition_picked_for_new( $competition_id, $identity );
+			// Strip an optional "de <mundial alias>" prefix so phrases like
+			// "crear penca de Mundial Los Pibes" land as a clean penca name
+			// ("Los Pibes"). 2026-05-29: mundial is the only comp so we
+			// don't need to disambiguate which tournament — just drop the
+			// hint and keep whatever remains as the name.
+			$arg = preg_replace( '/^de\s+(?:mundial(?:\s+2026)?|world\s+cup|copa\s+del\s+mundo|fifa)\s*/iu', '', $arg );
+			$arg = trim( (string) $arg );
+			if ( '' === $arg ) {
+				return self::handle_new_penca_start( $identity );
 			}
 			return self::handle_create_group( $arg, $identity );
 		}
@@ -900,33 +904,12 @@ final class Mantia_Whatsapp_Flow {
 			);
 		}
 
-		// Stash the name; user must pick a competition before we create.
+		// 2026-05-29: Mantia is now mundial-only. Skip the competition
+		// picker entirely — every new penca lives on mundial-2026.
+		// Stash the name so handle_competition_chosen can pick it up,
+		// then proceed straight to the create step.
 		set_transient( self::pending_create_key( $identity['phone'] ), $name, 15 * MINUTE_IN_SECONDS );
-
-		$rows = array();
-		foreach ( Mantia_Competitions::all() as $c ) {
-			$rows[] = array(
-				'id'          => 'mantia:competition:' . $c['id'],
-				'title'       => trim( ( $c['emoji'] ?? '' ) . ' ' . $c['name'] ),
-				'description' => (string) ( $c['description'] ?? '' ),
-			);
-		}
-
-		return array(
-			'reply'       => sprintf( '*%s* — ¿para qué torneo es?', $name ),
-			'interactive' => array(
-				'type'         => 'list',
-				'header'       => Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
-				'button_label' => 'Elegir torneo',
-				'sections'     => array(
-					array(
-						'title' => 'Competencias',
-						'rows' => $rows,
-					),
-				),
-			),
-			'completed' => true,
-		);
+		return self::handle_competition_chosen( 'mundial-2026', $identity );
 	}
 
 	private static function handle_competition_chosen( string $competition_id, array $identity ): array {
@@ -1213,24 +1196,27 @@ final class Mantia_Whatsapp_Flow {
 	}
 
 	/**
-	 * Entry-point for the competition-first new-penca flow: show the
-	 * tournament list immediately, then ask for the name once the user picks.
-	 * More discoverable than asking for free-text name first.
+	 * Entry-point for the new-penca flow.
+	 *
+	 * 2026-05-29: mundial-only. We no longer show a tournament picker —
+	 * mundial-2026 is the single competition this install supports, so
+	 * we stash it and ask the user for the penca name in one shot.
 	 */
 	private static function handle_new_penca_start( array $identity ): array {
 		if ( '' !== $identity['phone'] ) {
 			delete_transient( self::pending_create_key( $identity['phone'] ) );
+			set_transient(
+				self::pending_comp_key( $identity['phone'] ),
+				'mundial-2026',
+				15 * MINUTE_IN_SECONDS
+			);
 		}
 
 		// Native WhatsApp Flow path — single full-screen form replacing
-		// the 3-bubble dialogue. Gated behind `mantia_flows_enabled`
+		// the 2-bubble dialogue. Gated behind `mantia_flows_enabled`
 		// because the WABA needs to be past Meta's Integrity gate for
 		// Flow messages to render; an unverified business gets a 400
 		// (#139000) and the user sees the body text without a CTA.
-		// The operator flips the option (`wp option update
-		// mantia_flows_enabled 1`) once their WABA is approved + the
-		// Flow is PUBLISHED on Meta. Default stays false so a fresh
-		// install gets the working legacy flow.
 		if ( get_option( 'mantia_flows_enabled', false ) && class_exists( 'Mantia_Whatsapp_Flows' ) ) {
 			$noun  = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 			$cta   = Mantia_Vocab::word( 'create', $identity['phone'] ?? '' );
@@ -1248,35 +1234,12 @@ final class Mantia_Whatsapp_Flow {
 			}
 		}
 
-		$rows = array();
-		foreach ( Mantia_Competitions::all() as $c ) {
-			$rows[] = array(
-				'id'          => 'mantia:newcomp:' . $c['id'],
-				'title'       => self::truncate_title( trim( ( $c['emoji'] ?? '' ) . ' ' . $c['name'] ), 24 ),
-				'description' => self::truncate_title( (string) ( $c['description'] ?? '' ), 72 ),
-			);
-		}
-
-		if ( empty( $rows ) ) {
-			return array(
-				'reply'     => 'No tengo competencias cargadas todavía. Pedile al admin que active Mantia.',
-				'completed' => true,
-			);
-		}
-
 		$noun = Mantia_Vocab::word( 'noun', $identity['phone'] ?? '' );
 		return array(
-			'reply'       => sprintf( 'Listo. ¿Para qué torneo es tu %s?', $noun ),
-			'interactive' => array(
-				'type'         => 'list',
-				'header'       => Mantia_Vocab::word( 'create', $identity['phone'] ?? '' ),
-				'button_label' => 'Elegir torneo',
-				'sections'     => array(
-					array(
-						'title' => 'Competencias',
-						'rows' => $rows,
-					),
-				),
+			'reply'     => sprintf(
+				"🌎 *Mundial 2026* — ¿cómo se va a llamar tu %s?\n\nMandame un nombre cortito (ej: *%s*) y la creo. Mandá *cancelar* si cambiaste de idea.",
+				$noun,
+				self::pick_name_example()
 			),
 			'completed' => true,
 		);

@@ -112,7 +112,7 @@ const SCENARIOS = [
       { kind: 'dump', label: '01-mun-anon' },
       { kind: 'assert', label: 'anon-cta-is-sumate', fn: async (page) => {
         const cta = await page.locator('a.mantia-pill-primary').first().textContent();
-        if (!cta?.includes('Sumate por WhatsApp')) throw new Error(`anon CTA missing 'Sumate por WhatsApp': ${cta}`);
+        if (!cta?.includes('Ver invitación')) throw new Error(`anon CTA missing 'Ver invitación': ${cta}`);
         if (!cta?.includes(V.MUN_CODE))           throw new Error(`anon CTA missing invite code: ${cta}`);
       } },
       // Anon visitor should see a "what is Mantia" explainer before the

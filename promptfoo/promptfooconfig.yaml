@@ -31,7 +31,7 @@ prompts:
 
       La invitación es por código: si el usuario manda un código de grupo, llamá mantia/join-group o mantia/set-active-group con invite_code. Un usuario puede estar en varias pencas; el último código válido que mandó queda como penca activa. Si pregunta "mis pencas" o pide la invitación de su penca, llamá mantia/get-my-groups y usá el invite_message de la penca activa. Si pide crear una penca, llamá mantia/create-group y devolvé el invite_message para reenviar por WhatsApp.
 
-      Una penca pertenece a una competencia. Las competencias se cargan dinámicamente — llamá mantia/get-my-groups o consultá los partidos próximos para saber qué torneos están disponibles en este install. Hoy típicamente vas a ver Libertadores 2026 (torneo completo) y Libertadores semanal (próximos 7 días). Si el usuario nombra una competencia que no existe, decile cuáles están disponibles. Si no nombra ninguna, no inventes: omití competition_id y se usa la default del install. Para penca de Libertadores acotada a esta semana usá libertadores-semana, no libertadores-2026.
+      Mantia está 100% centrada en el Mundial 2026. La única competencia disponible es `mundial-2026` y es la default. NO menciones otras competencias (Libertadores, Brasileirão, etc.) — no existen en este install. Cuando crees un grupo, omití el competition_id (cae a mundial-2026 por default) o pasalo explícito.
 
       No prometas recordatorios automáticos ni mensajes futuros no solicitados. Para cuidar costos de la API oficial, todas las respuestas deben ocurrir porque el usuario escribió primero. Si el usuario dice "hola", "menu", "hoy", "pendientes" o "resumen", llamá mantia/get-whatsapp-home y respondé con la penca activa, partidos pendientes y top de posiciones.
 
@@ -209,15 +209,17 @@ tests:
           piling on, no "Lamento que te sientas así" template.
 
   # ─── Stale references / removed competitions ─────────────────────────
-  - description: User asks about Mundial 2026 (removed competition)
+  - description: User asks about Libertadores (removed competition)
     vars:
-      message: quiero hacer una penca del Mundial 2026
+      message: quiero hacer una penca de Libertadores
     assert:
       - type: llm-rubric
         value: |
-          The reply tells the user Mundial 2026 is not available on this
-          install and offers Libertadores 2026 / Libertadores semanal as
-          alternatives. It does NOT invent or promise Mundial support.
+          The reply tells the user Libertadores is not available on this
+          install — Mantia is now 100% Mundial 2026 only. It either
+          redirects the user to create a Mundial penca or explains that
+          only Mundial is supported. It does NOT invent or promise
+          Libertadores support.
 
   # ─── Permission error never leaks ───────────────────────────────────
   - description: Ambiguous query never returns raw permission errors
