@@ -980,6 +980,24 @@ final class Mantia_Whatsapp_Flow {
 		}
 		$lines[] = '';
 
+		// 2026-06-06: surface the /me/<view_token>/ web link right in
+		// the create reply so the user doesn't need a second tap on
+		// "Ver y pronosticar" just to find the bulk-predict form. Diego
+		// repeatedly said the chat picker is "una garcha"; web-natives
+		// like him expect the link to be one tap away from the
+		// confirmation. The 🔒 anchor + the explicit "no compartas"
+		// nudge below keep the link from getting forwarded with the
+		// invite card by accident.
+		if ( $me_id > 0 ) {
+			$me_token = Mantia_Repository::user_view_token( $me_id );
+			if ( '' !== $me_token ) {
+				$me_url = home_url( '/pronostico/me/' . $me_token . '/' );
+				$lines[] = '📋 *Cargá los partidos de una vez en la web (privado, no compartas):*';
+				$lines[] = '🔒 ' . $me_url;
+				$lines[] = '';
+			}
+		}
+
 		// Share-link rendering depends on whether the card shipped:
 		//   - card shipped → point at it ("tarjeta de arriba ↑")
 		//   - card failed but we have a landing URL → inline it so the

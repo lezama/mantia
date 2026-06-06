@@ -1439,6 +1439,17 @@ final class Mantia_Frontend {
 				<?php endif; ?>
 
 				<?php
+				// Per-group block (LBDT [activa] + Tus pronósticos history) only
+				// makes sense when the user belongs to >1 penca — otherwise it
+				// duplicates the "tu posición" card (top of page) and the
+				// "próximos · editá tu pronóstico" form above. Live feedback
+				// 2026-06-06: "no entiendo mucho el LBDT activa y pronósticos
+				// abajo" — the user couldn't tell why the same penca surfaced
+				// again at the bottom of their /me/ page.
+				$show_per_group_block = count( $groups ) > 1;
+				if ( ! $show_per_group_block ) {
+					goto after_per_group_block;
+				}
 				foreach ( $groups as $g ) :
 					$group_id   = (int) $g['id'];
 					$lb         = Mantia_Leaderboard::rows( $group_id, 100 );
@@ -1520,6 +1531,7 @@ final class Mantia_Frontend {
 						<?php endif; ?>
 					</section>
 				<?php endforeach; ?>
+				<?php after_per_group_block: ?>
 			<?php endif; ?>
 
 			<section class="mantia-aside-pair">
