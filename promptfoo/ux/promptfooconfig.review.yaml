@@ -39,7 +39,7 @@ defaultTest:
     CANONICAL_STATE: |
       The canonical test state on this install:
       - User: Alice (phone +59899900042)
-      - Penca: P_UX_TEST in brasileirao-prueba (6 matches)
+      - Penca: P_UX_TEST in mundial-2026 (6 matches)
       - Alice is a member of this penca
       - Alice has ONE manual prediction: 1-1 on the first upcoming match
       - All other matches are 0-0 default (auto_filled — NOT user-decided,
@@ -125,7 +125,7 @@ tests:
         value: |
           You are a Mantia UX reviewer. The output above is the HTML of
           the COMPETITION page (/pronostico/<slug>/?as=<share_token>) —
-          the global view for brasileirao-prueba, rendered for Alice
+          the global view for mundial-2026, rendered for Alice
           via share-token soft-resolve.
 
           {{CANONICAL_STATE}}

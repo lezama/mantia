@@ -1,25 +1,20 @@
-# Mantia · UX matrix — multi-user × multi-penca × mixed-prediction
+# Mantia · UX matrix — multi-user × single-comp (mundial-2026)
 #
-# Companion to promptfooconfig.yaml (canonical 1-user happy path) and
-# promptfooconfig.review.yaml (LLM rubric on the same 4 pages). This
-# config expands coverage to every (URL × identity) combination the
-# fixture can produce, so a regression that only manifests on, say,
-# "Bob viewing Alice's penca" gets caught.
+# Companion to promptfooconfig.yaml (canonical 1-user happy path).
+# Walks every (URL × identity) combination on top of a single penca
+# (P_MUN_MTX in mundial-2026), so a regression that only manifests
+# on "Bob viewing Alice's penca" gets caught without juggling a
+# separate test competition.
 #
 # Fixture (set up by tests/ux/setup-matrix.php):
-#   Alice (creator)  member of P_LIBE_MTX (libertadores) + P_MUN_MTX (mundial)
-#   Bob              member of P_LIBE_MTX only
-#   Carol            member of both, no manual predictions yet
-#
-# Predictions:
-#   Alice: 1-1 on match A (libe), 2-0 on match B (libe)
-#   Bob:   0-3 on match A (libe)
-#   Carol: nothing manual (all auto-fill 0-0)
+#   Alice  creator of P_MUN_MTX (mundial-2026)
+#   Bob    joiner of P_MUN_MTX (one manual prediction)
+#   Carol  joiner of P_MUN_MTX (no manual predictions yet)
 #
 # Run:  bin/promptfoo-ux.sh matrix
 # View: bin/promptfoo-ux.sh view
 
-description: Mantia UX matrix — multi-user × multi-page
+description: Mantia UX matrix — multi-user × mundial-2026
 
 prompts:
   - 'GET {{url}}'
@@ -41,9 +36,6 @@ defaultTest:
     ALICE_SHARE: file://vars/alice_share.txt
     BOB_SHARE: file://vars/bob_share.txt
     CAROL_SHARE: file://vars/carol_share.txt
-    LIBE_VIEW: file://vars/libe_view.txt
-    LIBE_NAME: file://vars/libe_name.txt
-    LIBE_CODE: file://vars/libe_code.txt
     MUN_VIEW: file://vars/mun_view.txt
     MUN_NAME: file://vars/mun_name.txt
     MUN_CODE: file://vars/mun_code.txt
@@ -53,47 +45,45 @@ defaultTest:
 
 tests:
   # ═════════════════════════════════════════════════════════════════
-  # LIBERTADORES PENCA (P_LIBE_MTX) — 3 viewers + anon
+  # PENCA PAGE (P_MUN_MTX) — 3 viewers + anon
   # ═════════════════════════════════════════════════════════════════
-  - description: 'libe·alice — creator+predictor sees her 1-1 + Invitar CTA'
+  - description: 'mun·alice — creator+predictor sees her 1-1 + Invitar CTA'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
     assert:
       - { type: contains, value: 'Invitar amigos' }
       - { type: not-contains, value: 'Sumate · código' }
-      - { type: contains, value: '{{LIBE_NAME}}' }
+      - { type: contains, value: '{{MUN_NAME}}' }
       - { type: contains, value: '✓ 1-1' }
       - { type: contains, value: '✓ 2-0' }
       - { type: not-contains, value: '✓ 0-3' }   # Bob's pick must not show
 
-  - description: 'libe·bob — joiner sees his 0-3, NOT Alice''s picks'
+  - description: 'mun·bob — joiner sees his 0-3, NOT Alice''s picks'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
     assert:
       - { type: contains, value: 'Invitar amigos' }
       - { type: contains, value: '✓ 0-3' }
       - { type: not-contains, value: '✓ 1-1' }
       - { type: not-contains, value: '✓ 2-0' }
 
-  - description: 'libe·carol — member with NO manual predictions, no badges'
+  - description: 'mun·carol — member with NO manual predictions, no badges'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{CAROL_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{CAROL_SHARE}}'
     assert:
       - { type: contains, value: 'Invitar amigos' }
-      - { type: not-contains, value: '✓ ' }     # no badges of any score
+      - { type: not-contains, value: '✓ ' }      # no badges of any score
 
-  - description: 'libe·anon — public landing: Sumate CTA, explainer, no leaks'
+  - description: 'mun·anon — public landing: Sumate CTA, explainer, no leaks'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/'
     assert:
-      # Anon CTA was renamed from bare "Sumate · código X" to the more
-      # action-explicit "Sumate por WhatsApp · código X" after the
-      # expert-review surfaced that 'código' alone didn't convey what
-      # the button actually does (2026-05-27).
-      - { type: contains, value: 'Sumate por WhatsApp · código {{LIBE_CODE}}' }
-      # And: anon must see a "what is Mantia" explainer before the CTA
-      # so a cold-traffic stranger isn't asked to join something they
-      # don't understand.
+      # Anon CTA reads "Sumate por WhatsApp · código X" — the more
+      # action-explicit framing introduced after the expert-review
+      # surfaced "código" alone as ambiguous (2026-05-27).
+      - { type: contains, value: 'Sumate por WhatsApp · código {{MUN_CODE}}' }
+      # Anon must see a "what is Mantia" explainer before the CTA so
+      # cold-traffic strangers aren't asked to join blind.
       - { type: contains, value: 'mantia-explainer-card' }
       - { type: contains, value: 'penca de fútbol por WhatsApp' }
       - { type: not-contains, value: 'Invitar amigos' }
@@ -102,137 +92,72 @@ tests:
       - { type: not-contains, value: '✓ 2-0' }
 
   # ═════════════════════════════════════════════════════════════════
-  # MUNDIAL PENCA (P_MUN_MTX) — Alice + Carol members, Bob isn't
+  # COMPETITION PAGE — each user sees their own "mis pencas" set
   # ═════════════════════════════════════════════════════════════════
-  - description: 'mun·alice — member of mundial, NO predictions in this comp'
-    vars:
-      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
-    assert:
-      - { type: contains, value: 'Invitar amigos' }
-      - { type: contains, value: '{{MUN_NAME}}' }
-      - { type: not-contains, value: '✓ 1-1' }   # her libe predictions don't bleed
-      - { type: not-contains, value: '✓ 0-3' }
-
-  - description: 'mun·bob — NOT a member, sees Sumate (not Invitar)'
-    vars:
-      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
-    assert:
-      # Bob has a share_token but isn't in this penca → page identifies
-      # him and uses the warmer "también" handshake CTA instead of the
-      # cold "Sumate · código X" anonymous CTA (expert-review 2026-05-27).
-      - { type: contains, value: 'Sumate también a {{MUN_NAME}}' }
-      - { type: contains, value: '{{MUN_CODE}}' }
-      - { type: not-contains, value: 'Invitar amigos' }
-
-  - description: 'mun·carol — member, no manual predictions'
-    vars:
-      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{CAROL_SHARE}}'
-    assert:
-      - { type: contains, value: 'Invitar amigos' }
-      - { type: not-contains, value: '✓ ' }
-
-  # ═════════════════════════════════════════════════════════════════
-  # COMPETITION PAGES — each user sees their own "mis pencas" set
-  # ═════════════════════════════════════════════════════════════════
-  - description: 'libe-comp·alice — sees her 1 libe penca + her badges + member CTA'
-    vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
-    assert:
-      - { type: contains, value: 'mis pencas de' }
-      - { type: contains, value: '{{LIBE_NAME}}' }
-      - { type: contains, value: 'tus pronósticos' }
-      - { type: contains, value: '✓ 1-1' }
-      - { type: contains, value: '✓ 2-0' }
-      - { type: not-contains, value: '✓ 0-3' }
-      # Member-aware bottom CTA: Alice should see "Seguí pronosticando en
-      # <penca>" as the primary, not "Crear tu propia penca" (she's a
-      # returning player mid-tournament, not a prospect). Expert-review
-      # 2026-05-27 flagged the original CTA as misaligned for members.
-      - { type: contains, value: 'Seguí pronosticando en {{LIBE_NAME}}' }
-      # The "create another" pill stays available but as secondary copy.
-      - { type: contains, value: 'O creá otra penca de' }
-      # Member-hero treatment: "mis pencas" is hoisted ABOVE the global
-      # hero with a stronger visual container (`mantia-member-hero`).
-      - { type: contains, value: 'mantia-member-hero' }
-      - { type: contains, value: 'Tu actividad en' }
-
-  - description: 'libe-comp·bob — sees his 1 libe penca + his 0-3 badge + member CTA'
-    vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{BOB_SHARE}}'
-    assert:
-      - { type: contains, value: 'mis pencas de' }
-      - { type: contains, value: '{{LIBE_NAME}}' }
-      - { type: contains, value: '✓ 0-3' }
-      - { type: not-contains, value: '✓ 1-1' }
-      - { type: not-contains, value: '✓ 2-0' }
-      - { type: contains, value: 'Seguí pronosticando en {{LIBE_NAME}}' }
-
-  - description: 'libe-comp·carol — member, no manual predictions, no badges'
-    vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{CAROL_SHARE}}'
-    assert:
-      - { type: contains, value: 'mis pencas de' }
-      - { type: contains, value: '{{LIBE_NAME}}' }
-      - { type: not-contains, value: '✓ ' }
-
-  - description: 'mun-comp·alice — sees her 1 mundial penca (separate from libe) + member CTA'
+  - description: 'mun-comp·alice — sees her 1 mundial penca + her badges + member CTA'
     vars:
       url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
     assert:
       - { type: contains, value: 'mis pencas de' }
       - { type: contains, value: '{{MUN_NAME}}' }
-      - { type: not-contains, value: '{{LIBE_NAME}}' }   # libe penca not on mundial page
-      - { type: not-contains, value: '✓ 1-1' }            # libe predictions stay scoped to libe
+      - { type: contains, value: 'tus pronósticos' }
+      - { type: contains, value: '✓ 1-1' }
+      - { type: contains, value: '✓ 2-0' }
+      - { type: not-contains, value: '✓ 0-3' }
+      # Member-aware bottom CTA: Alice should see "Seguí pronosticando
+      # en <penca>" as the primary, not "Crear tu propia penca" (she's
+      # a returning player mid-tournament, not a prospect).
       - { type: contains, value: 'Seguí pronosticando en {{MUN_NAME}}' }
+      - { type: contains, value: 'O creá otra penca de' }
+      - { type: contains, value: 'mantia-member-hero' }
+      - { type: contains, value: 'Tu actividad en' }
 
-  - description: 'mun-comp·bob — NOT a member of any mundial penca: no section'
+  - description: 'mun-comp·bob — sees his 1 mundial penca + his 0-3 badge + member CTA'
     vars:
       url: '{{BASE}}/pronostico/mundial-2026/?as={{BOB_SHARE}}'
     assert:
-      - { type: not-contains, value: 'mis pencas de' }
-      # Anon CTA reads "Crear tu propia penca de X" (2026-05-27 copy
-      # change after the free-review surfaced that bare "Crear penca de"
-      # didn't disambiguate vs joining an existing penca).
-      - { type: contains, value: 'Crear tu propia penca de' }
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{MUN_NAME}}' }
+      - { type: contains, value: '✓ 0-3' }
+      - { type: not-contains, value: '✓ 1-1' }
+      - { type: not-contains, value: '✓ 2-0' }
+      - { type: contains, value: 'Seguí pronosticando en {{MUN_NAME}}' }
+
+  - description: 'mun-comp·carol — member, no manual predictions, no badges'
+    vars:
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{CAROL_SHARE}}'
+    assert:
+      - { type: contains, value: 'mis pencas de' }
+      - { type: contains, value: '{{MUN_NAME}}' }
       - { type: not-contains, value: '✓ ' }
 
-  - description: 'libe-comp·anon — no "mis pencas", no per-user badges'
+  - description: 'mun-comp·anon — no "mis pencas", no per-user badges'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/'
+      url: '{{BASE}}/pronostico/mundial-2026/'
     assert:
       - { type: not-contains, value: 'mis pencas de' }
       - { type: not-contains, value: 'tus pronósticos' }
       - { type: not-contains, value: '✓ ' }
-      # Anon CTA reads "Crear tu propia penca de X" (2026-05-27 copy
-      # change after the free-review surfaced that bare "Crear penca de"
-      # didn't disambiguate vs joining an existing penca).
       - { type: contains, value: 'Crear tu propia penca de' }
 
   # ═════════════════════════════════════════════════════════════════
   # /me/ PAGE — ranking widget leads, stat-grid is conditional.
-  # Added 2026-05-27 after Diego's live feedback: "lo importante es
-  # el ranking" — the cold-start /me/ page led with 0 puntos · 0
-  # exactos · 0 pronósticos instead of "where do I stand".
+  # Added 2026-05-27 after Diego's "lo importante es el ranking"
+  # feedback. The class string ".mantia-stat-grid" appears in the
+  # stylesheet + the IntersectionObserver script regardless of
+  # whether the SECTION renders — asserts look for the explicit
+  # `<section class="…">` marker.
   # ═════════════════════════════════════════════════════════════════
-  # The DOM-vs-CSS distinction matters here: ".mantia-stat-grid"
-  # appears in the stylesheet + the IntersectionObserver script
-  # regardless of whether the SECTION renders. The JS assertion
-  # below looks for the actual `<section class="mantia-stat-grid">`
-  # marker, not just the class name string.
   - description: 'me·alice — /me/ page leads with the ranking widget'
     vars:
       url: '{{BASE}}/pronostico/me/{{ALICE_ME}}/'
     assert:
       - { type: contains, value: '<section class="mantia-rank-card">' }
       - { type: contains, value: 'tu posición en' }
-      - { type: contains, value: '{{LIBE_NAME}}' }
-      # No matches resolved yet in the fixture → empty branch fires.
+      - { type: contains, value: '{{MUN_NAME}}' }
       - { type: contains, value: 'mantia-rank-empty' }
       - { type: contains, value: 'tabla todavía vacía' }
       - { type: contains, value: 'Son 3 jugadores en la penca' }
-      # The DOM order check: <section.mantia-rank-card> must appear
-      # BEFORE any <section.mantia-stat-grid> in the body so the
-      # "ranking first" reordering can't silently drift.
       - type: javascript
         value: |
           const html  = output || '';
@@ -254,9 +179,9 @@ tests:
       - { type: contains, value: 'tu posición en' }
       - { type: contains, value: 'tabla todavía vacía' }
       # $total_preds counts RESOLVED predictions (leaderboard rows),
-      # not pending ones. Bob has 1 manual prediction but no match
-      # has finished — stat grid stays suppressed. Diego's "0 PUNTOS
-      # · 0 EXACTOS · 0 PRONÓSTICOS" cold-start screen is fixed.
+      # not pending ones. Bob has 1 manual prediction but no Mundial
+      # match has finished — stat grid stays suppressed. Diego's
+      # cold-start "0 PUNTOS · 0 EXACTOS · 0 PRONÓSTICOS" is fixed.
       - { type: not-contains, value: '<section class="mantia-stat-grid">' }
 
   - description: 'me·carol — /me/ page shows ranking; stat-grid suppressed (no preds + no results)'
@@ -268,16 +193,16 @@ tests:
       - { type: not-contains, value: '<section class="mantia-stat-grid">' }
 
   # ═════════════════════════════════════════════════════════════════
-  # FRESHNESS — no match in the picker can have a past kickoff. The
-  # 2026-05-27 incident: hardcoded fixture dates in the seed rotted
-  # into the past, and the bot offered "Peñarol vs Indep. Santa Fe"
-  # at "hoy 21:30" on a match the user knew had been played the day
-  # before. Now every match row carries a data-kickoff-ts attribute,
-  # and this assertion fails fast if any row points to the past.
+  # FRESHNESS — no match in the picker can have a past kickoff.
+  # The 2026-05-27 incident: hardcoded fixture dates rotted into the
+  # past and the bot offered predictions on matches the user knew
+  # had been played the day before. Every match row carries a
+  # data-kickoff-ts attribute now; this assert fails fast if any
+  # row points to the past.
   # ═════════════════════════════════════════════════════════════════
-  - description: 'freshness · libe·alice match list has zero past kickoffs'
+  - description: 'freshness · mun·alice match list has zero past kickoffs'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
     assert:
       - type: javascript
         value: |
@@ -289,13 +214,13 @@ tests:
           const now = Math.floor(Date.now() / 1000);
           const past = matches.filter(ts => ts < now);
           if (past.length > 0) {
-            throw new Error(`STALE picker on libe·alice: ${past.length}/${matches.length} kickoffs already happened`);
+            throw new Error(`STALE picker on mun·alice: ${past.length}/${matches.length} kickoffs already happened`);
           }
           return true;
 
-  - description: 'freshness · libe-comp anon match list has zero past kickoffs'
+  - description: 'freshness · mun-comp anon match list has zero past kickoffs'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/'
+      url: '{{BASE}}/pronostico/mundial-2026/'
     assert:
       - type: javascript
         value: |
@@ -314,17 +239,17 @@ tests:
   # ═════════════════════════════════════════════════════════════════
   # GLOBAL HYGIENE — no infrastructure leaks on any (URL × identity)
   # ═════════════════════════════════════════════════════════════════
-  - description: 'hygiene · libe·alice has no PHP / token leaks'
+  - description: 'hygiene · mun·alice has no PHP / token leaks'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
     assert:
       - { type: not-contains, value: 'wa_auth_t=' }
       - { type: not-contains, value: 'Fatal error' }
       - { type: not-contains, value: '<?php' }
 
-  - description: 'hygiene · libe·anon has no PHP / token leaks'
+  - description: 'hygiene · mun·anon has no PHP / token leaks'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/'
     assert:
       - { type: not-contains, value: 'wa_auth_t=' }
       - { type: not-contains, value: 'Fatal error' }

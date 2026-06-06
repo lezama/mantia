@@ -20,11 +20,11 @@ The user gives you a directory of HTML dumps captured by `tests/ux/run-canonical
 
 - `group_as.html` — `/pronostico/g/<view_token>/?as=<share_token>` for Alice (a member)
 - `group_anon.html` — same group, no `?as=` (anonymous visitor)
-- `comp_as.html` — `/pronostico/brasileirao-prueba/?as=<share_token>` for Alice
+- `comp_as.html` — `/pronostico/mundial-2026/?as=<share_token>` for Alice
 - `comp_anon.html` — same competition, anonymous
 
 The state is fixed:
-- Alice exists, is a member of penca `P_UX_TEST` for `brasileirao-prueba`
+- Alice exists, is a member of penca `P_UX_TEST` for `mundial-2026`
 - Alice has ONE manual prediction: 1-1 on the first upcoming match
 - All other matches are default 0-0 (auto_filled, no badge)
 
@@ -45,7 +45,7 @@ For each one, point at the file + the line/snippet that supports your finding.
 - Auto-filled 0-0 predictions don't render a badge — that's intentional ("pending" semantic).
 
 ### 3. **"Mis pencas de X" section**
-- `comp_as.html`: section eyebrow "mis pencas de libertadores …" exists AND a `.mantia-mygroup-row` element actually renders below it. The 2026-05-26 bug was "eyebrow says '1 penca' but card body is empty" — flag that exact shape if you see it.
+- `comp_as.html`: section eyebrow "mis pencas de Mundial …" exists AND a `.mantia-mygroup-row` element actually renders below it. The 2026-05-26 bug was "eyebrow says '1 penca' but card body is empty" — flag that exact shape if you see it.
 - `comp_anon.html`: this section MUST NOT exist (no leaking another user's identity).
 
 ### 4. **`?as=` propagates across navigation**

@@ -43,15 +43,12 @@ const V = {
   ALICE_SHARE: readVar('alice_share'),
   BOB_SHARE:   readVar('bob_share'),
   CAROL_SHARE: readVar('carol_share'),
-  LIBE_VIEW:   readVar('libe_view'),
-  LIBE_NAME:   readVar('libe_name'),
-  LIBE_CODE:   readVar('libe_code'),
   MUN_VIEW:    readVar('mun_view'),
   MUN_NAME:    readVar('mun_name'),
   MUN_CODE:    readVar('mun_code'),
 };
 
-if (!V.ALICE_SHARE || !V.LIBE_VIEW) {
+if (!V.ALICE_SHARE || !V.MUN_VIEW) {
   console.error('ERROR: matrix vars missing. Run `bin/promptfoo-ux.sh setup-matrix` first.');
   process.exit(2);
 }
@@ -66,10 +63,10 @@ if (!V.ALICE_SHARE || !V.LIBE_VIEW) {
 const SCENARIOS = [
   {
     id: 'creator-flow',
-    description: 'Alice (creator) navigates her own libertadores penca + competition',
+    description: 'Alice (creator) navigates her own mundial penca + competition',
     steps: [
-      { kind: 'goto', url: `${V.BASE}/pronostico/g/${V.LIBE_VIEW}/?as=${V.ALICE_SHARE}`, label: '01-libe-as-alice' },
-      { kind: 'dump', label: '01-libe-as-alice' },
+      { kind: 'goto', url: `${V.BASE}/pronostico/g/${V.MUN_VIEW}/?as=${V.ALICE_SHARE}`, label: '01-mun-as-alice' },
+      { kind: 'dump', label: '01-mun-as-alice' },
       // CTA should be the member-facing "Invitar amigos · código X".
       // Multiple primary pills exist on the page (the predict CTA was
       // promoted to primary too); select by visible text.
@@ -93,7 +90,7 @@ const SCENARIOS = [
       { kind: 'assert', label: 'comp-page-personalized', fn: async (page) => {
         const html = await page.content();
         if (!html.includes('mis pencas de')) throw new Error(`'mis pencas' section missing on comp page`);
-        if (!html.includes(V.LIBE_NAME))    throw new Error(`Alice's penca '${V.LIBE_NAME}' not in card body`);
+        if (!html.includes(V.MUN_NAME))    throw new Error(`Alice's penca '${V.MUN_NAME}' not in card body`);
         if (!html.includes('✓ 1-1'))        throw new Error(`✓ 1-1 badge missing on comp page`);
         if (!html.includes('tus pronósticos')) throw new Error(`'tus pronósticos' eyebrow tail missing`);
       } },
@@ -102,21 +99,21 @@ const SCENARIOS = [
       { kind: 'dump', label: '03-back-to-group' },
       { kind: 'assert', label: 'card-navigates-back-to-group', fn: async (page) => {
         const u = page.url();
-        if (!u.includes(`/pronostico/g/${V.LIBE_VIEW}/`)) throw new Error(`card didn't return to group page: ${u}`);
+        if (!u.includes(`/pronostico/g/${V.MUN_VIEW}/`)) throw new Error(`card didn't return to group page: ${u}`);
         if (!u.includes('as=')) throw new Error(`?as= not on the card link`);
       } },
     ],
   },
   {
     id: 'anon-flow',
-    description: 'Anonymous visitor lands on libertadores penca + taps Sumate CTA',
+    description: 'Anonymous visitor lands on mundial penca + taps Sumate CTA',
     steps: [
-      { kind: 'goto', url: `${V.BASE}/pronostico/g/${V.LIBE_VIEW}/`, label: '01-libe-anon' },
-      { kind: 'dump', label: '01-libe-anon' },
+      { kind: 'goto', url: `${V.BASE}/pronostico/g/${V.MUN_VIEW}/`, label: '01-mun-anon' },
+      { kind: 'dump', label: '01-mun-anon' },
       { kind: 'assert', label: 'anon-cta-is-sumate', fn: async (page) => {
         const cta = await page.locator('a.mantia-pill-primary').first().textContent();
         if (!cta?.includes('Sumate por WhatsApp')) throw new Error(`anon CTA missing 'Sumate por WhatsApp': ${cta}`);
-        if (!cta?.includes(V.LIBE_CODE))           throw new Error(`anon CTA missing invite code: ${cta}`);
+        if (!cta?.includes(V.MUN_CODE))           throw new Error(`anon CTA missing invite code: ${cta}`);
       } },
       // Anon visitor should see a "what is Mantia" explainer before the
       // join CTA, otherwise cold traffic bounces (per expert-review).
@@ -143,14 +140,14 @@ const SCENARIOS = [
       // no JS, no meta-refresh) to capture the raw landing body.
       { kind: 'assert', label: 'sumate-landing-wames-correctly', fn: async (page) => {
         const resp = await page.context().request.get(
-          `${V.BASE}/pronostico/sumate/${V.LIBE_CODE}/`
+          `${V.BASE}/pronostico/sumate/${V.MUN_CODE}/`
         );
         if (resp.status() !== 200) throw new Error(`landing returned ${resp.status()}`);
         const html = await resp.text();
-        if (!html.includes(V.LIBE_NAME))     throw new Error(`landing missing penca name '${V.LIBE_NAME}'`);
+        if (!html.includes(V.MUN_NAME))     throw new Error(`landing missing penca name '${V.MUN_NAME}'`);
         const m = html.match(/https:\/\/wa\.me\/[^"\s]+/);
         if (!m)                              throw new Error('landing has no wa.me link');
-        if (!decodeURIComponent(m[0]).includes(V.LIBE_CODE)) {
+        if (!decodeURIComponent(m[0]).includes(V.MUN_CODE)) {
           throw new Error(`wa.me link doesn't carry invite code: ${m[0].slice(0, 100)}`);
         }
       } },

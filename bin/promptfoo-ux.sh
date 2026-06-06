@@ -47,11 +47,10 @@ setup_state() {
     "$PROJECT_DIR/tests/ux/${script}" \
     "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tests/ux/${script}" \
     >/dev/null
-  # setup-matrix.php re-runs deploy-brasileirao-prueba.php inline to
-  # refresh match kickoffs. Make sure both deploy script + the new
-  # scoped reset script are current on the remote.
+  # The fixture lives entirely on mundial-2026 (FIFA fixture registered
+  # in PHP, no inline deploy seed needed). The scoped reset still
+  # needs to land on the remote so the setup is idempotent.
   rsync -avz -e "ssh -o ConnectTimeout=15" \
-    "$PROJECT_DIR/tools/deploy-brasileirao-prueba.php" \
     "$PROJECT_DIR/tools/reset-ux-fixture.php" \
     "$SSH_HOST:/srv/htdocs/${PLUGIN_PATH}/tools/" \
     >/dev/null
@@ -66,12 +65,12 @@ setup_state() {
     return 2
   fi
   # Freshness guard: setup-matrix.php emits MATCHES_PAST / STALE_MATCHES
-  # lines when the libertadores fixture has stale kickoffs after the
-  # seed runs. Bail loudly — proceeding would let the bot offer
-  # predictions on already-played matches (2026-05-27 incident).
+  # lines when the Mundial fixture has aged out (real-world calendar
+  # crosses past the seeded kickoffs). Bail loudly — proceeding would
+  # let the bot offer predictions on already-played matches.
   if echo "$out" | grep -q "^STALE_MATCHES:"; then
-    echo "$out" | grep -E "^(STALE_MATCHES|MATCHES_PAST|MATCHES_FUTURE|FIXTURE_SLOTS):" >&2
-    echo "✗ brasileirao-prueba fixture has past kickoffs — refusing to seed users on top of stale matches" >&2
+    echo "$out" | grep -E "^(STALE_MATCHES|MATCHES_PAST|MATCHES_FUTURE):" >&2
+    echo "✗ mundial-2026 fixture has no future kickoffs — refresh the FIFA fixture before re-seeding" >&2
     return 3
   fi
   # Surface the freshness summary on success too — easy to spot in logs.
@@ -98,22 +97,19 @@ setup_state() {
     echo -n "$(get_val VIEW_TOKEN)"  > "$VARS_DIR/view_token.txt"
     echo -n "$(get_val GROUP_NAME)"  > "$VARS_DIR/group_name.txt"
     echo -n "$(get_val INVITE_CODE)" > "$VARS_DIR/invite_code.txt"
-    echo -n "brasileirao-prueba"    > "$VARS_DIR/comp_slug.txt"
+    echo -n "mundial-2026"          > "$VARS_DIR/comp_slug.txt"
     echo "  · canonical: $(get_val GROUP_NAME) (code $(get_val INVITE_CODE))"
   else
     echo -n "$(get_val ALICE_SHARE)" > "$VARS_DIR/alice_share.txt"
     echo -n "$(get_val BOB_SHARE)"   > "$VARS_DIR/bob_share.txt"
     echo -n "$(get_val CAROL_SHARE)" > "$VARS_DIR/carol_share.txt"
-    echo -n "$(get_val LIBE_VIEW)"   > "$VARS_DIR/libe_view.txt"
-    echo -n "$(get_val LIBE_NAME)"   > "$VARS_DIR/libe_name.txt"
-    echo -n "$(get_val LIBE_CODE)"   > "$VARS_DIR/libe_code.txt"
     echo -n "$(get_val MUN_VIEW)"    > "$VARS_DIR/mun_view.txt"
     echo -n "$(get_val MUN_NAME)"    > "$VARS_DIR/mun_name.txt"
     echo -n "$(get_val MUN_CODE)"    > "$VARS_DIR/mun_code.txt"
     echo -n "$(get_val ALICE_ME)"    > "$VARS_DIR/alice_me.txt"
     echo -n "$(get_val BOB_ME)"      > "$VARS_DIR/bob_me.txt"
     echo -n "$(get_val CAROL_ME)"    > "$VARS_DIR/carol_me.txt"
-    echo "  · matrix: 3 users × 2 pencas × mixed predictions ready"
+    echo "  · matrix: 3 users × P_MUN_MTX × mixed predictions ready"
   fi
   echo "  · vars written to $VARS_DIR/"
 }

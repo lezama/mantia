@@ -12,7 +12,11 @@
  *       59899900042 (Alice), 59899900043 (Bob), 59899900044 (Carol)
  *     plus anything with phone starting `9999000` (legacy e2e personas).
  *   - groups whose post_title is exactly:
- *       P_LIBE_MTX, P_MUN_MTX, P_UX_TEST
+ *       P_MUN_MTX, P_UX_TEST (the only fixture penca names we seed
+ *       since the brasileirao-prueba comp was retired 2026-05-29 in
+ *       favor of mundial-2026-only testing). P_LIBE_MTX is kept in
+ *       the deletion list as legacy cleanup for anyone re-running on
+ *       an old install state.
  *     plus anything starting with `__E2E__` (legacy e2e groups).
  *   - all predictions owned by those users.
  *

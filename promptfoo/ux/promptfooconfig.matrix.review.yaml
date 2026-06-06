@@ -33,18 +33,18 @@ defaultTest:
     ALICE_SHARE: file://vars/alice_share.txt
     BOB_SHARE: file://vars/bob_share.txt
     CAROL_SHARE: file://vars/carol_share.txt
-    LIBE_VIEW: file://vars/libe_view.txt
-    LIBE_NAME: file://vars/libe_name.txt
-    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
     MUN_VIEW: file://vars/mun_view.txt
     MUN_NAME: file://vars/mun_name.txt
     MUN_CODE: file://vars/mun_code.txt
     FIXTURE: |
       Multi-user fixture state on this install:
-        Alice    creator of P_LIBE_MTX (brasileirao-prueba)
+        Alice    creator of P_MUN_MTX (mundial-2026)
                  + P_MUN_MTX (mundial-2026).
                  Predicted 1-1 on match A (libe), 2-0 on match B (libe).
-        Bob      joiner of P_LIBE_MTX only. Predicted 0-3 on match A.
+        Bob      joiner of P_MUN_MTX only. Predicted 0-3 on match A.
                  NOT a member of P_MUN_MTX.
         Carol    member of both. NO manual predictions yet (auto-fill 0-0).
       Mantia rule: only manually-set predictions render the ✓ badge.
@@ -58,14 +58,14 @@ defaultTest:
 
 tests:
   # ─────────────────────────────────────────────────────────────────
-  - description: 'libe·alice — creator audit'
+  - description: 'mun·alice — creator audit'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
     assert:
       - type: llm-rubric
         value: |
           You are reviewing the HTML rendered for ALICE (the penca's
-          creator) viewing her own libertadores penca.
+          creator) viewing her own mundial penca.
 
           {{FIXTURE}}
 
@@ -81,14 +81,14 @@ tests:
             - Footer / outro: reasonable for a member.
           PASS unless something is wrong for a creator's context.
 
-  - description: 'libe·bob — joiner audit'
+  - description: 'mun·bob — joiner audit'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
     assert:
       - type: llm-rubric
         value: |
           You are reviewing the HTML rendered for BOB (a joiner, NOT
-          the creator) viewing the same libertadores penca.
+          the creator) viewing the same mundial penca.
 
           {{FIXTURE}}
 
@@ -119,24 +119,24 @@ tests:
             - NOT show "Invitar amigos" (he can't invite to a penca
               he isn't part of)
             - NOT show a "vos" marker on any leaderboard row
-            - NOT show any of his libertadores predictions (those
+            - NOT show any of his mundial predictions (those
               belong to the OTHER penca, not this one)
           Flag any leak between competitions.
 
-  - description: 'libe-comp·alice — competition page personalized'
+  - description: 'mun-comp·alice — competition page personalized'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
     assert:
       - type: llm-rubric
         value: |
-          You are reviewing the HTML of the libertadores COMPETITION
+          You are reviewing the HTML of the mundial COMPETITION
           page for ALICE.
 
           {{FIXTURE}}
 
           The page should personalize:
             - "Mis pencas de Libertadores …" section renders WITH a
-              clickable card to P_LIBE_MTX (the 2026-05-26 regression
+              clickable card to P_MUN_MTX (the 2026-05-26 regression
               was "eyebrow says 1 penca but card body empty" — flag if
               you see that exact shape).
             - "Próximos partidos · tus pronósticos" eyebrow
@@ -146,18 +146,18 @@ tests:
               bottom as a secondary action (Alice could create another
               penca for the same comp).
 
-  - description: 'libe-comp·bob — competition page for joiner'
+  - description: 'mun-comp·bob — competition page for joiner'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{BOB_SHARE}}'
     assert:
       - type: llm-rubric
         value: |
-          You are reviewing the libertadores competition page for BOB.
+          You are reviewing the mundial competition page for BOB.
 
           {{FIXTURE}}
 
           Should personalize to Bob's pencas + predictions:
-            - "Mis pencas de Libertadores …" with the SAME P_LIBE_MTX
+            - "Mis pencas de Libertadores …" with the SAME P_MUN_MTX
               card (he's a member). Member count says 3 (Alice + Bob
               + Carol).
             - ✓ 0-3 badge on match A. Alice's 1-1 / 2-0 must NOT

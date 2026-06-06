@@ -37,9 +37,9 @@ defaultTest:
     ALICE_SHARE: file://vars/alice_share.txt
     BOB_SHARE: file://vars/bob_share.txt
     CAROL_SHARE: file://vars/carol_share.txt
-    LIBE_VIEW: file://vars/libe_view.txt
-    LIBE_NAME: file://vars/libe_name.txt
-    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
     MUN_VIEW: file://vars/mun_view.txt
     MUN_NAME: file://vars/mun_name.txt
     MUN_CODE: file://vars/mun_code.txt
@@ -51,11 +51,11 @@ defaultTest:
       just react to what's on the page.
 
       Fixture state (what's true on this install):
-        Alice — created the libertadores penca P_LIBE_MTX and the
+        Alice — created the mundial penca P_MUN_MTX and the
                 mundial penca P_MUN_MTX. Predicted 1-1 on match A
                 (Indep. del Valle vs Rosario Central) and 2-0 on
                 match B (Libertad vs Universidad Central) in libe.
-        Bob   — joined Alice's libertadores penca. Predicted 0-3 on
+        Bob   — joined Alice's mundial penca. Predicted 0-3 on
                 match A. NOT in the mundial penca.
         Carol — joined both pencas. Hasn't manually predicted yet.
   options:
@@ -71,7 +71,7 @@ defaultTest:
 tests:
   - description: 'libe · viewed as Alice (creator + has predictions)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
       WHO: 'Alice, the creator of the penca. She made 2 predictions.'
     assert:
       - type: llm-rubric
@@ -104,7 +104,7 @@ tests:
 
   - description: 'libe · viewed as Bob (joiner + has one prediction)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
       WHO: 'Bob, who joined the penca via an invite code. He made 1 prediction.'
     assert:
       - type: llm-rubric
@@ -127,7 +127,7 @@ tests:
 
   - description: 'libe · viewed as Carol (member, no predictions yet)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{CAROL_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{CAROL_SHARE}}'
       WHO: 'Carol — joined but has not predicted anything yet. All her matches show 0-0 default.'
     assert:
       - type: llm-rubric
@@ -138,7 +138,7 @@ tests:
 
   - description: 'libe · viewed anonymously (no identity)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/'
       WHO: 'A friend who got a forwarded link. Not logged in. Doesn''t know the people in the penca yet.'
     assert:
       - type: llm-rubric
@@ -147,10 +147,10 @@ tests:
 
           You opened this page as: {{WHO}}. Same JSON.
 
-  - description: 'brasileirao-prueba competition · viewed as Alice'
+  - description: 'mundial-2026 competition · viewed as Alice'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
-      WHO: 'Alice opens the global libertadores page after creating her penca via the bot.'
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
+      WHO: 'Alice opens the global mundial page after creating her penca via the bot.'
     assert:
       - type: llm-rubric
         value: |
@@ -158,9 +158,9 @@ tests:
 
           You opened this page as: {{WHO}}. Same JSON.
 
-  - description: 'brasileirao-prueba competition · viewed anonymously'
+  - description: 'mundial-2026 competition · viewed anonymously'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/'
+      url: '{{BASE}}/pronostico/mundial-2026/'
       WHO: 'Someone curious about Mantia who clicked a generic share. Anonymous.'
     assert:
       - type: llm-rubric

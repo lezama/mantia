@@ -1,19 +1,19 @@
 <?php
 /**
- * Matrix UX-test setup. Builds a multi-user / multi-penca / mixed-
- * prediction-state fixture so the UX detective can audit the whole
- * URL × identity surface instead of just one happy-path slice.
+ * Matrix UX-test setup. Builds a multi-user fixture on the Mundial 2026
+ * competition so the UX detective can audit (URL × identity) coverage
+ * without juggling a separate test competition.
  *
  * Fixture shape:
- *   Alice   creator of two pencas (brasileirao-prueba, mundial-2026)
- *   Bob     joiner of Alice's libertadores penca
- *   Carol   joiner of Alice's libertadores penca AND mundial penca
+ *   Alice   creator of P_MUN_MTX (mundial-2026)
+ *   Bob     joiner of P_MUN_MTX
+ *   Carol   joiner of P_MUN_MTX, no manual predictions
  *
  * Predictions:
- *   Alice predicts 1-1 on the FIRST libertadores match (manual)
- *   Alice predicts 2-0 on the SECOND libertadores match (manual)
- *   Bob predicts 0-3 on the FIRST libertadores match (manual)
- *   Carol stays on auto-fill 0-0 for every match (pending across both pencas)
+ *   Alice predicts 1-1 on the FIRST upcoming Mundial match (manual)
+ *   Alice predicts 2-0 on the SECOND upcoming Mundial match
+ *   Bob   predicts 0-3 on the FIRST upcoming Mundial match
+ *   Carol stays on auto-fill 0-0 (pending state)
  *
  * Output stable KV — the bash wrapper parses it into one .txt file
  * per var so the promptfoo file:// loader can pick them up.
@@ -26,28 +26,6 @@ defined( 'ABSPATH' ) || exit;
 if ( ! class_exists( 'WA_Identity_Bridge' ) ) {
 	echo "ERROR: WA_Identity_Bridge not loaded — abort.\n";
 	exit( 1 );
-}
-
-/**
- * Refresh the brasileirao-prueba fixture so its match kickoffs are
- * always in the future relative to NOW. The seed itself
- * (deploy-brasileirao-prueba.php) computes kickoffs dynamically, so
- * running it idempotently before every matrix setup keeps the bot from
- * ever offering predictions on matches that have already happened.
- *
- * 2026-05-27 incident: hardcoded dates in the fixture rotted as time
- * passed; the bot offered "Peñarol vs Indep. Santa Fe" at "hoy 21:30"
- * to a user who knew the real match had been played the day before.
- */
-$fixture_seed = dirname( __DIR__, 2 ) . '/tools/deploy-brasileirao-prueba.php';
-if ( file_exists( $fixture_seed ) ) {
-	ob_start();
-	include $fixture_seed;
-	$seed_output = (string) ob_get_clean();
-	// Surface a one-line summary so the wrapper can pick it up.
-	if ( preg_match( '/slots: [^\n]+/', $seed_output, $m ) ) {
-		echo 'FIXTURE_SLOTS: ' . $m[0] . "\n";
-	}
 }
 
 /** ── helpers ─────────────────────────────────────────────────────── */
@@ -94,40 +72,33 @@ $alice = ux_create_user( '+59899900042', 'Alice' );
 $bob   = ux_create_user( '+59899900043', 'Bob' );
 $carol = ux_create_user( '+59899900044', 'Carol' );
 
-/** ── pencas (Alice creates both) ─────────────────────────────────── */
-$libe = ux_create_penca( 'P_LIBE_MTX', 'brasileirao-prueba' );
-$mun  = ux_create_penca( 'P_MUN_MTX',  'mundial-2026' );
-ux_join( $alice, $libe );
+/** ── penca: Alice creates, Bob + Carol join ──────────────────────── */
+$mun = ux_create_penca( 'P_MUN_MTX', 'mundial-2026' );
 ux_join( $alice, $mun );
-
-/** Bob joins libertadores only. Carol joins both. ──────────────── */
-ux_join( $bob,   $libe );
-ux_join( $carol, $libe );
+ux_join( $bob,   $mun );
 ux_join( $carol, $mun );
 
 /** ── predictions: mixed manual + auto ───────────────────────────── */
-$libe_matches = Mantia_Repository::upcoming_matches_for_competition( 'brasileirao-prueba', 24 * 365 );
-if ( count( $libe_matches ) < 2 ) {
-	echo "ERROR: brasileirao-prueba needs ≥2 upcoming matches\n";
+$matches = Mantia_Repository::upcoming_matches_for_competition( 'mundial-2026', 24 * 365 );
+if ( count( $matches ) < 2 ) {
+	echo "ERROR: mundial-2026 needs ≥2 upcoming matches\n";
 	exit( 1 );
 }
-$canary_a = $libe_matches[0];
-$canary_b = $libe_matches[1];
+$canary_a = $matches[0];
+$canary_b = $matches[1];
 
-ux_predict( $alice, (int) $libe['id'], (int) $canary_a['id'], 1, 1 );
-ux_predict( $alice, (int) $libe['id'], (int) $canary_b['id'], 2, 0 );
-ux_predict( $bob,   (int) $libe['id'], (int) $canary_a['id'], 0, 3 );
-// Carol stays on auto-fill 0-0 — pending state for both her pencas.
+ux_predict( $alice, (int) $mun['id'], (int) $canary_a['id'], 1, 1 );
+ux_predict( $alice, (int) $mun['id'], (int) $canary_b['id'], 2, 0 );
+ux_predict( $bob,   (int) $mun['id'], (int) $canary_a['id'], 0, 3 );
+// Carol stays on auto-fill 0-0 — pending state.
 
-/** ── freshness check: every brasileirao-prueba match must be future ─ */
-// After seeding, count past vs future kickoffs for the libertadores
-// fixture. If any are in the past, emit STALE_MATCHES so the wrapper
-// can bail BEFORE the test layers run (and BEFORE the user sees a bot
-// asking for predictions on a match that already happened).
-$all_libe = Mantia_Repository::upcoming_matches_for_competition( 'brasileirao-prueba', 24 * 365 );
-$past     = 0;
-$future   = 0;
-$now      = time();
+/** ── freshness check: every mundial-2026 match must be future ────── */
+// If the Mundial FIFA fixture ages out (real-world calendar crosses
+// past the seeded kickoffs), emit STALE_MATCHES so the wrapper can
+// bail BEFORE the test layers run.
+$past   = 0;
+$future = 0;
+$now    = time();
 $all_in_comp = get_posts( array(
 	'post_type'      => Mantia_CPTs::MATCH,
 	'post_status'    => 'publish',
@@ -135,7 +106,7 @@ $all_in_comp = get_posts( array(
 	'fields'         => 'ids',
 	'no_found_rows'  => true,
 	'meta_query'     => array(
-		array( 'key' => Mantia_Competitions::META_KEY, 'value' => 'brasileirao-prueba' ),
+		array( 'key' => Mantia_Competitions::META_KEY, 'value' => 'mundial-2026' ),
 	),
 ) );
 foreach ( $all_in_comp as $mid ) {
@@ -145,8 +116,8 @@ foreach ( $all_in_comp as $mid ) {
 }
 echo "MATCHES_FUTURE: $future\n";
 echo "MATCHES_PAST: $past\n";
-if ( $past > 0 ) {
-	echo "STALE_MATCHES: $past — brasileirao-prueba has past kickoffs after seeding; the dynamic-date logic in deploy-brasileirao-prueba.php broke.\n";
+if ( 0 === $future ) {
+	echo "STALE_MATCHES: every mundial-2026 match is in the past — refresh the FIFA fixture.\n";
 }
 
 /** ── emit ────────────────────────────────────────────────────────── */
@@ -157,9 +128,6 @@ echo "ALICE_ID: " . (int) $alice->ID . "\n";
 echo "ALICE_SHARE: " . $ut( $alice ) . "\n";
 echo "BOB_SHARE: "   . $ut( $bob )   . "\n";
 echo "CAROL_SHARE: " . $ut( $carol ) . "\n";
-echo "LIBE_VIEW: "   . $vt( $libe )  . "\n";
-echo "LIBE_NAME: "   . $libe['name'] . "\n";
-echo "LIBE_CODE: "   . $libe['invite_code'] . "\n";
 echo "MUN_VIEW: "    . $vt( $mun )   . "\n";
 echo "MUN_NAME: "    . $mun['name']  . "\n";
 echo "MUN_CODE: "    . $mun['invite_code'] . "\n";
@@ -167,9 +135,6 @@ echo "CANARY_A_HOME: " . $canary_a['home_team'] . "\n";
 echo "CANARY_A_AWAY: " . $canary_a['away_team'] . "\n";
 echo "CANARY_B_HOME: " . $canary_b['home_team'] . "\n";
 echo "CANARY_B_AWAY: " . $canary_b['away_team'] . "\n";
-// Per-user /me/ tokens — needed by the matrix YAML to assert the new
-// ranking widget on /pronostico/me/<token>/ (added 2026-05-27 after
-// Diego's "lo importante es el ranking" feedback).
 echo "ALICE_ME: " . Mantia_Repository::user_view_token( (int) $alice->ID ) . "\n";
 echo "BOB_ME: "   . Mantia_Repository::user_view_token( (int) $bob->ID )   . "\n";
 echo "CAROL_ME: " . Mantia_Repository::user_view_token( (int) $carol->ID ) . "\n";

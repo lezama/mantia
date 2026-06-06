@@ -27,8 +27,8 @@ if ( ! ( $user instanceof WP_User ) ) {
 }
 update_user_meta( (int) $user->ID, Mantia_Repository::META_PHONE, '59899900042' );
 
-// 2. Create a brasileirao-prueba penca and join Alice.
-$group_id = Mantia_Repository::create_group( 'P_UX_TEST', '', '', 'brasileirao-prueba' );
+// 2. Create a mundial-2026 penca and join Alice.
+$group_id = Mantia_Repository::create_group( 'P_UX_TEST', '', '', 'mundial-2026' );
 if ( $group_id <= 0 ) {
 	echo "ERROR: could not create penca — group_id=$group_id\n";
 	exit( 1 );
@@ -40,12 +40,12 @@ if ( is_wp_error( $join ) ) {
 	exit( 1 );
 }
 
-// 3. Pick the first upcoming match in brasileirao-prueba and have
+// 3. Pick the first upcoming match in mundial-2026 and have
 // Alice predict 1-1. This is the "user manually decided" state — the
 // inline badge on web views should show "✓ 1-1" for this match only.
-$matches = Mantia_Repository::upcoming_matches_for_competition( 'brasileirao-prueba', 24 * 365 );
+$matches = Mantia_Repository::upcoming_matches_for_competition( 'mundial-2026', 24 * 365 );
 if ( empty( $matches ) ) {
-	echo "ERROR: no upcoming matches in brasileirao-prueba\n";
+	echo "ERROR: no upcoming matches in mundial-2026\n";
 	exit( 1 );
 }
 $canary_match = $matches[0];
@@ -66,8 +66,8 @@ if ( is_wp_error( $pred ) ) {
 $share_token  = Mantia_Repository::user_share_token( (int) $user->ID );
 $view_token   = (string) get_post_meta( (int) $group_id, Mantia_Repository::META_GROUP_VIEW_TOKEN, true );
 $group_url    = Mantia_Repository::group_view_url( (int) $group_id, (int) $user->ID );
-$comp_url_as  = Mantia_Repository::competition_view_url( 'brasileirao-prueba' ) . '?as=' . rawurlencode( $share_token );
-$comp_url_an  = Mantia_Repository::competition_view_url( 'brasileirao-prueba' );
+$comp_url_as  = Mantia_Repository::competition_view_url( 'mundial-2026' ) . '?as=' . rawurlencode( $share_token );
+$comp_url_an  = Mantia_Repository::competition_view_url( 'mundial-2026' );
 $group_url_an = home_url( '/pronostico/g/' . $view_token . '/' );
 
 echo "USER_ID: " . (int) $user->ID . "\n";

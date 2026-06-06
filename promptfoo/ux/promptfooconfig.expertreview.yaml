@@ -34,9 +34,9 @@ defaultTest:
     ALICE_SHARE: file://vars/alice_share.txt
     BOB_SHARE: file://vars/bob_share.txt
     CAROL_SHARE: file://vars/carol_share.txt
-    LIBE_VIEW: file://vars/libe_view.txt
-    LIBE_NAME: file://vars/libe_name.txt
-    LIBE_CODE: file://vars/libe_code.txt
+    MUN_VIEW: file://vars/mun_view.txt
+    MUN_NAME: file://vars/mun_name.txt
+    MUN_CODE: file://vars/mun_code.txt
     MUN_VIEW: file://vars/mun_view.txt
     MUN_NAME: file://vars/mun_name.txt
     MUN_CODE: file://vars/mun_code.txt
@@ -67,7 +67,7 @@ defaultTest:
           / authorship clear?)
 
       Fixture context on this install:
-        Alice — creator of P_LIBE_MTX (libertadores) + P_MUN_MTX
+        Alice — creator of P_MUN_MTX (mundial-2026 only)
                 (mundial). Predicted 1-1 + 2-0 on libe.
         Bob   — joined libe only. Predicted 0-3.
         Carol — joined both. No manual predictions.
@@ -79,10 +79,10 @@ defaultTest:
         temperature: 0.3
 
 tests:
-  - description: 'libe·alice — expert audit (creator with predictions)'
+  - description: 'mun·alice — expert audit (creator with predictions)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{ALICE_SHARE}}'
-      CONTEXT: 'Alice (the creator) viewing her own libertadores penca via the share-token soft-resolve.'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{ALICE_SHARE}}'
+      CONTEXT: 'Alice (the creator) viewing her own mundial penca via the share-token soft-resolve.'
     assert:
       - type: llm-rubric
         value: |
@@ -110,9 +110,9 @@ tests:
 
           PASS the rubric unless overall_grade is D or F.
 
-  - description: 'libe·bob — expert audit (joiner with one prediction)'
+  - description: 'mun·bob — expert audit (joiner with one prediction)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/?as={{BOB_SHARE}}'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/?as={{BOB_SHARE}}'
       CONTEXT: 'Bob, who joined Alice''s penca via invite code, has predicted 1 match. Member but not creator.'
     assert:
       - type: llm-rubric
@@ -129,9 +129,9 @@ tests:
 
           Same JSON shape. Always emit.
 
-  - description: 'libe·anon — expert audit (anonymous visitor)'
+  - description: 'mun·anon — expert audit (anonymous visitor)'
     vars:
-      url: '{{BASE}}/pronostico/g/{{LIBE_VIEW}}/'
+      url: '{{BASE}}/pronostico/g/{{MUN_VIEW}}/'
       CONTEXT: 'Anonymous visitor — someone who got a forwarded link without context. This page should onboard them clearly into the join flow.'
     assert:
       - type: llm-rubric
@@ -150,9 +150,9 @@ tests:
 
           Same JSON shape.
 
-  - description: 'libe-comp·alice — expert audit (competition page personalized)'
+  - description: 'mun-comp·alice — expert audit (competition page personalized)'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/?as={{ALICE_SHARE}}'
+      url: '{{BASE}}/pronostico/mundial-2026/?as={{ALICE_SHARE}}'
       CONTEXT: 'Alice on the global competition page. She has pencas in this comp + predictions made.'
     assert:
       - type: llm-rubric
@@ -169,9 +169,9 @@ tests:
 
           Same JSON shape.
 
-  - description: 'libe-comp·anon — expert audit (competition page anonymous)'
+  - description: 'mun-comp·anon — expert audit (competition page anonymous)'
     vars:
-      url: '{{BASE}}/pronostico/brasileirao-prueba/'
+      url: '{{BASE}}/pronostico/mundial-2026/'
       CONTEXT: 'Anonymous visitor on a competition page. No personalization. Should function as both a landing page AND a discovery surface for the comp.'
     assert:
       - type: llm-rubric
