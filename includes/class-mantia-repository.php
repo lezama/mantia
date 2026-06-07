@@ -163,6 +163,7 @@ final class Mantia_Repository {
 		$invite_code = '' !== $invite_code ? self::normalize_invite_code( $invite_code ) : self::generate_invite_code( $name );
 		$existing    = self::find_group_by_invite_code( $invite_code );
 		if ( $existing ) {
+			self::log_create_group( 'reused_existing', $name, (int) $existing->ID, $invite_code );
 			return (int) $existing->ID;
 		}
 
@@ -176,6 +177,12 @@ final class Mantia_Repository {
 		);
 
 		if ( is_wp_error( $post_id ) ) {
+			self::log_create_group(
+				'wp_insert_post_error: ' . $post_id->get_error_message(),
+				$name,
+				0,
+				$invite_code
+			);
 			return 0;
 		}
 
@@ -187,7 +194,73 @@ final class Mantia_Repository {
 		update_post_meta( (int) $post_id, self::META_GROUP_SLUG, '' !== $slug ? sanitize_title( $slug ) : sanitize_title( $name ) );
 		update_post_meta( (int) $post_id, Mantia_Competitions::META_KEY, $competition );
 
+		// Read-back verification. The 2026-06-06 "Mosquito" incident: the
+		// bot replied "✅ Creaste Mosquito" — wp_insert_post returned a
+		// positive id, the code happily kept going — but no row survived
+		// in wp_posts by the time the user came back. Possible causes
+		// include a partial transaction rollback (Atomic / wpcom), an
+		// object-cache desync, or a downstream hook that nuked the post.
+		// Whatever the cause, we now READ THE POST BACK through fresh
+		// caches and check the metas we just wrote actually landed.
+		// If anything looks wrong we delete the half-written post and
+		// return 0, which triggers the existing "No pude crear esa penca"
+		// reply in handle_competition_chosen — the user retries, no
+		// say-do mismatch.
+		clean_post_cache( (int) $post_id );
+		$verify_post   = get_post( (int) $post_id );
+		$verify_invite = (string) get_post_meta( (int) $post_id, self::META_INVITE_CODE, true );
+		$verify_comp   = (string) get_post_meta( (int) $post_id, Mantia_Competitions::META_KEY, true );
+		if (
+			! $verify_post
+			|| Mantia_CPTs::GROUP !== $verify_post->post_type
+			|| 'publish' !== $verify_post->post_status
+			|| $verify_invite !== $invite_code
+			|| $verify_comp !== $competition
+		) {
+			self::log_create_group(
+				sprintf(
+					'verify_failed (post=%s invite=%s/%s comp=%s/%s)',
+					$verify_post ? $verify_post->post_status : 'gone',
+					$verify_invite,
+					$invite_code,
+					$verify_comp,
+					$competition
+				),
+				$name,
+				(int) $post_id,
+				$invite_code
+			);
+			// Best-effort cleanup of any partial state. true = force,
+			// don't move to trash — we don't want orphan drafts.
+			wp_delete_post( (int) $post_id, true );
+			return 0;
+		}
+
+		self::log_create_group( 'created', $name, (int) $post_id, $invite_code );
 		return (int) $post_id;
+	}
+
+	/**
+	 * Persistent ring-buffer log of every create_group attempt. Lets us
+	 * diagnose future "bot said Creaste X but X doesn't exist" reports
+	 * without relying on wpcom request logs we don't have access to.
+	 * Tail-trimmed at 200 entries so the option doesn't grow unbounded.
+	 * Inspect with `wp option get mantia_create_group_log --format=json`.
+	 */
+	private static function log_create_group( string $outcome, string $name, int $post_id, string $invite_code ): void {
+		$entries   = (array) get_option( 'mantia_create_group_log', array() );
+		$entries[] = array(
+			'ts'          => gmdate( 'c' ),
+			'outcome'     => $outcome,
+			'name'        => $name,
+			'post_id'     => $post_id,
+			'invite_code' => $invite_code,
+		);
+		if ( count( $entries ) > 200 ) {
+			$entries = array_slice( $entries, -200 );
+		}
+		// autoload=no — the log is rarely read, no point loading it on every request.
+		update_option( 'mantia_create_group_log', $entries, false );
 	}
 
 	public static function group_competition_id( int $group_id ): string {
