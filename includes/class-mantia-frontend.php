@@ -1268,41 +1268,36 @@ final class Mantia_Frontend {
 			<?php
 			// Ranking widget — lifts the leaderboard onto the /me/ page so
 			// returning users see "where do I stand" before they see "what
-			// did I score across all matches". Live feedback (Diego N,
-			// 2026-05-27): "lo importante es el ranking" — the cold-start
-			// stat grid (0 puntos · 0 exactos · 0 pronósticos) was useless
-			// noise next to the missing leaderboard he actually wanted.
-			//
-			// For now we render the leaderboard of the FIRST group the
-			// user belongs to (most users only have one penca per comp).
-			// Multi-penca users will need a per-group switcher — out of
-			// scope for this round.
-			$primary_group   = ! empty( $groups ) ? reset( $groups ) : null;
-			$primary_gid     = $primary_group ? (int) $primary_group['id'] : 0;
-			$primary_lb      = $primary_gid > 0 ? Mantia_Leaderboard::rows( $primary_gid, 50 ) : array();
-			$members         = $primary_gid > 0 ? Mantia_Repository::group_members( $primary_gid ) : array();
-			$has_results     = false;
-			foreach ( $primary_lb as $row ) {
-				if ( (int) ( $row['points'] ?? 0 ) > 0 ) { $has_results = true; break; }
-			}
-			$my_position     = 0;
-			$my_points       = 0;
-			foreach ( $primary_lb as $i => $row ) {
-				if ( (int) ( $row['user_id'] ?? 0 ) === $user_id ) {
-					$my_position = $i + 1;
-					$my_points   = (int) ( $row['points'] ?? 0 );
-					break;
+			// did I score across all matches". 2026-06-07: was rendering
+			// only the first penca for multi-penca users — "no veo la
+			// penca de Mosquito" — now loops over every group so each
+			// gets its own card with its own roster + standings.
+			foreach ( $groups as $rank_group ) :
+				$rank_gid     = (int) ( $rank_group['id'] ?? 0 );
+				if ( $rank_gid <= 0 ) { continue; }
+				$rank_lb      = Mantia_Leaderboard::rows( $rank_gid, 50 );
+				$rank_members = Mantia_Repository::group_members( $rank_gid );
+				$has_results  = false;
+				foreach ( $rank_lb as $row ) {
+					if ( (int) ( $row['points'] ?? 0 ) > 0 ) { $has_results = true; break; }
 				}
-			}
-			if ( $primary_gid > 0 ) :
-			?>
+				$my_position = 0;
+				$my_points   = 0;
+				foreach ( $rank_lb as $i => $row ) {
+					if ( (int) ( $row['user_id'] ?? 0 ) === $user_id ) {
+						$my_position = $i + 1;
+						$my_points   = (int) ( $row['points'] ?? 0 );
+						break;
+					}
+				}
+				?>
 				<section class="mantia-rank-card">
 					<div class="mantia-rank-eyebrow">
 						<?php
 						printf(
 							/* translators: %s: penca name */
 							esc_html__( '🏆 tu posición en %s', 'mantia' ),
-							esc_html( (string) $primary_group['name'] )
+							esc_html( (string) $rank_group['name'] )
 						);
 						?>
 					</div>
@@ -1313,12 +1308,12 @@ final class Mantia_Frontend {
 								/* translators: 1: rank, 2: total players, 3: points */
 								esc_html__( '%1$dº de %2$d · %3$d pts', 'mantia' ),
 								max( 1, $my_position ),
-								max( count( $primary_lb ), count( $members ) ),
+								max( count( $rank_lb ), count( $rank_members ) ),
 								$my_points
 							);
 							?>
 						</div>
-						<?php self::render_leaderboard( array_slice( $primary_lb, 0, 5 ), 'group', $user_id ); ?>
+						<?php self::render_leaderboard( array_slice( $rank_lb, 0, 5 ), 'group', $user_id ); ?>
 					<?php else : ?>
 						<div class="mantia-rank-empty">
 							<?php esc_html_e( '— tabla todavía vacía —', 'mantia' ); ?>
@@ -1330,16 +1325,16 @@ final class Mantia_Frontend {
 								esc_html( _n(
 									'Sos %d jugador en la penca. La tabla aparece después del primer partido resuelto.',
 									'Son %d jugadores en la penca. La tabla aparece después del primer partido resuelto.',
-									count( $members ),
+									count( $rank_members ),
 									'mantia'
 								) ),
-								count( $members )
+								count( $rank_members )
 							);
 							?>
 						</p>
 					<?php endif; ?>
 				</section>
-			<?php endif; ?>
+			<?php endforeach; ?>
 
 			<?php
 			// Stat grid is now subordinate to the ranking — show only when
