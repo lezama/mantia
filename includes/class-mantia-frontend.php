@@ -1441,99 +1441,16 @@ final class Mantia_Frontend {
 				<?php endif; ?>
 
 				<?php
-				// Per-group block (LBDT [activa] + Tus pronósticos history) only
-				// makes sense when the user belongs to >1 penca — otherwise it
-				// duplicates the "tu posición" card (top of page) and the
-				// "próximos · editá tu pronóstico" form above. Live feedback
-				// 2026-06-06: "no entiendo mucho el LBDT activa y pronósticos
-				// abajo" — the user couldn't tell why the same penca surfaced
-				// again at the bottom of their /me/ page.
-				$show_per_group_block = count( $groups ) > 1;
-				if ( ! $show_per_group_block ) {
-					goto after_per_group_block;
-				}
-				foreach ( $groups as $g ) :
-					$group_id   = (int) $g['id'];
-					$lb         = Mantia_Leaderboard::rows( $group_id, 100 );
-					$my_row     = null;
-					foreach ( $lb as $row ) {
-						if ( (int) $row['user_id'] === $user_id ) {
-							$my_row = $row;
-							break;
-						}
-					}
-					$is_active = ! empty( $g['is_active'] );
-					?>
-					<section class="mantia-block">
-						<div class="mantia-group-head">
-							<div>
-								<h2 class="mantia-h2"><?php echo esc_html( $g['name'] ); ?></h2>
-								<div class="mantia-hero-meta"><?php echo esc_html( $g['competition_name'] ?? '' ); ?></div>
-							</div>
-							<?php if ( $is_active ) : ?>
-								<span class="mantia-tag-active"><?php esc_html_e( 'activa', 'mantia' ); ?></span>
-							<?php endif; ?>
-						</div>
-
-						<?php if ( $my_row ) :
-							// Pass `?as=<share_token>` to the group page so it can
-							// highlight this user's row. Share token is read-only,
-							// safe to bake into a URL the user might copy/forward.
-							$group_token   = Mantia_Repository::group_view_token( $group_id );
-							$share_tok     = Mantia_Repository::user_share_token( $user_id );
-							$group_link    = home_url( '/pronostico/g/' . $group_token . '/?as=' . $share_tok );
-							?>
-							<a class="mantia-me-line" href="<?php echo esc_url( $group_link ); ?>">
-								<span class="mantia-numeral mantia-numeral-m"><?php echo esc_html( self::rank_label( (int) $my_row['rank'] ) ); ?></span>
-								<span class="mantia-me-rank-suffix">
-									<?php
-									/* translators: %d: group size */
-									printf( esc_html__( 'de %d', 'mantia' ), count( $lb ) );
-									?>
-								</span>
-								<span class="mantia-me-points-wrap">
-									<span class="mantia-numeral mantia-numeral-m"><?php echo (int) $my_row['points']; ?></span>
-									<span class="mantia-stat-label-inline"><?php esc_html_e( 'pts', 'mantia' ); ?></span>
-								</span>
-								<span class="mantia-me-line-arrow" aria-hidden="true">→</span>
-							</a>
-							<?php
-							// Delta line: how many points did this user earn
-							// from the most recent finished match in this
-							// penca? Surfaces so returning users see what
-							// changed since last time, even when their total
-							// is 0 ("0 pts esta vez" still tells them the
-							// match resolved without their score moving).
-							$delta = Mantia_Repository::last_match_delta( $user_id, $group_id );
-							if ( null !== $delta ) :
-								$dm = $delta['match'];
-								?>
-								<p class="mantia-me-delta">
-									<?php
-									printf(
-										/* translators: 1: home team, 2: home score, 3: away score, 4: away team, 5: signed delta like +5 or 0 */
-										esc_html__( 'Último: %1$s %2$d-%3$d %4$s → %5$s', 'mantia' ),
-										esc_html( self::normalize_team_name( (string) $dm['home_team'] ) ),
-										(int) $dm['home_score'],
-										(int) $dm['away_score'],
-										esc_html( self::normalize_team_name( (string) $dm['away_team'] ) ),
-										$delta['points'] > 0 ? '+' . (int) $delta['points'] . ' pts' : '0 pts' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-									);
-									?>
-								</p>
-							<?php endif; ?>
-						<?php endif; ?>
-
-						<?php
-						$my_history = Mantia_Repository::user_history( $user_id, $group_id );
-						if ( ! empty( $my_history ) ) :
-							?>
-							<div class="mantia-subblock-eyebrow"><?php esc_html_e( 'tus pronósticos', 'mantia' ); ?></div>
-							<?php self::render_history_rows( $my_history ); ?>
-						<?php endif; ?>
-					</section>
-				<?php endforeach; ?>
-				<?php after_per_group_block: ?>
+				// 2026-06-07: dropped the per-penca block at the bottom of
+				// /me/ entirely. Now that predictions are global (fan-out
+				// in register_prediction → same scores across every penca
+				// the user is in), this block was duplicating info already
+				// surfaced higher up: the rank widget at the top renders
+				// one card per penca with its own roster + standings, and
+				// the "próximos · editá tu pronóstico" form covers the
+				// match list. User: "si el pronostico es unico no es
+				// necesario mostrar todas las pencas al final".
+				?>
 			<?php endif; ?>
 
 			<section class="mantia-aside-pair">
