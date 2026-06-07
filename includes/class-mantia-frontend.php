@@ -3140,7 +3140,11 @@ JS;
 		?>
 		<div class="mantia-history">
 			<?php
-			foreach ( array_slice( $history, 0, 8 ) as $p ) :
+			// Cap at 20 so a Mundial-sized fixture (50+ predictions) fits
+			// on one /me/ block without scrolling forever. The list is
+			// ordered by Mantia_Repository::user_history() — upcoming
+			// next-up first, then past most-recent-first.
+			foreach ( array_slice( $history, 0, 20 ) as $p ) :
 				$m = $p['match'] ?? array();
 				if ( empty( $m ) ) {
 					continue;

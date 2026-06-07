@@ -1933,10 +1933,15 @@ final class Mantia_Repository {
 		$args = array(
 			'post_type'      => Mantia_CPTs::PREDICTION,
 			'post_status'    => 'publish',
-			'posts_per_page' => 50,
+			'posts_per_page' => 200,
 			'no_found_rows'  => true,
-			'orderby'        => 'date',
-			'order'          => 'DESC',
+			// orderby/order don't matter here — we resort in PHP by the
+			// match's kickoff_ts below. WP_Query can't ORDER BY a meta
+			// value that lives on a DIFFERENT post (the related match)
+			// without a manual JOIN, and pumping 50 autofills through a
+			// JOIN to a separate post_type is exactly what we're saving
+			// the DB from. 200 is a generous cap for any single user x
+			// group's full prediction history.
 			'meta_query'     => array(
 				array(
 					'key'   => self::META_USER_ID,
@@ -1952,7 +1957,7 @@ final class Mantia_Repository {
 			);
 		}
 
-		return array_map(
+		$rows = array_map(
 			static function ( WP_Post $post ): array {
 				$prediction          = self::prediction_to_array( (int) $post->ID );
 				$prediction['match'] = self::match_to_array( (int) $prediction['match_id'] );
@@ -1960,6 +1965,31 @@ final class Mantia_Repository {
 			},
 			get_posts( $args )
 		);
+
+		// Sort by the MATCH's kickoff timestamp. 2026-06-07 incident:
+		// when 50 autofills get created in a single join_group batch they
+		// all share a post_date down to the second, so a DESC-by-date
+		// order produced a random-looking list ("los partidos que se
+		// muestran acá son medio aleatorios?"). Show upcoming next-up
+		// matches first (ASC), then past matches most-recent-first (DESC).
+		$now = time();
+		usort( $rows, static function ( array $a, array $b ) use ( $now ): int {
+			$ta = (int) ( $a['match']['kickoff_ts'] ?? 0 );
+			$tb = (int) ( $b['match']['kickoff_ts'] ?? 0 );
+			$a_future = $ta >= $now;
+			$b_future = $tb >= $now;
+			if ( $a_future && ! $b_future ) {
+				return -1;
+			}
+			if ( ! $a_future && $b_future ) {
+				return 1;
+			}
+			// Within the same bucket: future = ASC (next first),
+			// past = DESC (latest result first).
+			return $a_future ? ( $ta <=> $tb ) : ( $tb <=> $ta );
+		} );
+
+		return $rows;
 	}
 
 	public static function users_missing_prediction_for_match( int $match_id, int $group_id = 0 ): array {
