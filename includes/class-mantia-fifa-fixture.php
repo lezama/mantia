@@ -133,9 +133,10 @@ final class Mantia_Fifa_Fixture {
 	 * skipped without abortng the whole sync.
 	 *
 	 * The FIFA v3 shape uses keys like:
-	 *   IdMatch, IdSeason, IdCompetition, IdStage, MatchNumber,
+	 *   IdMatch, IdSeason, IdCompetition, IdStage, IdGroup, MatchNumber,
 	 *   Date (ISO8601 UTC), Home {IdTeam, TeamName[{Description}]},
-	 *   Away {...}, Score, MatchStatus (0=Scheduled, 1=Live, 3=Finished)
+	 *   Away {...}, Score, MatchStatus (0=Scheduled, 1=Live, 3=Finished),
+	 *   StageName[{Description}], GroupName[{Description}]
 	 */
 	private static function normalize_match( array $raw, string $competition_id ): ?array {
 		$id_match = (string) ( $raw['IdMatch'] ?? '' );
@@ -173,7 +174,49 @@ final class Mantia_Fifa_Fixture {
 			'home_score'     => 'finished' === $status ? (int) ( $home_score ?? 0 ) : null,
 			'away_score'     => 'finished' === $status ? (int) ( $away_score ?? 0 ) : null,
 			'competition_id' => $competition_id,
+			'group_letter'   => self::extract_group_letter( $raw ),
 		);
+	}
+
+	/**
+	 * Stable IdGroup → letter map for Mundial 2026 (US/CA/MX, 48 teams,
+	 * 12 groups A–L). Captured 2026-06-07 by querying the live FIFA
+	 * /calendar/matches endpoint. These ids are part of the FIFA data
+	 * model and don't change between requests.
+	 */
+	private const GROUP_ID_MAP = array(
+		'289275' => 'A',
+		'289276' => 'B',
+		'289277' => 'C',
+		'289278' => 'D',
+		'289279' => 'E',
+		'289280' => 'F',
+		'289281' => 'G',
+		'289282' => 'H',
+		'289283' => 'I',
+		'289284' => 'J',
+		'289285' => 'K',
+		'289286' => 'L',
+	);
+
+	/**
+	 * Extract the FIFA group letter (A..L) for a group-stage match, or
+	 * '' for knockouts (Round of 32+ have no group). We prefer the
+	 * stable IdGroup mapping; falls back to parsing the localized
+	 * GroupName.Description string in case FIFA re-issues ids in the
+	 * future.
+	 */
+	private static function extract_group_letter( array $raw ): string {
+		$id_group = (string) ( $raw['IdGroup'] ?? '' );
+		if ( '' !== $id_group && isset( self::GROUP_ID_MAP[ $id_group ] ) ) {
+			return self::GROUP_ID_MAP[ $id_group ];
+		}
+		if ( isset( $raw['GroupName'][0]['Description'] ) ) {
+			if ( preg_match( '/Group\s+([A-L])/i', (string) $raw['GroupName'][0]['Description'], $m ) ) {
+				return strtoupper( $m[1] );
+			}
+		}
+		return '';
 	}
 
 	private static function team_name( $node ): string {

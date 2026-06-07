@@ -193,6 +193,38 @@ tests:
       - { type: not-contains, value: '<section class="mantia-stat-grid">' }
 
   # ═════════════════════════════════════════════════════════════════
+  # /me/ MUNDIAL GROUPS VIEW — 2026-06-07 added the "Por grupo" tab
+  # alongside the chronological "Por fecha" view. The 12 Mundial 2026
+  # FIFA groups (A..L) become a grid of cards, each one with its 6
+  # round-robin matches editable inline. Knockouts (when FIFA loads
+  # them, currently empty) go in a separate "Eliminatorias" block.
+  # ═════════════════════════════════════════════════════════════════
+  - description: 'me·alice — /me/ renders the Mundial groups tab + 12 group cards'
+    vars:
+      url: '{{BASE}}/pronostico/me/{{ALICE_ME}}/'
+    assert:
+      # Tabs bar with both tab buttons present.
+      - { type: contains, value: 'mantia-predict-tabs' }
+      - { type: contains, value: 'data-tab="groups"' }
+      - { type: contains, value: 'data-tab="date"' }
+      - { type: contains, value: 'Por grupo' }
+      - { type: contains, value: 'Por fecha' }
+      # Groups panel renders a grid with all 12 FIFA groups.
+      - { type: contains, value: 'mantia-groups-grid' }
+      - { type: contains, value: 'Grupo A' }
+      - { type: contains, value: 'Grupo F' }
+      - { type: contains, value: 'Grupo L' }
+      # All 12 group cards present in the DOM.
+      - type: javascript
+        value: |
+          const html = output || '';
+          const cards = (html.match(/class="mantia-group-card"/g) || []).length;
+          if (cards !== 12) {
+            throw new Error(`expected 12 mantia-group-card elements (Grupos A..L), got ${cards}`);
+          }
+          return true;
+
+  # ═════════════════════════════════════════════════════════════════
   # FRESHNESS — no match in the picker can have a past kickoff.
   # The 2026-05-27 incident: hardcoded fixture dates rotted into the
   # past and the bot offered predictions on matches the user knew

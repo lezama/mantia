@@ -21,6 +21,7 @@ final class Mantia_Repository {
 	public const META_KICKOFF_GMT        = '_mantia_kickoff_gmt';
 	public const META_KICKOFF_TS         = '_mantia_kickoff_ts';
 	public const META_PHASE              = '_mantia_phase';
+	public const META_MATCH_GROUP_LETTER = '_mantia_match_group_letter';
 	public const META_STATUS             = '_mantia_status';
 	public const META_HOME_SCORE         = '_mantia_home_score';
 	public const META_AWAY_SCORE         = '_mantia_away_score';
@@ -1158,6 +1159,7 @@ final class Mantia_Repository {
 		update_post_meta( $post_id, self::META_KICKOFF_GMT, gmdate( 'Y-m-d H:i:s', $kickoff ) );
 		update_post_meta( $post_id, self::META_KICKOFF_TS, $kickoff );
 		update_post_meta( $post_id, self::META_PHASE, sanitize_text_field( (string) ( $match['phase'] ?? '' ) ) );
+		update_post_meta( $post_id, self::META_MATCH_GROUP_LETTER, sanitize_text_field( (string) ( $match['group_letter'] ?? '' ) ) );
 		update_post_meta( $post_id, self::META_STATUS, sanitize_key( (string) ( $match['status'] ?? 'scheduled' ) ) );
 		update_post_meta( $post_id, self::META_HOME_SCORE, isset( $match['home_score'] ) ? (int) $match['home_score'] : '' );
 		update_post_meta( $post_id, self::META_AWAY_SCORE, isset( $match['away_score'] ) ? (int) $match['away_score'] : '' );
@@ -1205,6 +1207,7 @@ final class Mantia_Repository {
 			'kickoff_gmt'    => (string) get_post_meta( $match_id, self::META_KICKOFF_GMT, true ),
 			'kickoff_ts'     => (int) get_post_meta( $match_id, self::META_KICKOFF_TS, true ),
 			'phase'          => (string) get_post_meta( $match_id, self::META_PHASE, true ),
+			'group_letter'   => (string) get_post_meta( $match_id, self::META_MATCH_GROUP_LETTER, true ),
 			'status'         => (string) get_post_meta( $match_id, self::META_STATUS, true ),
 			'home_score'     => self::nullable_int_meta( $match_id, self::META_HOME_SCORE ),
 			'away_score'     => self::nullable_int_meta( $match_id, self::META_AWAY_SCORE ),
@@ -1378,6 +1381,52 @@ final class Mantia_Repository {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Upcoming matches grouped by FIFA group letter (A..L). Matches
+	 * without a group_letter (knockouts) are NOT included — see
+	 * upcoming_knockout_matches_by_phase() for those.
+	 *
+	 * @return array<string, array<int, array>>  Keyed by group letter,
+	 *   each value sorted by kickoff_ts ASC.
+	 */
+	public static function upcoming_matches_grouped_by_letter( string $competition_id, int $hours_ahead = 24 * 365 ): array {
+		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead );
+		$out = array();
+		foreach ( $all as $m ) {
+			$letter = (string) ( $m['group_letter'] ?? '' );
+			if ( '' === $letter ) {
+				continue;
+			}
+			$out[ $letter ][] = $m;
+		}
+		ksort( $out );
+		return $out;
+	}
+
+	/**
+	 * Upcoming KNOCKOUT matches (no group_letter) grouped by phase
+	 * label — "Round of 32", "Round of 16", "Quarter-finals", etc.
+	 * Preserves the input order within each phase, which is already
+	 * kickoff_ts ASC from upcoming_matches_for_competition.
+	 *
+	 * @return array<string, array<int, array>>
+	 */
+	public static function upcoming_knockout_matches_by_phase( string $competition_id, int $hours_ahead = 24 * 365 ): array {
+		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead );
+		$out = array();
+		foreach ( $all as $m ) {
+			if ( '' !== (string) ( $m['group_letter'] ?? '' ) ) {
+				continue;
+			}
+			$phase = (string) ( $m['phase'] ?? '' );
+			if ( '' === $phase ) {
+				$phase = __( 'Eliminatorias', 'mantia' );
+			}
+			$out[ $phase ][] = $m;
+		}
+		return $out;
 	}
 
 	public static function find_next_match_for_team( string $team ): array {

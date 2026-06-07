@@ -1410,33 +1410,96 @@ final class Mantia_Frontend {
 
 				<?php
 				$competitions_with_matches = array_filter( $competitions, static fn ( $c ) => ! empty( $c['matches'] ) );
+				// 2026-06-07 — "Por grupo" view: surface the 12 FIFA groups
+				// (A..L) of the Mundial as a grid so the natural mental map
+				// (Grupo A → 4 teams × 6 matches) is one tap away from the
+				// chronological list. Tabs let users flip between the two.
+				$primary_gid     = ! empty( $groups ) ? (int) reset( $groups )['id'] : 0;
+				$mundial_groups  = $primary_gid > 0 ? Mantia_Repository::upcoming_matches_grouped_by_letter( 'mundial-2026' ) : array();
+				$mundial_knockouts = $primary_gid > 0 ? Mantia_Repository::upcoming_knockout_matches_by_phase( 'mundial-2026' ) : array();
+				$has_groups_view = ! empty( $mundial_groups ) || ! empty( $mundial_knockouts );
 				if ( ! empty( $competitions_with_matches ) ) :
 					?>
-					<section class="mantia-block">
-						<?php foreach ( $competitions_with_matches as $cid => $comp ) : ?>
-							<div class="mantia-subblock-eyebrow"><?php
-								if ( count( $competitions_with_matches ) === 1 ) {
-									esc_html_e( 'próximos · editá tu pronóstico', 'mantia' );
-								} else {
-									/* translators: %s: competition name */
-									printf( esc_html__( 'próximos · %s', 'mantia' ), esc_html( $comp['name'] ) );
-								}
-							?></div>
-							<?php
-							// 2026-06-07: lifted the 8-match cap. Mundial 2026
-							// has 50+ matches and users want to lock in their
-							// predictions in one pass. The render_editable_matches
-							// helper already groups by day so the page stays
-							// scannable even with the full fixture.
-							self::render_editable_matches(
-								array_values( $comp['matches'] ),
-								$user_id,
-								(int) $comp['primary_group_id'],
-								$token,
-								$rest_nonce
-							);
-							?>
-						<?php endforeach; ?>
+					<section class="mantia-block mantia-predict-tabs">
+						<?php if ( $has_groups_view ) : ?>
+							<div class="mantia-tabs-bar" role="tablist">
+								<button class="mantia-tab" type="button" role="tab" data-tab="groups" aria-selected="true">
+									<?php esc_html_e( 'Por grupo', 'mantia' ); ?>
+								</button>
+								<button class="mantia-tab" type="button" role="tab" data-tab="date" aria-selected="false">
+									<?php esc_html_e( 'Por fecha', 'mantia' ); ?>
+								</button>
+							</div>
+
+							<div class="mantia-tab-panel" data-tab-panel="groups" role="tabpanel">
+								<?php if ( ! empty( $mundial_groups ) ) : ?>
+									<div class="mantia-groups-grid">
+										<?php foreach ( $mundial_groups as $letter => $matches ) : ?>
+											<article class="mantia-group-card">
+												<h3 class="mantia-group-title">
+													<?php
+													/* translators: %s: FIFA group letter A..L */
+													printf( esc_html__( 'Grupo %s', 'mantia' ), esc_html( $letter ) );
+													?>
+												</h3>
+												<?php self::render_editable_matches(
+													array_values( $matches ),
+													$user_id,
+													$primary_gid,
+													$token,
+													$rest_nonce
+												); ?>
+											</article>
+										<?php endforeach; ?>
+									</div>
+								<?php endif; ?>
+
+								<?php if ( ! empty( $mundial_knockouts ) ) : ?>
+									<section class="mantia-knockouts-block">
+										<h3 class="mantia-knockouts-title"><?php esc_html_e( 'Eliminatorias', 'mantia' ); ?></h3>
+										<?php foreach ( $mundial_knockouts as $phase_label => $matches ) : ?>
+											<div class="mantia-knockouts-round">
+												<div class="mantia-knockouts-round-eyebrow"><?php echo esc_html( $phase_label ); ?></div>
+												<?php self::render_editable_matches(
+													array_values( $matches ),
+													$user_id,
+													$primary_gid,
+													$token,
+													$rest_nonce
+												); ?>
+											</div>
+										<?php endforeach; ?>
+									</section>
+								<?php endif; ?>
+							</div>
+						<?php endif; ?>
+
+						<div class="mantia-tab-panel" data-tab-panel="date" role="tabpanel"<?php echo $has_groups_view ? ' hidden' : ''; ?>>
+							<?php foreach ( $competitions_with_matches as $cid => $comp ) : ?>
+								<div class="mantia-subblock-eyebrow"><?php
+									if ( count( $competitions_with_matches ) === 1 ) {
+										esc_html_e( 'próximos · editá tu pronóstico', 'mantia' );
+									} else {
+										/* translators: %s: competition name */
+										printf( esc_html__( 'próximos · %s', 'mantia' ), esc_html( $comp['name'] ) );
+									}
+								?></div>
+								<?php
+								// 2026-06-07: lifted the 8-match cap. Mundial 2026
+								// has 50+ matches and users want to lock in their
+								// predictions in one pass. The render_editable_matches
+								// helper already groups by day so the page stays
+								// scannable even with the full fixture.
+								self::render_editable_matches(
+									array_values( $comp['matches'] ),
+									$user_id,
+									(int) $comp['primary_group_id'],
+									$token,
+									$rest_nonce
+								);
+								?>
+							<?php endforeach; ?>
+						</div>
 					</section>
 				<?php endif; ?>
 
@@ -3842,6 +3905,32 @@ JS;
 			var offset = active.offsetLeft - (chips.clientWidth - active.offsetWidth) / 2;
 			chips.scrollLeft = Math.max(0, offset);
 		})();
+
+		// /me/ tabs — toggle between "Por grupo" (Mundial groups grid +
+		// knockouts block) and "Por fecha" (chronological list). No
+		// framework; just aria-selected + hidden attribute swapping.
+		(function () {
+			document.querySelectorAll('.mantia-predict-tabs').forEach(function (root) {
+				var tabs   = root.querySelectorAll('[data-tab]');
+				var panels = root.querySelectorAll('[data-tab-panel]');
+				if (!tabs.length || !panels.length) return;
+				tabs.forEach(function (btn) {
+					btn.addEventListener('click', function () {
+						var key = btn.getAttribute('data-tab');
+						tabs.forEach(function (t) {
+							t.setAttribute('aria-selected', t === btn ? 'true' : 'false');
+						});
+						panels.forEach(function (p) {
+							if (p.getAttribute('data-tab-panel') === key) {
+								p.removeAttribute('hidden');
+							} else {
+								p.setAttribute('hidden', '');
+							}
+						});
+					});
+				});
+			});
+		})();
 		</script>
 		<?php
 	}
@@ -5072,6 +5161,77 @@ body {
 	text-transform: uppercase;
 	color: var(--ink);
 	margin: 22px 0 10px;
+}
+
+/* ─── /me/ tabs (Por grupo / Por fecha) ─────────────────────────── */
+.mantia-tabs-bar {
+	display: flex;
+	gap: 0;
+	margin: 0 0 16px;
+	border-bottom: 2px solid var(--ink);
+}
+.mantia-tab {
+	flex: 1;
+	padding: 12px 16px;
+	background: transparent;
+	border: 0;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 14px;
+	cursor: pointer;
+	color: var(--ink-soft);
+	border-bottom: 3px solid transparent;
+	margin-bottom: -2px;
+	letter-spacing: -0.01em;
+}
+.mantia-tab[aria-selected="true"] {
+	color: var(--ink);
+	border-bottom-color: var(--ink);
+}
+.mantia-tab:hover { color: var(--ink); }
+
+/* Groups grid — 1 col on phones, auto-fit 2-3 cols on desktop. */
+.mantia-groups-grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 320px, 1fr ) );
+	gap: 16px;
+	margin-bottom: 18px;
+}
+.mantia-group-card {
+	padding: 14px 16px;
+	background: var(--surface);
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	box-shadow: 3px 3px 0 var(--ink);
+}
+.mantia-group-title {
+	margin: 0 0 10px;
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+}
+
+.mantia-knockouts-block {
+	margin-top: 4px;
+}
+.mantia-knockouts-title {
+	margin: 0 0 12px;
+	font-family: var(--font-display);
+	font-weight: 900;
+	font-size: 18px;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+}
+.mantia-knockouts-round-eyebrow {
+	font-family: var(--font-body);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-soft);
+	margin: 16px 0 6px;
 }
 
 /* ─── History rows ───────────────────────────────────────────────── */

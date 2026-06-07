@@ -70,7 +70,7 @@ final class Mantia_Bootstrap {
 	 * installs (placeholder copy heal, competition renames that need to
 	 * land without a plugin re-activation, etc.).
 	 */
-	private const DB_VERSION        = 13;
+	private const DB_VERSION        = 14;
 	private const DB_VERSION_OPTION = 'mantia_db_version';
 
 	public static function maybe_run_upgrade(): void {
@@ -160,6 +160,19 @@ final class Mantia_Bootstrap {
 					wp_delete_post( (int) $mid, true );
 				}
 				wp_delete_post( (int) $comp->ID, true );
+			}
+		}
+
+		// v14: capture FIFA group_letter per match for the Mundial
+		// groups view on /me/. The FIFA payload has had IdGroup +
+		// GroupName all along; we just weren't recording it.
+		// Re-running Mantia_Fifa_Fixture::sync() is idempotent
+		// (upsert_match keys by external_id), so this only writes the
+		// new META_MATCH_GROUP_LETTER on rows that don't have it yet —
+		// the rest of the row stays as-is.
+		if ( $current < 14 ) {
+			if ( class_exists( 'Mantia_Fifa_Fixture' ) ) {
+				Mantia_Fifa_Fixture::sync( 'mundial-2026' );
 			}
 		}
 
