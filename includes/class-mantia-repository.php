@@ -1331,7 +1331,7 @@ final class Mantia_Repository {
 		return self::upcoming_matches_for_competition( '', $hours_ahead );
 	}
 
-	public static function upcoming_matches_for_competition( string $competition_id, int $hours_ahead = 48 ): array {
+	public static function upcoming_matches_for_competition( string $competition_id, int $hours_ahead = 48, int $limit = 50 ): array {
 		$now = time();
 
 		// Views like `libertadores-semana` are stored as `libertadores-2026`
@@ -1372,7 +1372,11 @@ final class Mantia_Repository {
 				array(
 					'post_type'      => Mantia_CPTs::MATCH,
 					'post_status'    => 'publish',
-					'posts_per_page' => 50,
+					// Default 50 covers the existing callers (Libertadores
+					// fecha-N pickers, etc.). Mundial 2026 has 72 group-
+					// stage matches alone, so the groups-view helpers below
+					// pass a higher limit. -1 lifts the cap entirely.
+					'posts_per_page' => $limit > 0 ? $limit : -1,
 					'no_found_rows'  => true,
 					'meta_key'       => self::META_KICKOFF_TS,
 					'orderby'        => 'meta_value_num',
@@ -1392,7 +1396,9 @@ final class Mantia_Repository {
 	 *   each value sorted by kickoff_ts ASC.
 	 */
 	public static function upcoming_matches_grouped_by_letter( string $competition_id, int $hours_ahead = 24 * 365 ): array {
-		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead );
+		// limit=-1 → lift the default 50 cap. Mundial 2026 group stage
+		// is 12 × 6 = 72 matches; we want every single one bucketed.
+		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead, -1 );
 		$out = array();
 		foreach ( $all as $m ) {
 			$letter = (string) ( $m['group_letter'] ?? '' );
@@ -1414,7 +1420,7 @@ final class Mantia_Repository {
 	 * @return array<string, array<int, array>>
 	 */
 	public static function upcoming_knockout_matches_by_phase( string $competition_id, int $hours_ahead = 24 * 365 ): array {
-		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead );
+		$all = self::upcoming_matches_for_competition( $competition_id, $hours_ahead, -1 );
 		$out = array();
 		foreach ( $all as $m ) {
 			if ( '' !== (string) ( $m['group_letter'] ?? '' ) ) {
