@@ -5891,6 +5891,14 @@ body.mantia-body-share {
 	text-transform: uppercase;
 	color: var(--ink-soft);
 }
+/* Suppress the per-row "FIRST STAGE" / "ROUND OF 32" phase chip when
+   the parent card already labels it. Inside a Grupo X card every row
+   is by definition first stage; inside a knockouts-round block every
+   row is the same round. The per-row chip becomes redundant noise. */
+.mantia-group-card .mantia-edit-row .mantia-match-phase,
+.mantia-knockouts-round .mantia-edit-row .mantia-match-phase {
+	display: none;
+}
 .mantia-edit-inputs {
 	display: flex;
 	align-items: center;
