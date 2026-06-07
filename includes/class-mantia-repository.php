@@ -1491,6 +1491,46 @@ final class Mantia_Repository {
 			return new WP_Error( 'mantia_match_closed', $msg );
 		}
 
+		// Write the prediction for the requested group.
+		$result = self::write_single_prediction( $user_id, $match_id, $group_id, $home_score, $away_score, $auto_filled, $match );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		// 2026-06-07 simplification: a user has ONE pronóstico per match
+		// across all their pencas, not a different one per penca. The
+		// underlying storage stays per-(user × match × group) so the
+		// leaderboard math is unchanged — but every manual write fans out
+		// to the user's other pencas in the same competition so their
+		// global prediction stays in sync.
+		//
+		// Autofills (joining a new penca → 0-0 default for every match)
+		// stay LOCAL to the new group: we don't want a fresh join to
+		// overwrite a user's existing manual picks in other pencas.
+		if ( ! $auto_filled ) {
+			$match_comp = (string) ( $match['competition_id'] ?? '' );
+			if ( '' !== $match_comp ) {
+				foreach ( self::user_group_ids( $user_id ) as $other_gid ) {
+					if ( (int) $other_gid === (int) $group_id ) {
+						continue;
+					}
+					if ( (string) self::group_competition_id( (int) $other_gid ) !== $match_comp ) {
+						continue;
+					}
+					self::write_single_prediction( $user_id, $match_id, (int) $other_gid, $home_score, $away_score, false, $match );
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Inner writer for a single (user × match × group) prediction row.
+	 * Pulled out of register_prediction() so the fan-out loop above can
+	 * call it without re-running the kickoff guard for every penca.
+	 */
+	private static function write_single_prediction( int $user_id, int $match_id, int $group_id, int $home_score, int $away_score, bool $auto_filled, array $match ): array|WP_Error {
 		$existing = self::find_prediction( $user_id, $match_id, $group_id );
 		$title    = sprintf(
 			'%s: %s %d-%d %s',
