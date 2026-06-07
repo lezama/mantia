@@ -1427,13 +1427,20 @@ final class Mantia_Frontend {
 									printf( esc_html__( 'próximos · %s', 'mantia' ), esc_html( $comp['name'] ) );
 								}
 							?></div>
-							<?php self::render_editable_matches(
-								array_slice( array_values( $comp['matches'] ), 0, 8 ),
+							<?php
+							// 2026-06-07: lifted the 8-match cap. Mundial 2026
+							// has 50+ matches and users want to lock in their
+							// predictions in one pass. The render_editable_matches
+							// helper already groups by day so the page stays
+							// scannable even with the full fixture.
+							self::render_editable_matches(
+								array_values( $comp['matches'] ),
 								$user_id,
 								(int) $comp['primary_group_id'],
 								$token,
 								$rest_nonce
-							); ?>
+							);
+							?>
 						<?php endforeach; ?>
 					</section>
 				<?php endif; ?>
