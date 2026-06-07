@@ -3352,9 +3352,8 @@ JS;
 							<div class="mantia-edit-meta">
 								<div class="mantia-edit-time"><?php echo esc_html( $hm ); ?></div>
 								<div class="mantia-edit-teams">
-									<?php echo esc_html( self::normalize_team_name( (string) $m['home_team'] ) ); ?>
-									<span class="mantia-mid">·</span>
-									<?php echo esc_html( self::normalize_team_name( (string) $m['away_team'] ) ); ?>
+									<div class="mantia-edit-team"><?php echo esc_html( self::normalize_team_name( (string) $m['home_team'] ) ); ?></div>
+									<div class="mantia-edit-team"><?php echo esc_html( self::normalize_team_name( (string) $m['away_team'] ) ); ?></div>
 								</div>
 								<?php $phase_edit = self::normalize_phase( (string) ( $m['phase'] ?? '' ) ); ?>
 								<?php if ( '' !== $phase_edit ) : ?>
@@ -3710,6 +3709,10 @@ JS;
 			'South Korea'     => 'Corea del Sur',
 			'Japan'           => 'Japón',
 			'Saudi Arabia'    => 'Arabia Saudita',
+			'Bosnia and Herzegovina' => 'Bosnia y Herz.',
+			'Côte d\'Ivoire'  => 'Costa de Marfil',
+			'Ivory Coast'     => 'Costa de Marfil',
+			"Côte d'Ivoire"   => 'Costa de Marfil',
 			'Iran'            => 'Irán',
 			'Australia'       => 'Australia',
 			'New Zealand'     => 'Nueva Zelanda',
@@ -5790,15 +5793,22 @@ body.mantia-body-share {
 	color: var(--ink);
 	letter-spacing: -0.005em;
 	margin-top: 2px;
-	overflow: hidden;
 	line-height: 1.25;
-	/* Wrap to 2 lines instead of clipping mid-word. The competing inputs
-	   + Guardar button column is auto-sized so the team column has
-	   limited room at 390px — wrap is the only way long names survive. */
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	white-space: normal;
+	/* 2026-06-07 fix: stack the two team names vertically so the 2nd
+	   one is always visible. Previously they were on one line with a
+	   · separator + -webkit-line-clamp:2 fallback — long pairings like
+	   "Canadá · Bosnia and Herzegovina" or "Estados Unidos · Paraguay"
+	   would clip the away team. Now each team gets its own row;
+	   ellipsis only kicks in if a single team name overflows the
+	   narrow column (rare). */
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.mantia-edit-team {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 .mantia-edit-row .mantia-match-phase {
 	margin-top: 3px;
