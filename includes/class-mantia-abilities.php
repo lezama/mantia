@@ -968,12 +968,20 @@ final class Mantia_Abilities {
 			'mantia/resolve-match',
 			array(
 				'label'               => __( 'Resolve match', 'mantia' ),
-				'description'         => __( 'Score all predictions for a finished match and mark it resolved.', 'mantia' ),
+				'description'         => __( 'Score all predictions for a finished match and mark it resolved. Pass home_score + away_score to bypass the FIFA fetch and use an explicit override (admin fallback when the upstream feed is lagging).', 'mantia' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'       => 'object',
 					'required'   => array( 'match_id' ),
-					'properties' => array( 'match_id' => array( 'type' => 'integer' ) ),
+					'properties' => array(
+						'match_id'   => array( 'type' => 'integer' ),
+						// Optional override. When BOTH are present, we
+						// skip Mantia_Results_Fetcher and use the values
+						// directly — the admin's "manual fallback" path
+						// for when FIFA hasn't propagated the score yet.
+						'home_score' => array( 'type' => 'integer', 'minimum' => 0 ),
+						'away_score' => array( 'type' => 'integer', 'minimum' => 0 ),
+					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
 				'execute_callback'    => array( __CLASS__, 'resolve_match' ),
@@ -988,9 +996,25 @@ final class Mantia_Abilities {
 
 	public static function resolve_match( array $args ): array|WP_Error {
 		$match_id = (int) ( $args['match_id'] ?? 0 );
-		$result   = Mantia_Results_Fetcher::fetch_match_result( $match_id );
-		if ( is_wp_error( $result ) ) {
-			return $result;
+
+		// Explicit override path: when the caller passes home_score AND
+		// away_score, bypass Mantia_Results_Fetcher entirely. Used by
+		// tools/resolve-match.php when FIFA's feed is still showing the
+		// match as MatchStatus=0/1 but a human knows the real score and
+		// wants to unblock the leaderboard.
+		if ( isset( $args['home_score'], $args['away_score'] ) ) {
+			$result = array(
+				'match_id'   => $match_id,
+				'home_score' => max( 0, (int) $args['home_score'] ),
+				'away_score' => max( 0, (int) $args['away_score'] ),
+				'status'     => 'finished',
+				'source'     => 'manual_override',
+			);
+		} else {
+			$result = Mantia_Results_Fetcher::fetch_match_result( $match_id );
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
 		}
 
 		Mantia_Repository::update_match_result(
