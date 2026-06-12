@@ -86,7 +86,18 @@ final class Mantia_Abilities {
 		if ( is_array( $input ) && isset( $input['_mantia_ability'] ) ) {
 			$ability_name = (string) $input['_mantia_ability'];
 		}
-		$allowed = current_user_can( 'manage_options' );
+		// 2026-06-12: workflows fired by wp-cron run with no current
+		// user, so current_user_can('manage_options') is false and
+		// the scheduled `mantia/resolve-matches` workflow couldn't even
+		// reach its first ability call (`get-finished-unresolved-matches`).
+		// 10+ failed runs piled up between 08:11–08:20 UTC, leaderboards
+		// went stale, and the eventual fallback path surfaced
+		// "Unexpected Anthropic API response: Missing the 'content' key"
+		// to a real user (Pablo). Allow the call in known-trusted
+		// system contexts: wp-cron and WP-CLI. REST + browser requests
+		// without a logged-in admin still get denied as before.
+		$is_system = wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI );
+		$allowed   = current_user_can( 'manage_options' ) || $is_system;
 		return (bool) apply_filters( 'mantia_ability_permission', $allowed, $ability_name, $input );
 	}
 
